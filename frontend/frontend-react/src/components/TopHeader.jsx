@@ -88,6 +88,16 @@ const TopHeader = ({ onSearch, searchLoading, selectedCity, alertCount = null })
                 >
                     Reports
                 </NavLink>
+                <NavLink
+                    to="/nowcast"
+                    className={({ isActive }) =>
+                        isActive
+                            ? "text-sm font-bold text-blue-600 dark:text-blue-400 border-b-[3px] border-blue-600 h-full flex items-center pt-0.5"
+                            : "text-sm font-bold text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors h-full flex items-center pt-0.5"
+                    }
+                >
+                    ML Nowcast
+                </NavLink>
             </nav>
 
             <div className="flex items-center gap-6">

@@ -5,3 +5,8 @@ __pycache__/
 node_modules/
 dist/
 .DS_Store
+
+# Playwright e2e output
+e2e/screenshots/
+test-results/
+playwright-report/

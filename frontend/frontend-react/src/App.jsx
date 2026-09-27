@@ -5,6 +5,7 @@ import Forecast from './pages/Forecast';
 import Analytics from './pages/Analytics';
 import Alerts from './pages/Alerts';
 import Reports from './pages/Reports';
+import Nowcast from './pages/Nowcast';
 
 function App() {
   return (
@@ -15,6 +16,7 @@ function App() {
         <Route path="/analytics" element={<Analytics />} />
         <Route path="/alerts" element={<Alerts />} />
         <Route path="/reports" element={<Reports />} />
+        <Route path="/nowcast" element={<Nowcast />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
