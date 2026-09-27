@@ -256,3 +256,22 @@ test('Live tab: not-validated banner, polygons = API alerts, labels correct, not
     await expect(page.getByTestId('explain-panel')).toContainText('NOT validated');
     await shot(page, 'live_alert_panel');
 });
+
+// ---------------------------------------------------------------- replay button (checkpoint f)
+test('replay button re-runs the model and matches the precomputed files', async ({ page }) => {
+    test.setTimeout(120_000);
+    const alerts = await openIssue(page, 'REF045', '20230813T2100Z');
+    const resp = page.waitForResponse((r) => r.url().endsWith('/replay') && r.request().method() === 'POST', { timeout: 90_000 });
+    await page.getByTestId('replay-button').click();
+    await expect(page.getByTestId('replay-button')).toContainText('Running');
+    const body = await (await resp).json();
+    await expect(page.getByTestId('replay-result')).toBeVisible({ timeout: 90_000 });
+    expect(body.all_match).toBe(true);
+    expect(body.n_alerts).toBe(alerts.length);
+    await expect(page.getByTestId('replay-result')).toContainText('matches the precomputed files byte-for-byte');
+    await expect(page.getByTestId('replay-result')).toContainText(`${alerts.length} alerts`);
+    await shot(page, 'replay_button_REF045_0813T2100Z');
+    // second click is served from the cache
+    await page.getByTestId('replay-button').click();
+    await expect(page.getByTestId('replay-result')).toContainText('replay cache', { timeout: 30_000 });
+});

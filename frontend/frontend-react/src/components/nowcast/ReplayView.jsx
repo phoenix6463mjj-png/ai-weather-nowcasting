@@ -7,6 +7,7 @@ import AlertList from './AlertList';
 import ExplainPanel from './ExplainPanel';
 import EpisodeBadge from './EpisodeBadge';
 import MapLegend from './MapLegend';
+import ReplayButton from './ReplayButton';
 
 
 const ReplayView = () => {
@@ -148,6 +149,7 @@ const ReplayView = () => {
                         <ExplainPanel key={selected.alert_id} episode={ep} ts={ts} alertId={selected.alert_id} onClose={() => setSelected(null)} />
                     ) : (
                         <>
+                            {meta && data.key === `${ep}/${ts}` && <ReplayButton key={data.key} episode={ep} issueTime={meta.issue_time} />}
                             <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-700">
                                 <h3 className="text-sm font-black text-slate-900 dark:text-white">
                                     {meta ? `Issued ${fmtUtc(meta.issue_time)}` : 'Loading…'}
