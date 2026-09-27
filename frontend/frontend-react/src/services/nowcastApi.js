@@ -53,3 +53,4 @@ export const runReplay = (body) => request('replay', {
 
 export const getTerrain = () => request('terrain');
 export const terrainUrl = (layer) => mlUrl(`terrain/${layer}.png`);
+export const getCredits = () => request('credits');

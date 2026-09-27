@@ -4,6 +4,7 @@ import ReplayView from '../components/nowcast/ReplayView';
 import CaveatsBar from '../components/nowcast/CaveatsBar';
 import NationalView from '../components/nowcast/NationalView';
 import LiveView from '../components/nowcast/LiveView';
+import DataCredits from '../components/nowcast/DataCredits';
 
 // lgbm_v0 nowcast outputs (served by nowcast_data/serve through the backend's /ml proxy).
 const TABS = [
@@ -36,6 +37,7 @@ const Nowcast = () => {
             {tab === 'india' && <NationalView />}
             {tab === 'live' && <LiveView />}
             <CaveatsBar />
+            <DataCredits />
         </div>
     );
 };

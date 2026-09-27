@@ -110,10 +110,14 @@ assets (≈ 13 MB, see `serve/README.md`).
 - National and Live tabs: the 0.025° national hillshade at the India grid bounds.
 - Map controls: "Terrain (DEM)" toggle (on by default) with an opacity slider. It is independent
   of the lead, level and hazard filters.
-- Map attribution "Terrain: Copernicus DEM GLO-90". Hovering it shows the full required notice,
-  which is also in `serve/assets/terrain/ATTRIBUTION.md`: "produced using Copernicus WorldDEM-90
-  © DLR e.V. 2010-2014 and © Airbus Defence and Space GmbH 2014-2018 provided under COPERNICUS by
-  the European Union and ESA; all rights reserved".
+- Map attribution "Terrain: Copernicus DEM GLO-90". The full required notice, verbatim from
+  `serve/assets/terrain/ATTRIBUTION.md`, is always visible in the **Data credits** footer at the
+  bottom of the Nowcast page (the demo is public): "produced using Copernicus WorldDEM-90 © DLR
+  e.V. 2010-2014 and © Airbus Defence and Space GmbH 2014-2018 provided under COPERNICUS by the
+  European Union and ESA; all rights reserved".
+- **Data credits footer** (`components/nowcast/DataCredits.jsx`): renders `GET credits` in order.
+  To add later credits (OSM/ODbL, Nominatim), add an entry to `nowcast_data/serve/credits.py`;
+  the footer needs no change.
 - Elevation and slope GeoTIFFs for REF045/REF051 are stored for later refuge-point screening. They
   are not drawn yet.
 
@@ -127,6 +131,7 @@ The paths are identical.
 | GET | `health` | status, episodes, replay state |
 | GET | `labels` | hazard names, value kinds, raster legends, Watch/Warning definitions |
 | GET | `caveats` | caveats shown on the page, each with a verbatim quote and source doc |
+| GET | `credits` | data credits for the footer, each notice verbatim from its attribution file |
 | GET | `terrain`, `terrain/{layer}.png` | terrain (Copernicus DEM GLO-90) hillshade layers with bounds and attribution; layer = `national`, `REF045`, `REF051`, `REF025` |
 | GET | `episodes` | REF045 (validation, out-of-sample), REF051 Malana (**test (2024)** descriptive case study, both documented sites) and REF025 (training, **in-sample**): issue times with alert / verified / false-alarm counts (REF051 13:00Z is forecast-only); default REF045 13 Aug 2023 15:00Z |
 | GET | `episodes/{ep}/event-check` | documented-event check for REF045 / REF051 (report-based; not a model output): see §5 |
@@ -220,7 +225,9 @@ The e2e tests assert on the DOM:
 - terrain: on by default; placed at exactly the same screen rectangle as the forecast/observed
   rasters (replay and national); its pane is below the raster pane, which is below the alerts;
   the toggle removes it (and its attribution); the opacity slider changes it; it follows the
-  episode, including the forecast-only REF051 13:00Z issue and REF025.
+  episode, including the forecast-only REF051 13:00Z issue and REF025;
+- the Data credits footer shows the full Copernicus notice, visible and fully on screen without
+  hover, on all three tabs and with the caveats expanded.
 
 ## 7. Troubleshooting
 

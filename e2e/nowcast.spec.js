@@ -551,3 +551,30 @@ test('forecast-only issue legend explains peak markers instead of verification d
     await openIssue(page, 'REF051', '20240731T1400Z');
     await expect(page.getByTestId('map-legend')).toContainText('not verified (false alarm)');
 });
+
+// ---------------------------------------------------------------- data credits footer (checkpoint 02 follow-up)
+const COPERNICUS_NOTICE = 'produced using Copernicus WorldDEM-90 © DLR e.V. 2010-2014 and © Airbus Defence and Space GmbH '
+    + '2014-2018 provided under COPERNICUS by the European Union and ESA; all rights reserved';
+
+test('data credits footer shows the full Copernicus notice, visible without hover, on every tab', async ({ page }) => {
+    const cr = page.waitForResponse((r) => r.url().endsWith('/credits') && r.ok());
+    await page.goto('/nowcast');
+    const api = (await (await cr).json()).credits;
+    expect(api.find((c) => c.id === 'copernicus_dem').text).toBe(COPERNICUS_NOTICE);
+    await page.mouse.move(0, 0);                                    // nothing hovered
+    const credit = page.getByTestId('credit-copernicus_dem');
+    for (const tab of ['replay', 'india', 'live']) {
+        await page.getByTestId(`tab-${tab}`).click();
+        await expect(page.getByTestId('data-credits')).toContainText('Data credits');
+        await expect(credit).toBeVisible();
+        await expect(credit).toBeInViewport({ ratio: 1 });
+        await expect(credit).toContainText(COPERNICUS_NOTICE);
+        await expect(credit.locator('a', { hasText: 'licence' })).toHaveAttribute('href', /dataspace\.copernicus\.eu/);
+    }
+    await page.getByTestId('tab-replay').click();
+    await page.getByRole('button', { name: /All \d+/ }).click();       // expanded caveats must not push it off-screen
+    await expect(credit).toBeInViewport({ ratio: 1 });
+    await shot(page, 'data_credits_footer_replay_caveats_open');
+    await page.getByRole('button', { name: /Less/ }).click();
+    await shot(page, 'data_credits_footer_replay');
+});
