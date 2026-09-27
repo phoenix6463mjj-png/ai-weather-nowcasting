@@ -43,8 +43,10 @@ from utils.locations_manager import (
 from utils.v2_predictor import (
     predict_v2, batch_predict_v2, compute_hybrid_risk, get_alert,
 )
+from backend.ml_proxy import router as ml_router
 
 app = FastAPI(title="Real-Time Weather AI System API", version="7.0.0")
+app.include_router(ml_router)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],

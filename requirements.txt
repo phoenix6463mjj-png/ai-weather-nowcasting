@@ -1,0 +1,20 @@
+# Backend dependencies (backend/main.py + utils/ imports), pinned to the verified venv (2026-09-27).
+#   pip install -r requirements.txt
+#   cd backend && python -m uvicorn main:app --port 8000
+# The OpenWeather key is read from the environment / .env only (OPENWEATHER_API_KEY, see .env.example).
+
+# --- web ---
+fastapi==0.141.1
+starlette==1.7.0
+pydantic==2.13.5
+uvicorn==0.54.0
+httpx==0.28.1          # async weather fetches + /ml proxy to the nowcast serving API
+python-dotenv==1.2.3
+requests==2.34.2
+
+# --- rainfall_model_v2.pkl inference (utils/v2_predictor.py) ---
+joblib==1.6.0
+numpy==2.2.6
+pandas==2.3.3
+scikit-learn==1.7.2
+scipy==1.15.3          # scikit-learn runtime dependency
