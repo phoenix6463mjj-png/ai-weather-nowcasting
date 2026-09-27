@@ -98,7 +98,7 @@ const ReplayView = () => {
                     className="text-sm font-bold bg-slate-100 dark:bg-slate-800 dark:text-white rounded-lg px-3 py-1.5 border border-slate-200 dark:border-slate-700">
                     {episodes.map((e) => (
                         <option key={e.episode} value={e.episode}>
-                            {e.episode} · {e.site?.name || e.location} ({e.site?.date}){e.in_sample ? ' · IN-SAMPLE' : ''}
+                            {e.episode} · {e.sites?.length ? e.sites.map((s) => s.name).join(' + ') : e.location} ({e.site?.date}){e.in_sample ? ' · IN-SAMPLE' : ''}{e.case_study ? ` · ${e.badge.toUpperCase()} CASE STUDY` : ''}
                         </option>
                     ))}
                 </select>
@@ -116,13 +116,19 @@ const ReplayView = () => {
                 </span>
             </div>
 
+            {episode?.case_study && (
+                <div data-testid="case-study-banner" className="px-6 py-2 bg-violet-50 dark:bg-violet-950/40 border-b border-violet-200 dark:border-violet-900 text-xs text-violet-950 dark:text-violet-100 shrink-0">
+                    <span className="font-black">{episode.sample_label}</span>
+                    {' '}The official 2024 test result is unchanged; sites shown: {episode.sites.map((s) => s.name).join(', ')}.
+                </div>
+            )}
             {error && <div className="bg-red-600 text-white px-6 py-2 text-sm font-semibold">{error}</div>}
 
             <div className="flex-1 flex overflow-hidden" data-testid="replay-view" data-loaded={data.key || ''}>
                 <div className="flex-1 relative">
                     {meta && (
                         <AlertMap bounds={meta.bounds} alerts={shown} selectedId={selected?.alert_id}
-                            onSelect={setSelected} site={meta.site} overlays={overlays} dimFill={!!field} />
+                            onSelect={setSelected} sites={meta.sites || []} overlays={overlays} dimFill={!!field} />
                     )}
                     {meta && lead && (
                         <div className="absolute top-3 right-3 z-[400]">
@@ -133,7 +139,7 @@ const ReplayView = () => {
                     )}
                     {meta && (
                         <div className="absolute bottom-3 left-3 z-[400]">
-                            <MapLegend legends={meta.legends} field={field} site={!!meta.site} ffNote={FF_VERIFY_NOTE}
+                            <MapLegend legends={meta.legends} field={field} site={(meta.sites || []).length} ffNote={FF_VERIFY_NOTE}
                                 note={obsAvailable ? null : 'Observed frame unavailable for this lead: no verification overlay.'} />
                         </div>
                     )}

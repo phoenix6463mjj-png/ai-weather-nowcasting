@@ -316,3 +316,31 @@ test('flash-flood verification note is shown in summary, legend, rows and panel'
     await expect(page.getByTestId('explain-panel')).toHaveAttribute('data-hazard', 'cloudburst');
     await expect(page.getByTestId('ff-verify-note-panel')).toHaveCount(0);
 });
+
+// ---------------------------------------------------------------- REF051 case study (2024 test, descriptive)
+const CASE_LABEL = '2024 test period — descriptive case study; model frozen before this run; not a new test score.';
+
+test('REF051 case study: test (2024) badge, descriptive label, both documented sites, polygons = API', async ({ page }) => {
+    const alerts = await openIssue(page, 'REF051', '20240731T1800Z');
+    await expect(page.getByTestId('case-study-badge')).toHaveText('test (2024)');
+    await expect(page.getByTestId('case-study-badge')).toHaveAttribute('title', CASE_LABEL);
+    await expect(page.getByTestId('case-study-banner')).toContainText(CASE_LABEL);
+    await expect(page.getByTestId('case-study-banner')).toContainText('Malana river, Tosh, Parvati valley');
+    await expect(page.getByTestId('oos-badge')).toHaveCount(0);
+    await expect(page.getByTestId('in-sample-badge')).toHaveCount(0);
+    await expect(page.locator('path.nowcast-site-marker')).toHaveCount(2);
+    await expect(page.getByTestId('map-legend')).toContainText('documented cloudburst sites');
+    await expect(page.getByTestId('episode-select')).toContainText('TEST (2024) CASE STUDY');
+    await page.getByTestId('watch-toggle').check();
+    for (const L of [1, 2, 3, 4, 6]) {
+        await page.getByTestId(`lead-${L}`).click();
+        await expectCountsMatch(page, alerts, L, true);
+        await expectValueLabels(page);
+    }
+    await page.getByTestId('lead-6').click();
+    await shot(page, 'REF051_case_study_0731T1800Z_L6_with_watch');
+    // the demo episodes keep their own badges
+    await openIssue(page, 'REF045', '20230813T2100Z');
+    await expect(page.getByTestId('case-study-banner')).toHaveCount(0);
+    await expect(page.locator('path.nowcast-site-marker')).toHaveCount(1);
+});

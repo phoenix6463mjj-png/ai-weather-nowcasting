@@ -36,7 +36,7 @@ const MapLegend = ({ legends, field, observed = true, missed = true, alerts = tr
                     )}
                 </>
             )}
-            {site && <Row><span className="w-3 h-3 rounded-full border-2 border-slate-900 bg-yellow-400" /> documented cloudburst site</Row>}
+            {site > 0 && <Row><span className="w-3 h-3 rounded-full border-2 border-slate-900 bg-yellow-400" /> documented cloudburst site{site > 1 ? 's' : ''}</Row>}
             {(observed || missed) && legends && (
                 <p className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 pt-1">Observed (replay)</p>
             )}

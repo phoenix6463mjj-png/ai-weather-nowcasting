@@ -19,7 +19,7 @@ const FitBounds = ({ bounds }) => {
  *  - dot at the alert's peak cell = contract sec. 7 verification (green = verified, grey = false alarm)
  *  - overlays: PNG rasters already resampled to Web-Mercator rows by the API, placed at `bounds`
  */
-const AlertMap = ({ bounds, alerts = [], selectedId, onSelect, site, overlays = [], showDomain = true, dimFill = false }) => (
+const AlertMap = ({ bounds, alerts = [], selectedId, onSelect, sites = [], overlays = [], showDomain = true, dimFill = false }) => (
     <MapContainer center={[30, 79]} zoom={6} className="w-full h-full z-0" zoomControl={true}>
         <TileLayer
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -84,14 +84,14 @@ const AlertMap = ({ bounds, alerts = [], selectedId, onSelect, site, overlays = 
                 </Tooltip>
             </CircleMarker>
         ))}
-        {site && (
-            <CircleMarker center={[site.lat, site.lon]} radius={7}
-                pathOptions={{ color: '#111827', weight: 2.5, fillColor: '#facc15', fillOpacity: 1 }}>
-                <Tooltip direction="top" offset={[0, -6]} permanent={false}>
+        {sites.map((site) => (
+            <CircleMarker key={`site-${site.episode || site.name}`} center={[site.lat, site.lon]} radius={7}
+                pathOptions={{ color: '#111827', weight: 2.5, fillColor: '#facc15', fillOpacity: 1, className: 'nowcast-site-marker' }}>
+                <Tooltip direction="top" offset={[0, -6]}>
                     <div className="text-xs"><b>Documented cloudburst: {site.name}</b><br />{site.date} (date only; hour not recorded)</div>
                 </Tooltip>
             </CircleMarker>
-        )}
+        ))}
     </MapContainer>
 );
 
