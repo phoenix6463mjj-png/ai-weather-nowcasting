@@ -11,7 +11,7 @@ const Row = ({ children }) => <div className="flex items-center gap-2 text-[11px
  * Map legend. Raster classes and overlay texts come from the API's `legends`
  * (serve/labels.py), so colours and units always match the PNGs.
  */
-const MapLegend = ({ legends, field, observed = true, missed = true, alerts = true, site = false, note }) => {
+const MapLegend = ({ legends, field, observed = true, missed = true, alerts = true, verification = true, site = false, note }) => {
     const f = field && legends?.[field];
     return (
         <div data-testid="map-legend" className="bg-white/95 dark:bg-slate-800/95 backdrop-blur shadow-md rounded-xl border border-slate-200 dark:border-slate-700 p-3 space-y-1.5 w-[300px]">
@@ -24,10 +24,12 @@ const MapLegend = ({ legends, field, observed = true, missed = true, alerts = tr
                             <span key={h.name} className="flex items-center gap-1"><Swatch color={h.color} />{h.name}</span>
                         ))}
                     </Row>
-                    <Row>
+                    {verification ? (<Row>
                         <span className="w-2.5 h-2.5 rounded-full" style={{ background: VERIFY_STYLE.verified.color }} /> verified
                         <span className="w-2.5 h-2.5 rounded-full border-2 bg-white" style={{ borderColor: VERIFY_STYLE.false_alarm.color }} /> not verified (false alarm)
-                    </Row>
+                    </Row>) : (
+                        <Row><span className="w-3 h-3 rounded-full border border-slate-900 bg-slate-400" /> alert peak (colour = hazard)</Row>
+                    )}
                 </>
             )}
             {site && <Row><span className="w-3 h-3 rounded-full border-2 border-slate-900 bg-yellow-400" /> documented cloudburst site</Row>}

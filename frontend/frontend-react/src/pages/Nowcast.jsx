@@ -2,10 +2,14 @@ import { useState } from 'react';
 import TopHeader from '../components/TopHeader';
 import ReplayView from '../components/nowcast/ReplayView';
 import CaveatsBar from '../components/nowcast/CaveatsBar';
+import NationalView from '../components/nowcast/NationalView';
+import LiveView from '../components/nowcast/LiveView';
 
 // lgbm_v0 nowcast outputs (served by nowcast_data/serve through the backend's /ml proxy).
 const TABS = [
     { id: 'replay', label: 'Event replay' },
+    { id: 'india', label: 'National sample' },
+    { id: 'live', label: 'Live (not validated)' },
 ];
 
 const Nowcast = () => {
@@ -20,7 +24,7 @@ const Nowcast = () => {
                 </div>
                 <nav className="flex gap-1 ml-auto">
                     {TABS.map((t) => (
-                        <button key={t.id} onClick={() => setTab(t.id)}
+                        <button key={t.id} onClick={() => setTab(t.id)} data-testid={`tab-${t.id}`}
                             className={`px-4 py-2 text-sm font-bold rounded-t-lg border-b-[3px] transition-colors ${tab === t.id
                                 ? 'border-blue-600 text-blue-600 dark:text-blue-400' : 'border-transparent text-slate-500 hover:text-slate-900 dark:hover:text-white'}`}>
                             {t.label}
@@ -29,6 +33,8 @@ const Nowcast = () => {
                 </nav>
             </div>
             {tab === 'replay' && <ReplayView />}
+            {tab === 'india' && <NationalView />}
+            {tab === 'live' && <LiveView />}
             <CaveatsBar />
         </div>
     );

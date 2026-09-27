@@ -71,6 +71,18 @@ const AlertMap = ({ bounds, alerts = [], selectedId, onSelect, site, overlays = 
                     eventHandlers={{ click: () => onSelect && onSelect(a) }} />
             );
         })}
+        {/* alerts without verification (live): hazard-coloured marker at the peak so a
+            single 0.1-degree cell is still findable at national zoom */}
+        {alerts.filter((a) => (!a.verification || a.verification.status === 'unavailable') && a.peak_cell).map((a) => (
+            <CircleMarker key={`p-${a.alert_id}`} center={a.peak_cell} radius={7}
+                pathOptions={{ color: '#111827', weight: 1.5, fillColor: HAZARD_STYLE[a.hazard].color, fillOpacity: 0.95,
+                    className: 'nowcast-peak-marker' }}
+                eventHandlers={{ click: () => onSelect && onSelect(a) }}>
+                <Tooltip>
+                    <div className="text-xs"><b>{HAZARD_STYLE[a.hazard].name} {a.level}</b> · L{a.lead_time_h} h · {valueText(a)}</div>
+                </Tooltip>
+            </CircleMarker>
+        ))}
         {site && (
             <CircleMarker center={[site.lat, site.lon]} radius={7}
                 pathOptions={{ color: '#111827', weight: 2.5, fillColor: '#facc15', fillOpacity: 1 }}>

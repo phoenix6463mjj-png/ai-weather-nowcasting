@@ -1,13 +1,5 @@
-import { HAZARDS, HAZARD_STYLE } from '../../utils/hazardLabels';
+import { HAZARDS, HAZARD_STYLE, FIELD_OPTIONS } from '../../utils/hazardLabels';
 
-export const FIELD_OPTIONS = [
-    { id: '', label: 'None' },
-    { id: 'thunderstorm', label: 'Thunderstorm probability (≥30 mm/hr)' },
-    { id: 'cloudburst_index', label: 'Cloudburst risk index (not a probability)' },
-    { id: 'flash_flood', label: 'Flash-flood risk ratio (Watch/Warning)' },
-    { id: 'rain_p10', label: 'Rain probability ≥10 mm/hr' },
-    { id: 'rain_p1', label: 'Rain probability ≥1 mm/hr' },
-];
 
 // Lead selector, hazard toggles and the Watch toggle (Warnings are always shown).
 const MapControls = ({ leads, lead, setLead, leadInfo = {}, hazards, setHazards, showWatch, setShowWatch, counts,

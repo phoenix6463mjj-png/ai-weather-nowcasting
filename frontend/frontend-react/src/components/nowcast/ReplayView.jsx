@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { getEpisodes, getIssueMeta, getIssueAlerts, issueMapUrl, issueMissedUrl } from '../../services/nowcastApi';
-import { HAZARDS, fmtUtc, fmtIssueShort } from '../../utils/hazardLabels';
+import { HAZARDS, fmtUtc, fmtIssueShort, defaultLead } from '../../utils/hazardLabels';
 import AlertMap from './AlertMap';
 import MapControls from './MapControls';
 import AlertList from './AlertList';
@@ -8,13 +8,6 @@ import ExplainPanel from './ExplainPanel';
 import EpisodeBadge from './EpisodeBadge';
 import MapLegend from './MapLegend';
 
-// Lead with the most Warnings (ties -> shorter lead); if none, the lead with the most alerts.
-function defaultLead(alerts, leads) {
-    const score = (L, lvl) => alerts.filter((a) => a.lead_time_h === L && (!lvl || a.level === lvl)).length;
-    const byWarn = [...leads].sort((a, b) => score(b, 'Warning') - score(a, 'Warning') || a - b);
-    if (byWarn.length && score(byWarn[0], 'Warning') > 0) return byWarn[0];
-    return [...leads].sort((a, b) => score(b) - score(a) || a - b)[0] ?? leads[0];
-}
 
 const ReplayView = () => {
     const [episodes, setEpisodes] = useState([]);

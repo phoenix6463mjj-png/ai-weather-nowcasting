@@ -59,3 +59,21 @@ export function fmtIssueShort(iso) {
 export function stateName(s) {
     return s ? s.replace(/([a-z])and([A-Z])/g, '$1 and $2').replace(/([a-z])([A-Z])/g, '$1 $2') : s;
 }
+
+// Lead with the most Warnings (ties -> shorter lead); if none, the lead with the most alerts.
+export function defaultLead(alerts, leads) {
+    const score = (L, lvl) => alerts.filter((a) => a.lead_time_h === L && (!lvl || a.level === lvl)).length;
+    const byWarn = [...leads].sort((a, b) => score(b, 'Warning') - score(a, 'Warning') || a - b);
+    if (byWarn.length && score(byWarn[0], 'Warning') > 0) return byWarn[0];
+    return [...leads].sort((a, b) => score(b) - score(a) || a - b)[0] ?? leads[0];
+}
+
+// Forecast raster layers offered in the map controls (legends come from the API).
+export const FIELD_OPTIONS = [
+    { id: '', label: 'None' },
+    { id: 'thunderstorm', label: 'Thunderstorm probability (≥30 mm/hr)' },
+    { id: 'cloudburst_index', label: 'Cloudburst risk index (not a probability)' },
+    { id: 'flash_flood', label: 'Flash-flood risk ratio (Watch/Warning)' },
+    { id: 'rain_p10', label: 'Rain probability ≥10 mm/hr' },
+    { id: 'rain_p1', label: 'Rain probability ≥1 mm/hr' },
+];

@@ -200,3 +200,59 @@ test('lead without an observed frame says so instead of drawing verification ove
     await page.getByTestId('lead-1').click();
     await expect(page.locator('img.nowcast-raster.observed')).toHaveCount(1);
 });
+
+// ---------------------------------------------------------------- National + Live (checkpoint e)
+test('National tab: probability map only, no alerts, flash-flood placeholder stated', async ({ page }) => {
+    await page.goto('/nowcast');
+    await page.getByTestId('tab-india').click();
+    const banner = page.getByTestId('india-banner');
+    await expect(banner).toContainText('probability map only');
+    await expect(banner).toContainText('No alerts are produced');
+    await expect(banner).toContainText('placeholder');
+    await expect(page.getByTestId('india-notes')).toContainText('Absence of alerts does not mean');
+    await expect(page.locator('path.nowcast-alert-poly')).toHaveCount(0);
+    await expect(page.getByTestId('field-select').locator('option[value="flash_flood"]')).toHaveCount(0);
+    await expect(page.locator('img.nowcast-raster.field-thunderstorm')).toHaveCount(1);
+    await expect.poll(async () => (await overlayImgs(page)).every((i) => i.ok)).toBe(true);
+    await shot(page, 'national_thunderstorm_L1');
+    await page.getByTestId('field-select').selectOption('cloudburst_index');
+    await expect(page.getByTestId('map-legend')).not.toContainText('%');
+});
+
+test('Live tab: not-validated banner, polygons = API alerts, labels correct, nothing filtered', async ({ page }) => {
+    const liveAlerts = page.waitForResponse((r) => r.url().includes('/live/') && r.url().includes('/ui-alerts') && r.ok());
+    await page.goto('/nowcast');
+    await page.getByTestId('tab-live').click();
+    const alerts = (await (await liveAlerts).json()).alerts;
+    const banner = page.getByTestId('live-not-validated');
+    await expect(banner).toBeVisible();
+    await expect(banner).toContainText('NOT validated');
+    await expect(banner).toContainText('not validated warnings');
+    expect(alerts.length).toBe(8);
+
+    await page.getByTestId('watch-toggle').check();
+    for (const L of [1, 2, 3, 4, 6]) {
+        await page.getByTestId(`lead-${L}`).click();
+        await expectCountsMatch(page, alerts, L, true);
+        await expectValueLabels(page);
+    }
+    await page.getByTestId('watch-toggle').uncheck();
+    for (const L of [1, 2, 3, 4, 6]) {
+        await page.getByTestId(`lead-${L}`).click();
+        await expectCountsMatch(page, alerts, L, false);
+    }
+    // the Andaman Sea / Myanmar-coast alert (peak 97.35E) must not be filtered out
+    const far = alerts.find((a) => a.peak_cell[1] > 97);
+    expect(far).toBeTruthy();
+    await page.getByTestId('watch-toggle').check();
+    await page.getByTestId(`lead-${far.lead_time_h}`).click();
+    await expectCountsMatch(page, alerts, far.lead_time_h, true);
+    // a peak marker per displayed live alert so single-cell alerts are visible at national zoom
+    const shownN = alerts.filter((x) => x.lead_time_h === far.lead_time_h).length;
+    await expect(page.locator('path.nowcast-peak-marker')).toHaveCount(shownN);
+    await expect(page.getByTestId('map-legend')).not.toContainText('false alarm');
+    await shot(page, `live_L${far.lead_time_h}_with_watch`);
+    await page.getByTestId('alert-row').first().locator('button').click();
+    await expect(page.getByTestId('explain-panel')).toContainText('NOT validated');
+    await shot(page, 'live_alert_panel');
+});
