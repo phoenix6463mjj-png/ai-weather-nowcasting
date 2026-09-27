@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { MapContainer, TileLayer, GeoJSON, CircleMarker, Tooltip, ImageOverlay, Rectangle, Pane, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
-import { HAZARD_STYLE, LEVEL_STYLE, VERIFY_STYLE, valueText } from '../../utils/hazardLabels';
+import { HAZARD_STYLE, LEVEL_STYLE, VERIFY_STYLE, valueText, FF_VERIFY_NOTE } from '../../utils/hazardLabels';
 
 const FitBounds = ({ bounds }) => {
     const map = useMap();
@@ -58,6 +58,7 @@ const AlertMap = ({ bounds, alerts = [], selectedId, onSelect, site, overlays = 
                             <b>{hz.name} {a.level}</b> · L{a.lead_time_h} h · {valueText(a)}
                             <br />{a.display.kind === 'probability' ? 'probability' : a.display.kind === 'risk_index' ? 'risk index — not a probability' : 'risk ratio — not a probability'}
                             {a.verification && <><br />{VERIFY_STYLE[a.verification.status]?.label}</>}
+                            {a.hazard === 'flash_flood' && a.verification && a.verification.status !== 'unavailable' && <><br /><i>{FF_VERIFY_NOTE}</i></>}
                         </div>
                     </Tooltip>
                 </GeoJSON>

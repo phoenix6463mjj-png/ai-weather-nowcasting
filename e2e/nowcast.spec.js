@@ -275,3 +275,44 @@ test('replay button re-runs the model and matches the precomputed files', async 
     await page.getByTestId('replay-button').click();
     await expect(page.getByTestId('replay-result')).toContainText('replay cache', { timeout: 30_000 });
 });
+
+// ---------------------------------------------------------------- per-issue default lead + FF verification note
+// Expected default leads computed independently from docs/demo_explain (Python, not this app's code):
+// most observed >=30 cells; else most Warnings of the showcase hazard; else most Warnings overall.
+const EXPECTED_DEFAULT_LEAD = {
+    'REF045/20230812T1500Z': 3, 'REF045/20230812T1800Z': 4, 'REF045/20230812T2100Z': 6, 'REF045/20230813T0000Z': 6,
+    'REF045/20230813T0300Z': 4, 'REF045/20230813T0600Z': 6, 'REF045/20230813T0900Z': 4, 'REF045/20230813T1200Z': 1,
+    'REF045/20230813T1500Z': 2, 'REF045/20230813T1800Z': 6, 'REF045/20230813T2100Z': 4, 'REF045/20230814T0000Z': 1,
+    'REF045/20230814T0300Z': 6, 'REF025/20210717T1500Z': 6, 'REF025/20210717T1800Z': 6, 'REF025/20210717T2100Z': 3,
+    'REF025/20210718T0000Z': 6, 'REF025/20210718T0300Z': 6, 'REF025/20210718T0600Z': 2, 'REF025/20210718T0900Z': 6,
+    'REF025/20210718T1200Z': 6, 'REF025/20210718T1500Z': 4, 'REF025/20210718T1800Z': 4, 'REF025/20210718T2100Z': 4,
+    'REF025/20210719T0000Z': 4, 'REF025/20210719T0300Z': 2,
+};
+
+test('default lead per issue follows the observed / showcase-hazard rule (all 26 issues)', async ({ page }) => {
+    test.setTimeout(180_000);
+    for (const [key, lead] of Object.entries(EXPECTED_DEFAULT_LEAD)) {
+        const [ep, ts] = key.split('/');
+        await openIssue(page, ep, ts);
+        expect(await activeLead(page), key).toBe(lead);
+    }
+});
+
+const FF_NOTE = 'FF verification uses a rain-rate proxy (≥30 mm/hr observed), not basin accumulation.';
+
+test('flash-flood verification note is shown in summary, legend, rows and panel', async ({ page }) => {
+    await openIssue(page, 'REF045', '20230812T2100Z');           // default L6: 1 flash-flood Warning
+    await expect(page.getByTestId('ff-verify-note-summary')).toHaveText(FF_NOTE);
+    await expect(page.getByTestId('ff-verify-note-legend')).toHaveText(FF_NOTE);
+    const ffRow = page.locator('[data-testid="alert-row"][data-hazard="flash_flood"]').first();
+    await expect(ffRow.locator('span[title]')).toHaveAttribute('title', FF_NOTE);
+    await ffRow.locator('button').click();
+    await expect(page.getByTestId('explain-panel')).toHaveAttribute('data-hazard', 'flash_flood');
+    await expect(page.getByTestId('ff-verify-note-panel')).toHaveText(FF_NOTE);
+    await shot(page, 'ff_verify_note_REF045_0812T2100Z');
+    // not attached to other hazards' panels
+    await page.getByTestId('explain-panel').locator('button[title="Back to list"]').click();
+    await page.locator('[data-testid="alert-row"][data-hazard="cloudburst"]').first().locator('button').click();
+    await expect(page.getByTestId('explain-panel')).toHaveAttribute('data-hazard', 'cloudburst');
+    await expect(page.getByTestId('ff-verify-note-panel')).toHaveCount(0);
+});

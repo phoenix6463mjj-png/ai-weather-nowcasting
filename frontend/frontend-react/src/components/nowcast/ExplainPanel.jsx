@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { X, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import { getAlertDetail, issueFileUrl } from '../../services/nowcastApi';
-import { HAZARD_STYLE, LEVEL_STYLE, VERIFY_STYLE, valueText, kindText, fmtUtc, stateName } from '../../utils/hazardLabels';
+import { HAZARD_STYLE, LEVEL_STYLE, VERIFY_STYLE, valueText, kindText, fmtUtc, stateName, FF_VERIFY_NOTE } from '../../utils/hazardLabels';
 
 const Section = ({ title, children }) => (
     <section className="px-4 py-3 border-b border-slate-100 dark:border-slate-800">
@@ -144,6 +144,9 @@ const ExplainPanel = ({ episode, ts, alertId, onClose }) => {
                     Verified = at least one observed ≥30 mm/hr cell (within r) inside the alert area; otherwise it is a false alarm.
                     {d.hazard === 'flash_flood' && ' Flash-flood alerts use the same rain-overlap check: basin rain totals are not verified (no gauges).'}
                 </p>
+                {d.hazard === 'flash_flood' && (
+                    <p data-testid="ff-verify-note-panel" className="text-[11px] font-semibold text-amber-700 dark:text-amber-400 mt-1 leading-snug">{FF_VERIFY_NOTE}</p>
+                )}
             </Section>
 
             <Section title="Why: top 5 reasons">

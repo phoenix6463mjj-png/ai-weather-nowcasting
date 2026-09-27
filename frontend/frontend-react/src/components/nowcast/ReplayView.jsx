@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { getEpisodes, getIssueMeta, getIssueAlerts, issueMapUrl, issueMissedUrl } from '../../services/nowcastApi';
-import { HAZARDS, fmtUtc, fmtIssueShort, defaultLead } from '../../utils/hazardLabels';
+import { HAZARDS, fmtUtc, fmtIssueShort, issueDefaultLead, FF_VERIFY_NOTE } from '../../utils/hazardLabels';
 import AlertMap from './AlertMap';
 import MapControls from './MapControls';
 import AlertList from './AlertList';
@@ -37,7 +37,7 @@ const ReplayView = () => {
         Promise.all([getIssueMeta(ep, ts), getIssueAlerts(ep, ts)]).then(([m, a]) => {
             if (!live) return;
             setData({ key: `${ep}/${ts}`, meta: m, alerts: a.alerts });
-            setLead(defaultLead(a.alerts, m.leads_available));
+            setLead(issueDefaultLead(m, a.alerts, ep, ts));
             setError(null);
         }).catch((e) => live && setError(e.message));
         return () => { live = false; };
@@ -133,7 +133,7 @@ const ReplayView = () => {
                     )}
                     {meta && (
                         <div className="absolute bottom-3 left-3 z-[400]">
-                            <MapLegend legends={meta.legends} field={field} site={!!meta.site}
+                            <MapLegend legends={meta.legends} field={field} site={!!meta.site} ffNote={FF_VERIFY_NOTE}
                                 note={obsAvailable ? null : 'Observed frame unavailable for this lead: no verification overlay.'} />
                         </div>
                     )}
@@ -167,7 +167,10 @@ const ReplayView = () => {
                                     </p>
                                 )}
                                 {meta && (
-                                    <p className="text-[10px] text-slate-400 mt-1 leading-snug">{meta.verification_definition}</p>
+                                    <>
+                                        <p className="text-[10px] text-slate-400 mt-1 leading-snug">{meta.verification_definition}</p>
+                                        <p data-testid="ff-verify-note-summary" className="text-[10px] text-amber-700 dark:text-amber-400 mt-0.5 leading-snug">{FF_VERIFY_NOTE}</p>
+                                    </>
                                 )}
                             </div>
                             <AlertList alerts={shown} selectedId={selected?.alert_id} onSelect={setSelected}

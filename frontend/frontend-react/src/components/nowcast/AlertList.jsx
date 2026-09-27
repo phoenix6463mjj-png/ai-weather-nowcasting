@@ -1,4 +1,4 @@
-import { HAZARD_STYLE, LEVEL_STYLE, VERIFY_STYLE, valueText, stateName } from '../../utils/hazardLabels';
+import { HAZARD_STYLE, LEVEL_STYLE, VERIFY_STYLE, valueText, stateName, FF_VERIFY_NOTE } from '../../utils/hazardLabels';
 
 const order = { Warning: 0, Watch: 1 };
 
@@ -29,7 +29,8 @@ const AlertList = ({ alerts, selectedId, onSelect, emptyText }) => {
                                 <span>{a.state ? `${stateName(a.state)}${a.state_approx ? ' (approx.)' : ''}` : `${a.peak_cell[0].toFixed(2)}N ${a.peak_cell[1].toFixed(2)}E`}</span>
                                 <span>·</span>
                                 <span>{Math.round(a.area_km2).toLocaleString()} km²</span>
-                                {v && <span className={`ml-auto px-1.5 py-0.5 rounded text-[10px] font-bold ${v.badge}`}>{v.label}</span>}
+                                {v && <span className={`ml-auto px-1.5 py-0.5 rounded text-[10px] font-bold ${v.badge}`}
+                                    title={a.hazard === 'flash_flood' && a.verification.status !== 'unavailable' ? FF_VERIFY_NOTE : undefined}>{v.label}</span>}
                             </div>
                         </button>
                     </li>

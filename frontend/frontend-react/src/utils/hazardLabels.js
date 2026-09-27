@@ -68,6 +68,33 @@ export function defaultLead(alerts, leads) {
     return [...leads].sort((a, b) => score(b) - score(a) || a - b)[0] ?? leads[0];
 }
 
+// Showcase hazard per demo issue: used only when an issue has no observed >=30 mm/hr cells.
+export const SHOWCASE_HAZARD = {
+    'REF045/20230813T1500Z': 'thunderstorm',
+    'REF045/20230813T2100Z': 'cloudburst',
+    'REF045/20230812T2100Z': 'flash_flood',
+};
+
+// Replay issues: the lead with the most observed >=30 mm/hr cells (ties -> shorter lead);
+// if no lead has any, the lead with the most Warnings of the issue's showcase hazard;
+// otherwise the generic defaultLead above.
+export function issueDefaultLead(meta, alerts, ep, ts) {
+    const leads = meta.leads_available;
+    const obs = (L) => meta.per_lead[String(L)]?.observed_cells_ge30_in_patch || 0;
+    const byObs = [...leads].sort((a, b) => obs(b) - obs(a) || a - b);
+    if (byObs.length && obs(byObs[0]) > 0) return byObs[0];
+    const hz = SHOWCASE_HAZARD[`${ep}/${ts}`];
+    if (hz) {
+        const warn = (L) => alerts.filter((a) => a.lead_time_h === L && a.level === 'Warning' && a.hazard === hz).length;
+        const byWarn = [...leads].sort((a, b) => warn(b) - warn(a) || a - b);
+        if (warn(byWarn[0]) > 0) return byWarn[0];
+    }
+    return defaultLead(alerts, leads);
+}
+
+// Shown wherever flash-flood verified / false-alarm status appears.
+export const FF_VERIFY_NOTE = 'FF verification uses a rain-rate proxy (≥30 mm/hr observed), not basin accumulation.';
+
 // Forecast raster layers offered in the map controls (legends come from the API).
 export const FIELD_OPTIONS = [
     { id: '', label: 'None' },
