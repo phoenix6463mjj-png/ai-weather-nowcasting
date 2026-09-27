@@ -112,7 +112,8 @@ The paths are identical.
 | GET | `health` | status, episodes, replay state |
 | GET | `labels` | hazard names, value kinds, raster legends, Watch/Warning definitions |
 | GET | `caveats` | caveats shown on the page, each with a verbatim quote and source doc |
-| GET | `episodes` | REF045 (validation, out-of-sample) and REF025 (training, **in-sample**): issue times with alert / verified / false-alarm counts; default REF045 13 Aug 2023 15:00Z |
+| GET | `episodes` | REF045 (validation, out-of-sample), REF051 Malana (**test (2024)** descriptive case study, both documented sites) and REF025 (training, **in-sample**): issue times with alert / verified / false-alarm counts (REF051 13:00Z is forecast-only); default REF045 13 Aug 2023 15:00Z |
+| GET | `episodes/{ep}/event-check` | documented-event check for REF045 / REF051 (report-based; not a model output): see §5 |
 | GET | `issues/{ep}/{ts}/meta` | grid, Leaflet bounds, per-lead valid time, radius, observed-frame availability and verification counts, method card, legends |
 | GET | `issues/{ep}/{ts}/ui-alerts?level=warning\|all&hazard=&lead=` | normalized alerts (GeoJSON geometry + `display` + `level` + `verification`); Warnings only by default |
 | GET | `issues/{ep}/{ts}/alerts/{alert_id}` | full explanation: calculation trace, SHAP top-5 waterfall, confidence, basin block |
@@ -151,6 +152,22 @@ The PNGs are resampled to Web-Mercator rows by the API, so they sit correctly in
 - **Live:** a permanent "System running operationally, NOT validated" banner. Alerts are never
   presented as validated warnings. There is no verification. Nothing is filtered by country: the
   current run has an alert off the Myanmar coast.
+- **REF051 Malana (2024 test)** carries the badge "test (2024)" and the label "2024 test period —
+  descriptive case study; model frozen before this run; not a new test score." Both documented
+  sites (Malana, Tosh) are marked. Issue 31 Jul 13:00Z is forecast-only ("no explanation
+  available: input window starts 12:00Z").
+- **Documented-event check** (the "Documented-event check" tab in the alert panel, REF045 and REF051):
+  - Event times come from the cited reports (`nowcast_data/catalog/documented_event_times.csv`).
+    Label: "Checked against the documented event location, not satellite rain; IMERG may not
+    resolve cloudbursts." and "IMERG verification and documented-report check can disagree;
+    both are shown."
+  - An early warning is an alert that covers the site, was ISSUED before the event window
+    starts and is VALID during it (± 1 h tolerance).
+  - Each alert shows hours of warning, area, peak→site distance, "precise" (≤ 25 km and
+    ≤ 5,000 km²) or "broad area", and its IMERG status.
+  - Date-only reports (Tosh) make no before/after claim.
+  - The forecast-only 13:00Z issue is shown under a separate criterion: "nearby alert cells
+    (≤25 km), not a site-covering alert".
 - **Caveats bar** (always visible): low absolute severe-rain skill (val CSI at ≥30 mm/hr 0.20 at 1 h
   down to 0.06 at 6 h), 1 h persistence tie, flash-flood areas 1.2–2.4× too broad, 3 of 7 test
   cloudbursts invisible in IMERG, neighbourhood probabilities, top-scale overconfidence, the

@@ -149,9 +149,24 @@ const ExplainPanel = ({ episode, ts, alertId, onClose }) => {
                 )}
             </Section>
 
-            <Section title="Why: top 5 reasons">
-                <Waterfall items={d.waterfall || []} />
-            </Section>
+            {d.explain_available === false ? (
+                <Section title="Why: top reasons (model output)">
+                    <p data-testid="explain-unavailable" className="text-[11px] font-bold text-slate-700 dark:text-slate-200 mb-1.5">
+                        {d.note}: no calculation trace, SHAP waterfall or confidence for this issue.
+                    </p>
+                    <ul className="space-y-1">
+                        {(d.explanations || []).map((x) => (
+                            <li key={x.concept} className="text-xs text-slate-800 dark:text-slate-100">
+                                {x.effect === 'raises risk' ? '↑' : '↓'} {x.text}
+                            </li>
+                        ))}
+                    </ul>
+                </Section>
+            ) : (
+                <Section title="Why: top 5 reasons">
+                    <Waterfall items={d.waterfall || []} />
+                </Section>
+            )}
 
             {d.basin && (
                 <Section title="Basin">
@@ -166,15 +181,19 @@ const ExplainPanel = ({ episode, ts, alertId, onClose }) => {
                 </Section>
             )}
 
-            <Section title="How the number was calculated">
-                <ol className="list-decimal ml-4 space-y-1 text-[11px] text-slate-700 dark:text-slate-300 leading-snug">
-                    {(d.calculation || []).map((c, i) => <li key={i}>{c}</li>)}
-                </ol>
-            </Section>
+            {d.explain_available !== false && (
+                <>
+                    <Section title="How the number was calculated">
+                        <ol className="list-decimal ml-4 space-y-1 text-[11px] text-slate-700 dark:text-slate-300 leading-snug">
+                            {(d.calculation || []).map((c, i) => <li key={i}>{c}</li>)}
+                        </ol>
+                    </Section>
 
-            <Section title="Confidence">
-                <Confidence c={d.confidence} hazard={d.hazard} />
-            </Section>
+                    <Section title="Confidence">
+                        <Confidence c={d.confidence} hazard={d.hazard} />
+                    </Section>
+                </>
+            )}
 
             {d.waterfall_png && (
                 <Section title="Waterfall figure">

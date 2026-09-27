@@ -344,3 +344,83 @@ test('REF051 case study: test (2024) badge, descriptive label, both documented s
     await expect(page.getByTestId('case-study-banner')).toHaveCount(0);
     await expect(page.locator('path.nowcast-site-marker')).toHaveCount(1);
 });
+
+// ---------------------------------------------------------------- documented-event check (report-based)
+const EVENT_LABEL = 'Checked against the documented event location, not satellite rain; IMERG may not resolve cloudbursts.';
+const EVENT_DISAGREE = 'IMERG verification and documented-report check can disagree; both are shown.';
+
+test('documented-event check REF045: 8 early-warning alerts (2 precise), rules, jump to alert', async ({ page }) => {
+    await openIssue(page, 'REF045', '20230813T1500Z');
+    await page.getByTestId('aside-tab-event').click();
+    const panel = page.getByTestId('event-check-panel');
+    await expect(page.getByTestId('event-label')).toHaveText(EVENT_LABEL);
+    await expect(page.getByTestId('event-disagree')).toHaveText(EVENT_DISAGREE);
+    const site = page.getByTestId('event-site-REF045');
+    await expect(site.getByTestId('event-result')).toContainText('8 alert(s) issued before the event window');
+    await expect(site.getByTestId('event-alert')).toHaveCount(8);
+    await expect(site.locator('[data-testid="event-alert"][data-precision="precise"]')).toHaveCount(2);
+    await expect(site.getByTestId('event-source-note')).toHaveText('Uses documented reports, not satellite rain');
+    await expect(site).toContainText('late night of Aug 13, 2023');
+    await expect(site).toContainText('IMERG: not verified (false alarm)');
+    const rules = page.getByTestId('event-rules');
+    await expect(rules).toContainText('± 1 h tolerance');
+    await expect(rules).toContainText('≤ 25 km from the site AND area ≤ 5,000 km²');
+    await expect(rules).toContainText('ISSUED before the event window starts AND VALID during the window');
+    await shot(page, 'event_check_REF045');
+    // first card = cloudburst Watch issued 12:00Z, L6 -> opens that issue, lead and alert
+    await site.getByTestId('event-alert').first().locator('button').click();
+    await expect(page.getByTestId('replay-view')).toHaveAttribute('data-loaded', 'REF045/20230813T1200Z');
+    expect(await activeLead(page)).toBe(6);
+    await expect(page.getByTestId('explain-panel')).toHaveAttribute('data-hazard', 'cloudburst');
+    await expect(panel).toHaveCount(0);
+});
+
+test('documented-event check REF051: Malana 5 alerts + nearby cells at 13:00Z, Tosh date only', async ({ page }) => {
+    await openIssue(page, 'REF051', '20240731T1800Z');
+    await page.getByTestId('aside-tab-event').click();
+    const malana = page.getByTestId('event-site-REF051');
+    await expect(malana.getByTestId('event-result')).toContainText('5 alert(s)');
+    await expect(malana.getByTestId('event-alert')).toHaveCount(5);
+    await expect(malana.locator('[data-testid="event-alert"][data-precision="precise"]')).toHaveCount(0);
+    await expect(malana).toContainText("state authority's preliminary range; covers several Kullu cloudbursts, not Malana alone");
+    const near = malana.getByTestId('event-nearby');
+    await expect(near).toContainText('nearby alert cells (≤25 km), not a site-covering alert');
+    await expect(near.locator('li')).toHaveCount(2);
+    await expect(near).toContainText('19.8 km');
+    await expect(near).toContainText('no explanation available: input window starts 12:00Z');
+    const tosh = page.getByTestId('event-site-REF052');
+    await expect(tosh.getByTestId('event-result')).toContainText('Documented date only (hour not reported)');
+    await expect(tosh.getByTestId('event-result')).toContainText('None of the alerts shown covers the site');
+    await expect(tosh).toContainText('catalog lists 1 Aug');
+    await expect(tosh.getByTestId('event-alert')).toHaveCount(0);
+    await expect(page.getByTestId('event-check-panel')).toContainText('2024 test period — descriptive case study');
+    await shot(page, 'event_check_REF051');
+    // nearby-cells item -> forecast-only 13:00Z issue at L4
+    const alertsResp = page.waitForResponse((r) => r.url().includes('/issues/REF051/20240731T1300Z/ui-alerts') && r.ok());
+    await near.locator('li button').first().click();
+    const alerts = (await (await alertsResp).json()).alerts;
+    await expect(page.getByTestId('replay-view')).toHaveAttribute('data-loaded', 'REF051/20240731T1300Z');
+    expect(await activeLead(page)).toBe(4);
+    await expect(page.getByTestId('forecast-only-banner')).toContainText('no explanation available: input window starts 12:00Z');
+    await page.getByTestId('watch-toggle').check();
+    await expectCountsMatch(page, alerts, 4, true);
+    await expectValueLabels(page);
+    await page.getByTestId('alert-row').first().locator('button').click();
+    await expect(page.getByTestId('explain-unavailable')).toContainText('no explanation available: input window starts 12:00Z');
+    await shot(page, 'REF051_1300Z_forecast_only_L4');
+});
+
+test('no documented-event check for the in-sample REF025', async ({ page }) => {
+    await openIssue(page, 'REF025', '20210718T1800Z');
+    await expect(page.getByTestId('in-sample-badge')).toBeVisible();
+    await expect(page.getByTestId('aside-tab-event')).toHaveCount(0);
+});
+
+test('forecast-only issue legend explains peak markers instead of verification dots', async ({ page }) => {
+    await openIssue(page, 'REF051', '20240731T1300Z');
+    const legend = page.getByTestId('map-legend');
+    await expect(legend).toContainText('alert peak (colour = hazard)');
+    await expect(legend).not.toContainText('not verified (false alarm)');
+    await openIssue(page, 'REF051', '20240731T1400Z');
+    await expect(page.getByTestId('map-legend')).toContainText('not verified (false alarm)');
+});

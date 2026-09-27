@@ -28,6 +28,7 @@ const q = (params) => {
 };
 
 export const getEpisodes = () => request('episodes');
+export const getEventCheck = (ep) => request(`episodes/${ep}/event-check`);
 export const getCaveats = () => request('caveats');
 export const getIssueMeta = (ep, ts) => request(`issues/${ep}/${ts}/meta`);
 export const getIssueAlerts = (ep, ts) => request(`issues/${ep}/${ts}/ui-alerts?level=all`);
