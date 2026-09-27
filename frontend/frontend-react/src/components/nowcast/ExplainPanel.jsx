@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { X, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import { getAlertDetail, issueFileUrl } from '../../services/nowcastApi';
 import { HAZARD_STYLE, LEVEL_STYLE, VERIFY_STYLE, valueText, kindText, fmtUtc, stateName, FF_VERIFY_NOTE } from '../../utils/hazardLabels';
+import IMDChip from './IMDChip';
 
 const Section = ({ title, children }) => (
     <section className="px-4 py-3 border-b border-slate-100 dark:border-slate-800">
@@ -116,6 +117,7 @@ const ExplainPanel = ({ episode, ts, alertId, onClose }) => {
                     <span className="w-3 h-3 rounded-full" style={{ background: hz.color }} />
                     <h3 className="text-base font-black">{hz.name}</h3>
                     <span className={`text-[10px] font-black px-1.5 py-0.5 rounded ${LEVEL_STYLE[d.level]?.badge}`}>{d.level}</span>
+                    <IMDChip level={d.level} />
                     <button onClick={onClose} className="ml-auto p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800" title="Back to list">
                         <X size={16} />
                     </button>

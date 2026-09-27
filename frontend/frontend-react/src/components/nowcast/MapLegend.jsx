@@ -1,4 +1,5 @@
-import { HAZARD_STYLE, VERIFY_STYLE } from '../../utils/hazardLabels';
+import { HAZARD_STYLE, VERIFY_STYLE, IMD_NOTE } from '../../utils/hazardLabels';
+import IMDChip from './IMDChip';
 
 const Swatch = ({ color, dashed, fill = 0.35, round }) => (
     <span className={`inline-block w-4 h-3 shrink-0 ${round ? 'rounded-full' : 'rounded-sm'}`}
@@ -18,7 +19,8 @@ const MapLegend = ({ legends, field, observed = true, missed = true, alerts = tr
             {alerts && (
                 <>
                     <p className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400">Alerts</p>
-                    <Row><Swatch color="#475569" />Warning (solid)<Swatch color="#475569" dashed fill={0.1} />Watch (dashed)</Row>
+                    <Row><Swatch color="#475569" />Warning (solid)<IMDChip level="Warning" /><Swatch color="#475569" dashed fill={0.1} />Watch (dashed)<IMDChip level="Watch" /></Row>
+                    <p data-testid="imd-note-legend" className="text-[10px] text-slate-400 leading-snug">{IMD_NOTE}</p>
                     <Row>
                         {Object.values(HAZARD_STYLE).map((h) => (
                             <span key={h.name} className="flex items-center gap-1"><Swatch color={h.color} />{h.name}</span>

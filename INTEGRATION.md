@@ -139,6 +139,11 @@ The PNGs are resampled to Web-Mercator rows by the API, so they sit correctly in
   `risk_band` moderate (ratio 0.5–1) → **Watch**, high (ratio ≥ 1) → **Warning**. Thunderstorm and
   cloudburst: severity moderate → Watch, severe/extreme → Warning (the rule `explain.json` uses).
 - **Warnings are shown by default.** "Also show Watch" adds the Watch alerts.
+- **IMD colour chips**: a small dot next to every Watch/Warning badge (map legend, alert cards,
+  explain panel, documented-event check cards) — Watch = orange, Warning = red, no alert = no chip.
+  Title/legend text: "Indicative mapping to IMD colour codes; not an official IMD warning." This is
+  our own display convention on top of the model's own Watch/Warning; it is not an IMD product and
+  is never described as one.
 - **Verification** follows the contract (§7): an alert is *verified* when at least one observed
   ≥30 mm/hr cell (within r) lies inside it. Otherwise it is *not verified (false alarm)*. Flash-flood
   alerts use the same rain-overlap check; basin totals are not verified (there are no gauges).
@@ -190,7 +195,9 @@ The e2e tests assert on the DOM:
 - no `%` appears next to any cloudburst or flash-flood value;
 - the REF025 in-sample badge, the national notes and the live not-validated banner are present;
 - the explain panels, overlays and legends are correct;
-- the replay button matches the precomputed files.
+- the replay button matches the precomputed files;
+- every Watch/Warning badge (alert cards, explain panel, documented-event check cards) carries the
+  matching orange/red IMD chip, and the legend states the "not an official IMD warning" note.
 
 ## 7. Troubleshooting
 

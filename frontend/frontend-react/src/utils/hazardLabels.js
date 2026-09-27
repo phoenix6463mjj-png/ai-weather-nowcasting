@@ -18,6 +18,14 @@ export const LEVEL_STYLE = {
     Watch: { fillOpacity: 0.1, weight: 1.5, dashArray: '5 4', badge: 'bg-amber-400 text-slate-900' },
 };
 
+// Indicative mapping to IMD colour codes, shown as a small chip next to every Watch/Warning.
+// This is our own mapping onto the familiar scheme, not an IMD product.
+export const IMD_NOTE = 'Indicative mapping to IMD colour codes; not an official IMD warning.';
+export const IMD_STYLE = {
+    Warning: { color: '#dc2626', name: 'red' },
+    Watch: { color: '#f59e0b', name: 'orange' },
+};
+
 export const VERIFY_STYLE = {
     verified: { color: '#16a34a', label: 'verified', badge: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300' },
     false_alarm: { color: '#6b7280', label: 'not verified (false alarm)', badge: 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200' },

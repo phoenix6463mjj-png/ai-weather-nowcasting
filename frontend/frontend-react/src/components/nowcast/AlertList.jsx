@@ -1,4 +1,5 @@
 import { HAZARD_STYLE, LEVEL_STYLE, VERIFY_STYLE, valueText, stateName, FF_VERIFY_NOTE } from '../../utils/hazardLabels';
+import IMDChip from './IMDChip';
 
 const order = { Warning: 0, Watch: 1 };
 
@@ -21,6 +22,7 @@ const AlertList = ({ alerts, selectedId, onSelect, emptyText }) => {
                                 <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: hz.color }} />
                                 <span className="text-sm font-bold text-slate-900 dark:text-white">{hz.name}</span>
                                 <span className={`text-[10px] font-black px-1.5 py-0.5 rounded ${LEVEL_STYLE[a.level]?.badge}`}>{a.level}</span>
+                                <IMDChip level={a.level} />
                                 <span data-testid="alert-value" className="ml-auto text-sm font-black tabular-nums text-slate-800 dark:text-slate-100">{valueText(a)}</span>
                             </div>
                             <div className="flex items-center gap-2 mt-1 text-[11px] text-slate-500 dark:text-slate-400">

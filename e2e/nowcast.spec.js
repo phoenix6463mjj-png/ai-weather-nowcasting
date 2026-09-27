@@ -305,7 +305,7 @@ test('flash-flood verification note is shown in summary, legend, rows and panel'
     await expect(page.getByTestId('ff-verify-note-summary')).toHaveText(FF_NOTE);
     await expect(page.getByTestId('ff-verify-note-legend')).toHaveText(FF_NOTE);
     const ffRow = page.locator('[data-testid="alert-row"][data-hazard="flash_flood"]').first();
-    await expect(ffRow.locator('span[title]')).toHaveAttribute('title', FF_NOTE);
+    await expect(ffRow.locator(`span[title="${FF_NOTE}"]`)).toHaveAttribute('title', FF_NOTE);
     await ffRow.locator('button').click();
     await expect(page.getByTestId('explain-panel')).toHaveAttribute('data-hazard', 'flash_flood');
     await expect(page.getByTestId('ff-verify-note-panel')).toHaveText(FF_NOTE);
@@ -414,6 +414,51 @@ test('no documented-event check for the in-sample REF025', async ({ page }) => {
     await openIssue(page, 'REF025', '20210718T1800Z');
     await expect(page.getByTestId('in-sample-badge')).toBeVisible();
     await expect(page.getByTestId('aside-tab-event')).toHaveCount(0);
+});
+
+// ---------------------------------------------------------------- IMD colour chips (checkpoint 01)
+const IMD_NOTE = 'Indicative mapping to IMD colour codes; not an official IMD warning.';
+
+test('IMD colour chips: orange on every Watch, red on every Warning, label present', async ({ page }) => {
+    const alerts = await openIssue(page, 'REF045', '20230813T1500Z');
+    await page.getByTestId('watch-toggle').check();
+    const lead = await activeLead(page);
+    await expectCountsMatch(page, alerts, lead, true);
+
+    const rows = page.getByTestId('alert-row');
+    const n = await rows.count();
+    expect(n).toBeGreaterThan(0);
+    let sawWatch = false, sawWarning = false;
+    for (let i = 0; i < n; i++) {
+        const row = rows.nth(i);
+        const level = await row.getAttribute('data-level');
+        const chip = row.getByTestId('imd-chip');
+        await expect(chip).toHaveCount(1);
+        await expect(chip).toHaveAttribute('data-imd', level === 'Warning' ? 'red' : 'orange');
+        await expect(chip).toHaveAttribute('title', IMD_NOTE);
+        if (level === 'Watch') sawWatch = true; else sawWarning = true;
+    }
+    expect(sawWatch && sawWarning).toBe(true);
+    await expect(page.getByTestId('map-legend')).toContainText(IMD_NOTE);
+    await shot(page, 'imd_chips_alert_list_REF045_0813T1500Z');
+
+    // explain panel
+    await rows.first().locator('button').click();
+    const panel = page.getByTestId('explain-panel');
+    await expect(panel.getByTestId('imd-chip')).toHaveCount(1);
+    await shot(page, 'imd_chip_explain_panel');
+    await panel.locator('button[title="Back to list"]').click();
+
+    // documented-event check cards
+    await page.getByTestId('aside-tab-event').click();
+    const site = page.getByTestId('event-site-REF045');
+    const cards = site.getByTestId('event-alert');
+    const nc = await cards.count();
+    expect(nc).toBeGreaterThan(0);
+    for (let i = 0; i < nc; i++) {
+        await expect(cards.nth(i).getByTestId('imd-chip')).toHaveCount(1);
+    }
+    await shot(page, 'imd_chips_event_check_REF045');
 });
 
 test('forecast-only issue legend explains peak markers instead of verification dots', async ({ page }) => {

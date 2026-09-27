@@ -1,5 +1,6 @@
 import { FileText } from 'lucide-react';
 import { HAZARD_STYLE, LEVEL_STYLE, VERIFY_STYLE, fmtIssueShort } from '../../utils/hazardLabels';
+import IMDChip from './IMDChip';
 
 const Chip = ({ className, children, testid }) => (
     <span data-testid={testid} className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${className}`}>{children}</span>
@@ -16,6 +17,7 @@ const AlertCard = ({ a, onJump, showWarning = true }) => {
                     <span className="w-2.5 h-2.5 rounded-full" style={{ background: HAZARD_STYLE[a.hazard].color }} />
                     <span className="font-bold">{a.hazard_name}</span>
                     <Chip className={LEVEL_STYLE[a.level]?.badge}>{a.level}</Chip>
+                    <IMDChip level={a.level} />
                     <span className="ml-auto font-black tabular-nums">{a.display?.value_text}</span>
                 </div>
                 <div className="text-[11px] text-slate-600 dark:text-slate-300 mt-1">
