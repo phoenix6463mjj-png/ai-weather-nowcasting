@@ -137,3 +137,66 @@ test('REF025 shows the in-sample badge', async ({ page }) => {
     await expectValueLabels(page);
     await shot(page, 'REF025_in_sample_badge');
 });
+
+// ---------------------------------------------------------------- overlays (checkpoint d)
+async function overlayImgs(page) {
+    return page.$$eval('img.nowcast-raster', (imgs) => imgs.map((i) => ({
+        src: i.getAttribute('src'), ok: i.complete && i.naturalWidth > 0, cls: i.className,
+    })));
+}
+
+test('observed and missed overlays are always on; missed follows the Watch toggle', async ({ page }) => {
+    await openIssue(page, 'REF045', '20230813T2100Z');
+    await page.getByTestId('lead-4').click();               // 211 observed >=30 cells at L4
+    await expect(page.locator('img.nowcast-raster.observed')).toHaveCount(1);
+    await expect(page.locator('img.nowcast-raster.missed')).toHaveCount(1);
+    await expect(page.getByTestId('missed-legend')).toHaveText(
+        'Heavy rain outside displayed alerts (derived by UI layer, not a model-verification output)');
+    let imgs = await overlayImgs(page);
+    await expect.poll(async () => (await overlayImgs(page)).every((i) => i.ok)).toBe(true);
+    expect(imgs.find((i) => i.cls.includes('missed')).src).toContain('level=warning');
+    await shot(page, 'overlays_REF045_0813T2100Z_L4_warnings');
+
+    await page.getByTestId('watch-toggle').check();
+    await expect(page.locator('img.nowcast-raster.missed')).toHaveAttribute('src', /level=all/);
+    await shot(page, 'overlays_REF045_0813T2100Z_L4_with_watch');
+
+    await page.locator('label', { hasText: 'Cloudburst' }).locator('input').uncheck();
+    await expect(page.locator('img.nowcast-raster.missed')).toHaveAttribute('src', /hazard=thunderstorm%2Cflash_flood|hazard=thunderstorm,flash_flood/);
+});
+
+test('forecast rasters: legends carry the right units (index and ratio never %)', async ({ page }) => {
+    await openIssue(page, 'REF045', '20230813T1500Z');
+    await page.getByTestId('lead-3').click();
+    const legend = page.getByTestId('map-legend');
+
+    await page.getByTestId('field-select').selectOption('thunderstorm');
+    await expect(page.locator('img.nowcast-raster.field-thunderstorm')).toHaveCount(1);
+    await expect(page.getByTestId('raster-legend-label')).toContainText('probability');
+    await expect(legend).toContainText('%');
+    await shot(page, 'raster_thunderstorm_REF045_0813T1500Z_L3');
+
+    await page.getByTestId('field-select').selectOption('cloudburst_index');
+    await expect(page.getByTestId('raster-legend-label')).toContainText('NOT a probability');
+    await expect(legend).not.toContainText('%');
+    await shot(page, 'raster_cloudburst_REF045_0813T1500Z_L3');
+
+    await page.getByTestId('field-select').selectOption('flash_flood');
+    await expect(page.getByTestId('raster-legend-label')).toContainText('risk ratio');
+    await expect(legend).toContainText('Watch (ratio 0.5-1)');
+    await expect(legend).toContainText('Warning (ratio 1-2)');
+    await expect(legend).not.toContainText('%');
+    await expect.poll(async () => (await overlayImgs(page)).every((i) => i.ok)).toBe(true);
+    await shot(page, 'raster_flashflood_REF045_0813T1500Z_L3');
+});
+
+test('lead without an observed frame says so instead of drawing verification overlays', async ({ page }) => {
+    // REF045 14 Aug 03:00Z: observed frames exist for L1-L2 only (window ends); L6 has none
+    await openIssue(page, 'REF045', '20230814T0300Z');
+    await page.getByTestId('lead-6').click();
+    await expect(page.locator('img.nowcast-raster.observed')).toHaveCount(0);
+    await expect(page.locator('img.nowcast-raster.missed')).toHaveCount(0);
+    await expect(page.getByTestId('map-legend')).toContainText('Observed frame unavailable');
+    await page.getByTestId('lead-1').click();
+    await expect(page.locator('img.nowcast-raster.observed')).toHaveCount(1);
+});

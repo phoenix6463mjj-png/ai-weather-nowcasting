@@ -1,7 +1,17 @@
 import { HAZARDS, HAZARD_STYLE } from '../../utils/hazardLabels';
 
+export const FIELD_OPTIONS = [
+    { id: '', label: 'None' },
+    { id: 'thunderstorm', label: 'Thunderstorm probability (≥30 mm/hr)' },
+    { id: 'cloudburst_index', label: 'Cloudburst risk index (not a probability)' },
+    { id: 'flash_flood', label: 'Flash-flood risk ratio (Watch/Warning)' },
+    { id: 'rain_p10', label: 'Rain probability ≥10 mm/hr' },
+    { id: 'rain_p1', label: 'Rain probability ≥1 mm/hr' },
+];
+
 // Lead selector, hazard toggles and the Watch toggle (Warnings are always shown).
-const MapControls = ({ leads, lead, setLead, leadInfo = {}, hazards, setHazards, showWatch, setShowWatch, counts }) => (
+const MapControls = ({ leads, lead, setLead, leadInfo = {}, hazards, setHazards, showWatch, setShowWatch, counts,
+    field, setField, fieldOptions = FIELD_OPTIONS, alertControls = true }) => (
     <div className="bg-white/95 dark:bg-slate-800/95 backdrop-blur shadow-md rounded-xl border border-slate-200 dark:border-slate-700 p-3 space-y-2.5 w-[250px]">
         <div>
             <p className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 mb-1">Lead time</p>
@@ -20,6 +30,16 @@ const MapControls = ({ leads, lead, setLead, leadInfo = {}, hazards, setHazards,
                 </p>
             )}
         </div>
+        {setField && (
+            <div>
+                <p className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 mb-1">Forecast map layer</p>
+                <select data-testid="field-select" value={field} onChange={(e) => setField(e.target.value)}
+                    className="w-full text-xs bg-slate-100 dark:bg-slate-700 dark:text-white rounded-md px-2 py-1 border border-slate-200 dark:border-slate-600">
+                    {fieldOptions.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
+                </select>
+            </div>
+        )}
+        {alertControls && (<>
         <div>
             <p className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 mb-1">Hazards</p>
             {HAZARDS.map((h) => (
@@ -38,6 +58,7 @@ const MapControls = ({ leads, lead, setLead, leadInfo = {}, hazards, setHazards,
             Also show Watch
             <span className="text-slate-400 font-normal">(Warnings always shown)</span>
         </label>
+        </>)}
     </div>
 );
 

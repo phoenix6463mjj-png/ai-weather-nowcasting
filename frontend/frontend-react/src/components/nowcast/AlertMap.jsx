@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { MapContainer, TileLayer, GeoJSON, CircleMarker, Tooltip, ImageOverlay, Rectangle, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, GeoJSON, CircleMarker, Tooltip, ImageOverlay, Rectangle, Pane, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import { HAZARD_STYLE, LEVEL_STYLE, VERIFY_STYLE, valueText } from '../../utils/hazardLabels';
 
@@ -19,7 +19,7 @@ const FitBounds = ({ bounds }) => {
  *  - dot at the alert's peak cell = contract sec. 7 verification (green = verified, grey = false alarm)
  *  - overlays: PNG rasters already resampled to Web-Mercator rows by the API, placed at `bounds`
  */
-const AlertMap = ({ bounds, alerts = [], selectedId, onSelect, site, overlays = [], showDomain = true }) => (
+const AlertMap = ({ bounds, alerts = [], selectedId, onSelect, site, overlays = [], showDomain = true, dimFill = false }) => (
     <MapContainer center={[30, 79]} zoom={6} className="w-full h-full z-0" zoomControl={true}>
         <TileLayer
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -30,9 +30,13 @@ const AlertMap = ({ bounds, alerts = [], selectedId, onSelect, site, overlays = 
             <Rectangle bounds={bounds} pathOptions={{ color: '#334155', weight: 1, dashArray: '2 4', fill: false }}
                 interactive={false} />
         )}
-        {bounds && overlays.map((o) => (
-            <ImageOverlay key={o.url} url={o.url} bounds={bounds} opacity={o.opacity ?? 1} zIndex={o.zIndex ?? 1} />
-        ))}
+        {/* rasters live in their own pane below the alert polygons (overlayPane is z 400) */}
+        <Pane name="nowcast-rasters" style={{ zIndex: 350 }}>
+            {bounds && overlays.map((o) => (
+                <ImageOverlay key={o.url} url={o.url} bounds={bounds} opacity={o.opacity ?? 1} zIndex={o.zIndex ?? 1}
+                    className={`nowcast-raster ${o.kind || ''}`} />
+            ))}
+        </Pane>
         {alerts.map((a) => {
             const hz = HAZARD_STYLE[a.hazard];
             const lv = LEVEL_STYLE[a.level] || LEVEL_STYLE.Watch;
@@ -43,7 +47,8 @@ const AlertMap = ({ bounds, alerts = [], selectedId, onSelect, site, overlays = 
                     data={a.geometry}
                     style={{
                         color: sel ? '#0f172a' : hz.color, weight: sel ? 4 : lv.weight, dashArray: sel ? null : lv.dashArray,
-                        fillColor: hz.color, fillOpacity: lv.fillOpacity,
+                        // with a forecast field shown, keep outlines but let the raster show through
+                        fillColor: hz.color, fillOpacity: dimFill ? lv.fillOpacity * 0.15 : lv.fillOpacity,
                         className: `nowcast-alert-poly hazard-${a.hazard} level-${a.level}`,
                     }}
                     eventHandlers={{ click: () => onSelect && onSelect(a) }}

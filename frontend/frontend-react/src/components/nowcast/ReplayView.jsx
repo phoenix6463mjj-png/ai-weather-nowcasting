@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
-import { getEpisodes, getIssueMeta, getIssueAlerts } from '../../services/nowcastApi';
+import { getEpisodes, getIssueMeta, getIssueAlerts, issueMapUrl, issueMissedUrl } from '../../services/nowcastApi';
 import { HAZARDS, fmtUtc, fmtIssueShort } from '../../utils/hazardLabels';
 import AlertMap from './AlertMap';
 import MapControls from './MapControls';
 import AlertList from './AlertList';
 import ExplainPanel from './ExplainPanel';
 import EpisodeBadge from './EpisodeBadge';
+import MapLegend from './MapLegend';
 
 // Lead with the most Warnings (ties -> shorter lead); if none, the lead with the most alerts.
 function defaultLead(alerts, leads) {
@@ -24,6 +25,7 @@ const ReplayView = () => {
     const [lead, setLead] = useState(null);
     const [hazards, setHazards] = useState(HAZARDS);
     const [showWatch, setShowWatch] = useState(false);
+    const [field, setField] = useState('');
     const [selected, setSelected] = useState(null);
     const [error, setError] = useState(null);
 
@@ -71,6 +73,18 @@ const ReplayView = () => {
         return o;
     }, [meta]);
 
+    // map overlays: optional forecast field, then observed >=30 (always on), then the derived
+    // "heavy rain outside displayed alerts" cells for exactly the alerts on screen (always on)
+    const obsAvailable = !!(meta && lead && meta.per_lead[String(lead)]?.observed_available);
+    const overlays = [];
+    if (meta && lead && data.key === `${ep}/${ts}`) {
+        if (field) overlays.push({ url: issueMapUrl(ep, ts, lead, field), opacity: 1, zIndex: 1, kind: `field-${field}` });
+        if (obsAvailable) {
+            overlays.push({ url: issueMapUrl(ep, ts, lead, 'observed_ge30'), opacity: 0.85, zIndex: 2, kind: 'observed' });
+            overlays.push({ url: issueMissedUrl(ep, ts, lead, showWatch ? 'all' : 'warning', hazards), opacity: 1, zIndex: 3, kind: 'missed' });
+        }
+    }
+
     const nVer = shown.filter((a) => a.verification?.status === 'verified').length;
     const nFa = shown.filter((a) => a.verification?.status === 'false_alarm').length;
 
@@ -114,13 +128,19 @@ const ReplayView = () => {
                 <div className="flex-1 relative">
                     {meta && (
                         <AlertMap bounds={meta.bounds} alerts={shown} selectedId={selected?.alert_id}
-                            onSelect={setSelected} site={meta.site} />
+                            onSelect={setSelected} site={meta.site} overlays={overlays} dimFill={!!field} />
                     )}
                     {meta && lead && (
                         <div className="absolute top-3 right-3 z-[400]">
                             <MapControls leads={meta.leads_available} lead={lead} setLead={setLead} leadInfo={leadInfo}
                                 hazards={hazards} setHazards={setHazards} showWatch={showWatch} setShowWatch={setShowWatch}
-                                counts={counts} />
+                                counts={counts} field={field} setField={setField} />
+                        </div>
+                    )}
+                    {meta && (
+                        <div className="absolute bottom-3 left-3 z-[400]">
+                            <MapLegend legends={meta.legends} field={field} site={!!meta.site}
+                                note={obsAvailable ? null : 'Observed frame unavailable for this lead: no verification overlay.'} />
                         </div>
                     )}
                     {loading && (
