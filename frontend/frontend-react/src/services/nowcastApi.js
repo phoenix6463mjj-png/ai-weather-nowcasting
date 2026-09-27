@@ -50,3 +50,6 @@ export const getReplayStatus = () => request('replay/status');
 export const runReplay = (body) => request('replay', {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
 });
+
+export const getTerrain = () => request('terrain');
+export const terrainUrl = (layer) => mlUrl(`terrain/${layer}.png`);

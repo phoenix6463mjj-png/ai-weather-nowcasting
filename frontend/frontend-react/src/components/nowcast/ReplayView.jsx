@@ -9,6 +9,7 @@ import EpisodeBadge from './EpisodeBadge';
 import MapLegend from './MapLegend';
 import ReplayButton from './ReplayButton';
 import EventCheckPanel from './EventCheckPanel';
+import useTerrain from './useTerrain';
 
 const tsOf = (iso) => iso.replace(/[-:]/g, '');       // '2023-08-13T12:00Z' -> '20230813T1200Z'
 
@@ -35,6 +36,7 @@ const ReplayView = () => {
     const [error, setError] = useState(null);
     const [asideTab, setAsideTab] = useState('alerts');
     const [check, setCheck] = useState({ ep: null, data: null });
+    const terrain = useTerrain(ep);
     const pendingRef = useRef(null);            // jump target waiting for its issue to load
     const setters = { setLead, setShowWatch, setHazards, setSelected };
 
@@ -181,13 +183,14 @@ const ReplayView = () => {
                 <div className="flex-1 relative">
                     {meta && (
                         <AlertMap bounds={meta.bounds} alerts={shown} selectedId={selected?.alert_id}
-                            onSelect={setSelected} sites={meta.sites || []} overlays={overlays} dimFill={!!field} />
+                            onSelect={setSelected} sites={meta.sites || []} overlays={overlays} dimFill={!!field}
+                            terrain={terrain.layers} terrainNotice={terrain.fullNotice} />
                     )}
                     {meta && lead && (
                         <div className="absolute top-3 right-3 z-[400]">
                             <MapControls leads={meta.leads_available} lead={lead} setLead={setLead} leadInfo={leadInfo}
                                 hazards={hazards} setHazards={setHazards} showWatch={showWatch} setShowWatch={setShowWatch}
-                                counts={counts} field={field} setField={setField} />
+                                counts={counts} field={field} setField={setField} terrain={terrain} />
                         </div>
                     )}
                     {meta && (

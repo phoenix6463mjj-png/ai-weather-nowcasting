@@ -6,6 +6,8 @@ import AlertMap from './AlertMap';
 import MapControls from './MapControls';
 import MapLegend from './MapLegend';
 import AlertList from './AlertList';
+import IMDChip from './IMDChip';
+import useTerrain from './useTerrain';
 
 const LIVE_FIELDS = FIELD_OPTIONS.filter((o) => o.id !== 'flash_flood');
 
@@ -17,6 +19,7 @@ const LiveAlertPanel = ({ a, onClose }) => (
                 <span className="w-3 h-3 rounded-full" style={{ background: HAZARD_STYLE[a.hazard].color }} />
                 <h3 className="text-base font-black">{HAZARD_STYLE[a.hazard].name}</h3>
                 <span className={`text-[10px] font-black px-1.5 py-0.5 rounded ${LEVEL_STYLE[a.level]?.badge}`}>{a.level}</span>
+                <IMDChip level={a.level} />
                 <button onClick={onClose} className="ml-auto p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800"><X size={16} /></button>
             </div>
             <p data-testid="explain-value" className="text-2xl font-black mt-1 tabular-nums">{valueText(a)}</p>
@@ -54,6 +57,7 @@ const LiveView = () => {
     const [hazards, setHazards] = useState(HAZARDS);
     const [showWatch, setShowWatch] = useState(false);
     const [field, setField] = useState('');
+    const terrain = useTerrain('national');
     const [selected, setSelected] = useState(null);
     const [error, setError] = useState(null);
 
@@ -103,12 +107,13 @@ const LiveView = () => {
             {runs && !runs.runs.length && <p className="p-6 text-sm">No live runs available.</p>}
             <div className="flex-1 flex overflow-hidden">
                 <div className="flex-1 relative">
-                    {meta && <AlertMap bounds={meta.bounds} alerts={shown} selectedId={selected?.alert_id} onSelect={setSelected} overlays={overlays} dimFill={!!field} />}
+                    {meta && <AlertMap bounds={meta.bounds} alerts={shown} selectedId={selected?.alert_id} onSelect={setSelected} overlays={overlays} dimFill={!!field}
+                        terrain={terrain.layers} terrainNotice={terrain.fullNotice} />}
                     {meta && lead && (
                         <div className="absolute top-3 right-3 z-[400]">
                             <MapControls leads={meta.leads_available} lead={lead} setLead={setLead}
                                 hazards={hazards} setHazards={setHazards} showWatch={showWatch} setShowWatch={setShowWatch}
-                                counts={counts} field={field} setField={setField} fieldOptions={LIVE_FIELDS} />
+                                counts={counts} field={field} setField={setField} fieldOptions={LIVE_FIELDS} terrain={terrain} />
                         </div>
                     )}
                     {meta && (

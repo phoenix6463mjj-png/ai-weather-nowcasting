@@ -100,7 +100,22 @@ ML integration.
   `e2e/screenshots/`, which is gitignored.
 
 **nowcast_data** (branch `integration`): the new folder `serve/` only. The model, pipeline,
-thresholds, configs and docs are untouched.
+thresholds, configs and docs are untouched. `serve/assets/terrain/` holds the derived terrain
+assets (≈ 13 MB, see `serve/README.md`).
+
+**Terrain (DEM) layer**: hillshade from the Copernicus DEM GLO-90, drawn in its own map pane
+(z 300) *under* the forecast/observed rasters (z 350) and the alert polygons (z 400).
+- Replay tab: the detailed 15″ hillshade of the episode's patch (REF045, REF051, REF025); it has
+  the same bounds as the forecast rasters, so it also fits forecast-only issues.
+- National and Live tabs: the 0.025° national hillshade at the India grid bounds.
+- Map controls: "Terrain (DEM)" toggle (on by default) with an opacity slider. It is independent
+  of the lead, level and hazard filters.
+- Map attribution "Terrain: Copernicus DEM GLO-90". Hovering it shows the full required notice,
+  which is also in `serve/assets/terrain/ATTRIBUTION.md`: "produced using Copernicus WorldDEM-90
+  © DLR e.V. 2010-2014 and © Airbus Defence and Space GmbH 2014-2018 provided under COPERNICUS by
+  the European Union and ESA; all rights reserved".
+- Elevation and slope GeoTIFFs for REF045/REF051 are stored for later refuge-point screening. They
+  are not drawn yet.
 
 ## 4. Endpoints
 
@@ -112,6 +127,7 @@ The paths are identical.
 | GET | `health` | status, episodes, replay state |
 | GET | `labels` | hazard names, value kinds, raster legends, Watch/Warning definitions |
 | GET | `caveats` | caveats shown on the page, each with a verbatim quote and source doc |
+| GET | `terrain`, `terrain/{layer}.png` | terrain (Copernicus DEM GLO-90) hillshade layers with bounds and attribution; layer = `national`, `REF045`, `REF051`, `REF025` |
 | GET | `episodes` | REF045 (validation, out-of-sample), REF051 Malana (**test (2024)** descriptive case study, both documented sites) and REF025 (training, **in-sample**): issue times with alert / verified / false-alarm counts (REF051 13:00Z is forecast-only); default REF045 13 Aug 2023 15:00Z |
 | GET | `episodes/{ep}/event-check` | documented-event check for REF045 / REF051 (report-based; not a model output): see §5 |
 | GET | `issues/{ep}/{ts}/meta` | grid, Leaflet bounds, per-lead valid time, radius, observed-frame availability and verification counts, method card, legends |
@@ -139,8 +155,10 @@ The PNGs are resampled to Web-Mercator rows by the API, so they sit correctly in
   `risk_band` moderate (ratio 0.5–1) → **Watch**, high (ratio ≥ 1) → **Warning**. Thunderstorm and
   cloudburst: severity moderate → Watch, severe/extreme → Warning (the rule `explain.json` uses).
 - **Warnings are shown by default.** "Also show Watch" adds the Watch alerts.
-- **IMD colour chips**: a small dot next to every Watch/Warning badge (map legend, alert cards,
-  explain panel, documented-event check cards) — Watch = orange, Warning = red, no alert = no chip.
+- **IMD colour pills**: a labelled pill next to every Watch/Warning badge (map legend, alert cards,
+  explain panel, live alert panel, documented-event check cards) — Watch = "Orange", Warning = "Red",
+  no alert = no pill. (A plain 10 px dot was replaced because it looked like the hazard dot and its
+  orange was close to the thunderstorm colour.)
   Title/legend text: "Indicative mapping to IMD colour codes; not an official IMD warning." This is
   our own display convention on top of the model's own Watch/Warning; it is not an IMD product and
   is never described as one.
@@ -197,7 +215,12 @@ The e2e tests assert on the DOM:
 - the explain panels, overlays and legends are correct;
 - the replay button matches the precomputed files;
 - every Watch/Warning badge (alert cards, explain panel, documented-event check cards) carries the
-  matching orange/red IMD chip, and the legend states the "not an official IMD warning" note.
+  matching "Orange"/"Red" IMD pill (≥ 10 px tall), and the legend states the "not an official IMD
+  warning" note;
+- terrain: on by default; placed at exactly the same screen rectangle as the forecast/observed
+  rasters (replay and national); its pane is below the raster pane, which is below the alerts;
+  the toggle removes it (and its attribution); the opacity slider changes it; it follows the
+  episode, including the forecast-only REF051 13:00Z issue and REF025.
 
 ## 7. Troubleshooting
 

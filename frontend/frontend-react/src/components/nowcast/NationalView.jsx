@@ -5,6 +5,7 @@ import { fmtUtc, FIELD_OPTIONS } from '../../utils/hazardLabels';
 import AlertMap from './AlertMap';
 import MapControls from './MapControls';
 import MapLegend from './MapLegend';
+import useTerrain from './useTerrain';
 
 // The national sample has no flash-flood guidance (all-empty placeholder band), so it is not offered.
 const INDIA_FIELDS = FIELD_OPTIONS.filter((o) => o.id && o.id !== 'flash_flood');
@@ -14,6 +15,7 @@ const NationalView = () => {
     const [error, setError] = useState(null);
     const [lead, setLead] = useState(1);
     const [field, setField] = useState('thunderstorm');
+    const terrain = useTerrain('national');
 
     useEffect(() => {
         getIndiaMeta().then(setMeta).catch((e) => setError(e.message));
@@ -36,11 +38,11 @@ const NationalView = () => {
             {error && <div className="bg-red-600 text-white px-6 py-2 text-sm font-semibold">{error}</div>}
             <div className="flex-1 flex overflow-hidden">
                 <div className="flex-1 relative">
-                    {meta && <AlertMap bounds={meta.bounds} overlays={overlays} alerts={[]} />}
+                    {meta && <AlertMap bounds={meta.bounds} overlays={overlays} alerts={[]} terrain={terrain.layers} terrainNotice={terrain.fullNotice} />}
                     {meta && (
                         <div className="absolute top-3 right-3 z-[400]">
                             <MapControls leads={meta.leads_available} lead={lead} setLead={setLead}
-                                field={field} setField={setField} fieldOptions={INDIA_FIELDS} alertControls={false} />
+                                field={field} setField={setField} fieldOptions={INDIA_FIELDS} alertControls={false} terrain={terrain} />
                         </div>
                     )}
                     {meta && (

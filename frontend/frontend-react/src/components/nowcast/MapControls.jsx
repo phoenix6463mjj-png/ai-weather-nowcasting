@@ -1,9 +1,11 @@
 import { HAZARDS, HAZARD_STYLE, FIELD_OPTIONS } from '../../utils/hazardLabels';
+import { TERRAIN_ATTRIBUTION } from './useTerrain';
 
 
-// Lead selector, hazard toggles and the Watch toggle (Warnings are always shown).
+// Lead selector, forecast layer, terrain toggle + opacity, hazard toggles and the Watch toggle
+// (Warnings are always shown).
 const MapControls = ({ leads, lead, setLead, leadInfo = {}, hazards, setHazards, showWatch, setShowWatch, counts,
-    field, setField, fieldOptions = FIELD_OPTIONS, alertControls = true }) => (
+    field, setField, fieldOptions = FIELD_OPTIONS, alertControls = true, terrain }) => (
     <div className="bg-white/95 dark:bg-slate-800/95 backdrop-blur shadow-md rounded-xl border border-slate-200 dark:border-slate-700 p-3 space-y-2.5 w-[250px]">
         <div>
             <p className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 mb-1">Lead time</p>
@@ -29,6 +31,22 @@ const MapControls = ({ leads, lead, setLead, leadInfo = {}, hazards, setHazards,
                     className="w-full text-xs bg-slate-100 dark:bg-slate-700 dark:text-white rounded-md px-2 py-1 border border-slate-200 dark:border-slate-600">
                     {fieldOptions.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
                 </select>
+            </div>
+        )}
+        {terrain?.available && (
+            <div>
+                <label className="flex items-center gap-2 text-xs font-bold text-slate-800 dark:text-slate-100 cursor-pointer">
+                    <input type="checkbox" data-testid="terrain-toggle" checked={terrain.on} onChange={(e) => terrain.setOn(e.target.checked)} />
+                    Terrain (DEM)
+                    <span className="text-slate-400 font-normal text-[10px] truncate" title={terrain.fullNotice}>{TERRAIN_ATTRIBUTION}</span>
+                </label>
+                {terrain.on && (
+                    <label className="flex items-center gap-2 mt-1 text-[10px] text-slate-500 dark:text-slate-400">
+                        opacity
+                        <input type="range" data-testid="terrain-opacity" min="0.1" max="1" step="0.05" value={terrain.opacity}
+                            onChange={(e) => terrain.setOpacity(Number(e.target.value))} className="flex-1 accent-slate-600" />
+                    </label>
+                )}
             </div>
         )}
         {alertControls && (<>

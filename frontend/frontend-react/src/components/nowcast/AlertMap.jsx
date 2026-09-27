@@ -2,6 +2,9 @@ import { useEffect } from 'react';
 import { MapContainer, TileLayer, GeoJSON, CircleMarker, Tooltip, ImageOverlay, Rectangle, Pane, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import { HAZARD_STYLE, LEVEL_STYLE, VERIFY_STYLE, valueText, FF_VERIFY_NOTE } from '../../utils/hazardLabels';
+import { TERRAIN_ATTRIBUTION } from './useTerrain';
+
+const esc = (t) => String(t || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
 
 const FitBounds = ({ bounds }) => {
     const map = useMap();
@@ -18,8 +21,10 @@ const FitBounds = ({ bounds }) => {
  *  - fill/stroke colour = hazard; Warning = solid & opaque, Watch = dashed & light
  *  - dot at the alert's peak cell = contract sec. 7 verification (green = verified, grey = false alarm)
  *  - overlays: PNG rasters already resampled to Web-Mercator rows by the API, placed at `bounds`
+ *  - terrain: hillshade PNGs (same row mapping) in the lowest pane, under every risk layer and alert
  */
-const AlertMap = ({ bounds, alerts = [], selectedId, onSelect, sites = [], overlays = [], showDomain = true, dimFill = false }) => (
+const AlertMap = ({ bounds, alerts = [], selectedId, onSelect, sites = [], overlays = [], showDomain = true, dimFill = false,
+    terrain = [], terrainNotice }) => (
     <MapContainer center={[30, 79]} zoom={6} className="w-full h-full z-0" zoomControl={true}>
         <TileLayer
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -30,6 +35,13 @@ const AlertMap = ({ bounds, alerts = [], selectedId, onSelect, sites = [], overl
             <Rectangle bounds={bounds} pathOptions={{ color: '#334155', weight: 1, dashArray: '2 4', fill: false }}
                 interactive={false} />
         )}
+        {/* terrain pane (z 300) < forecast/observed rasters (z 350) < alert polygons (overlayPane, z 400) */}
+        <Pane name="nowcast-terrain" style={{ zIndex: 300 }}>
+            {terrain.map((t) => (
+                <ImageOverlay key={t.url} url={t.url} bounds={t.bounds} opacity={t.opacity} className="nowcast-terrain"
+                    attribution={`Terrain: <span title="${esc(terrainNotice)}">${TERRAIN_ATTRIBUTION}</span>`} />
+            ))}
+        </Pane>
         {/* rasters live in their own pane below the alert polygons (overlayPane is z 400) */}
         <Pane name="nowcast-rasters" style={{ zIndex: 350 }}>
             {bounds && overlays.map((o) => (

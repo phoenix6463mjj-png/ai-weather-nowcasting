@@ -1,14 +1,16 @@
 import { IMD_STYLE, IMD_NOTE } from '../../utils/hazardLabels';
 
-// Small colour chip shown next to every Watch/Warning: our own indicative mapping onto the
-// familiar IMD colour scheme (Watch = orange, Warning = red), never a claim of an IMD product.
+// Labelled pill next to every Watch/Warning: our own indicative mapping onto the familiar IMD
+// colour scheme (Watch = Orange, Warning = Red), never a claim of an IMD product.
 const IMDChip = ({ level }) => {
     const s = IMD_STYLE[level];
     if (!s) return null;
     return (
         <span data-testid="imd-chip" data-imd={s.name} title={IMD_NOTE}
-            className="inline-block w-2.5 h-2.5 rounded-full border border-black/30 shrink-0"
-            style={{ background: s.color }} />
+            className="inline-flex items-center px-1.5 py-px rounded-full text-[10px] font-black leading-4 shrink-0 ring-1 ring-black/20"
+            style={{ background: s.color, color: s.text }}>
+            {s.label}
+        </span>
     );
 };
 

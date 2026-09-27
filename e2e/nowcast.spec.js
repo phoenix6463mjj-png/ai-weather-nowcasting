@@ -436,6 +436,9 @@ test('IMD colour chips: orange on every Watch, red on every Warning, label prese
         await expect(chip).toHaveCount(1);
         await expect(chip).toHaveAttribute('data-imd', level === 'Warning' ? 'red' : 'orange');
         await expect(chip).toHaveAttribute('title', IMD_NOTE);
+        await expect(chip).toHaveText(level === 'Warning' ? 'Red' : 'Orange');
+        const box = await chip.boundingBox();
+        expect(box.height, 'IMD pill height').toBeGreaterThanOrEqual(10);
         if (level === 'Watch') sawWatch = true; else sawWarning = true;
     }
     expect(sawWatch && sawWarning).toBe(true);
@@ -459,6 +462,85 @@ test('IMD colour chips: orange on every Watch, red on every Warning, label prese
         await expect(cards.nth(i).getByTestId('imd-chip')).toHaveCount(1);
     }
     await shot(page, 'imd_chips_event_check_REF045');
+});
+
+test('IMD pill also on the live alert panel', async ({ page }) => {
+    await page.goto('/nowcast');
+    await page.getByTestId('tab-live').click();
+    await page.getByTestId('watch-toggle').check();
+    const row = page.getByTestId('alert-row').first();
+    const level = await row.getAttribute('data-level');
+    await row.locator('button').click();
+    const chip = page.getByTestId('explain-panel').getByTestId('imd-chip');
+    await expect(chip).toHaveText(level === 'Warning' ? 'Red' : 'Orange');
+    await expect(chip).toHaveAttribute('title', IMD_NOTE);
+});
+
+// ---------------------------------------------------------------- terrain (DEM), checkpoint 02
+const paneZ = (loc) => loc.evaluate((el) => Number(getComputedStyle(el.closest('.leaflet-pane')).zIndex));
+
+test('terrain (DEM): on by default, same bounds as the forecast rasters, below rasters and alerts', async ({ page }) => {
+    await openIssue(page, 'REF045', '20230813T2100Z');
+    await page.getByTestId('lead-4').click();
+    const terrain = page.locator('img.nowcast-terrain');
+    await expect(terrain).toHaveCount(1);
+    await expect(terrain).toHaveAttribute('src', /terrain\/REF045\.png$/);
+    await expect.poll(() => terrain.evaluate((i) => i.complete && i.naturalWidth > 0)).toBe(true);
+    await expect(page.getByTestId('terrain-toggle')).toBeChecked();
+    // placed at the same bounds as the observed overlay (which uses the issue's grid bounds)
+    const obs = page.locator('img.nowcast-raster.observed');
+    const [bt, bo] = [await terrain.boundingBox(), await obs.boundingBox()];
+    for (const k of ['x', 'y', 'width', 'height']) expect(Math.abs(bt[k] - bo[k]), `terrain ${k}`).toBeLessThan(1.5);
+    // stacking: terrain pane < forecast/observed raster pane < alert polygons
+    const zT = await paneZ(terrain), zR = await paneZ(obs), zA = await paneZ(page.locator('path.nowcast-alert-poly').first());
+    expect(zT).toBeLessThan(zR);
+    expect(zR).toBeLessThan(zA);
+    await expect(page.locator('.leaflet-control-attribution')).toContainText('Terrain: Copernicus DEM GLO-90');
+    await shot(page, 'terrain_REF045_0813T2100Z_L4_default');
+    // zoomed in near the documented site: relief detail and valley alignment
+    await page.locator('.leaflet-control-zoom-in').click();
+    await page.locator('.leaflet-control-zoom-in').click();
+    await page.waitForTimeout(600);
+    await shot(page, 'terrain_REF045_0813T2100Z_L4_zoom8');
+
+    await page.getByTestId('terrain-opacity').fill('0.4');
+    await expect(terrain).toHaveCSS('opacity', '0.4');
+    await page.getByTestId('terrain-toggle').uncheck();
+    await expect(page.locator('img.nowcast-terrain')).toHaveCount(0);
+    await expect(page.locator('.leaflet-control-attribution')).not.toContainText('Copernicus DEM');
+    await expect(page.locator('path.nowcast-alert-poly').first()).toBeVisible();   // alerts unaffected
+    await shot(page, 'terrain_REF045_0813T2100Z_L4_off');
+    await page.getByTestId('terrain-toggle').check();
+    await expect(page.locator('img.nowcast-terrain')).toHaveCount(1);
+});
+
+test('terrain follows the episode (REF051 forecast-only issue, REF025 in-sample)', async ({ page }) => {
+    await openIssue(page, 'REF051', '20240731T1300Z');
+    await expect(page.getByTestId('forecast-only-banner')).toBeVisible();
+    await expect(page.locator('img.nowcast-terrain')).toHaveAttribute('src', /terrain\/REF051\.png$/);
+    await shot(page, 'terrain_REF051_1300Z_forecast_only');
+    await openIssue(page, 'REF025', '20210718T1800Z');
+    await expect(page.getByTestId('in-sample-badge')).toBeVisible();
+    await expect(page.locator('img.nowcast-terrain')).toHaveAttribute('src', /terrain\/REF025\.png$/);
+});
+
+test('terrain on National and Live: national hillshade at the grid bounds, under the risk layer', async ({ page }) => {
+    await page.goto('/nowcast');
+    await page.getByTestId('tab-india').click();
+    const terrain = page.locator('img.nowcast-terrain');
+    await expect(terrain).toHaveAttribute('src', /terrain\/national\.png$/);
+    const field = page.locator('img.nowcast-raster.field-thunderstorm');
+    await expect.poll(async () => (await overlayImgs(page)).every((i) => i.ok)).toBe(true);
+    const [bt, bf] = [await terrain.boundingBox(), await field.boundingBox()];
+    for (const k of ['x', 'y', 'width', 'height']) expect(Math.abs(bt[k] - bf[k]), `national terrain ${k}`).toBeLessThan(1.5);
+    expect(await paneZ(terrain)).toBeLessThan(await paneZ(field));
+    await shot(page, 'terrain_national_thunderstorm_L1');
+
+    await page.getByTestId('tab-live').click();
+    await expect(page.getByTestId('live-not-validated')).toBeVisible();
+    await expect(page.locator('img.nowcast-terrain')).toHaveAttribute('src', /terrain\/national\.png$/);
+    await page.getByTestId('terrain-toggle').uncheck();
+    await expect(page.locator('img.nowcast-terrain')).toHaveCount(0);
 });
 
 test('forecast-only issue legend explains peak markers instead of verification dots', async ({ page }) => {

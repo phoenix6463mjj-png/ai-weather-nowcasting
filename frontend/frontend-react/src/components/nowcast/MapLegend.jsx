@@ -19,7 +19,8 @@ const MapLegend = ({ legends, field, observed = true, missed = true, alerts = tr
             {alerts && (
                 <>
                     <p className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400">Alerts</p>
-                    <Row><Swatch color="#475569" />Warning (solid)<IMDChip level="Warning" /><Swatch color="#475569" dashed fill={0.1} />Watch (dashed)<IMDChip level="Watch" /></Row>
+                    <Row><Swatch color="#475569" />Warning (solid outline)<IMDChip level="Warning" /></Row>
+                    <Row><Swatch color="#475569" dashed fill={0.1} />Watch (dashed outline)<IMDChip level="Watch" /></Row>
                     <p data-testid="imd-note-legend" className="text-[10px] text-slate-400 leading-snug">{IMD_NOTE}</p>
                     <Row>
                         {Object.values(HAZARD_STYLE).map((h) => (

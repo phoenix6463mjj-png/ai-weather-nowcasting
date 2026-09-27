@@ -22,8 +22,8 @@ export const LEVEL_STYLE = {
 // This is our own mapping onto the familiar scheme, not an IMD product.
 export const IMD_NOTE = 'Indicative mapping to IMD colour codes; not an official IMD warning.';
 export const IMD_STYLE = {
-    Warning: { color: '#dc2626', name: 'red' },
-    Watch: { color: '#f59e0b', name: 'orange' },
+    Warning: { color: '#dc2626', text: '#ffffff', name: 'red', label: 'Red' },
+    Watch: { color: '#fb923c', text: '#1c1917', name: 'orange', label: 'Orange' },
 };
 
 export const VERIFY_STYLE = {
