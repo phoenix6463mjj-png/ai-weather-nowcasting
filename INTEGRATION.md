@@ -52,6 +52,15 @@ npm run dev     # then open http://localhost:5173/nowcast
 **Check that the chain works:** `http://127.0.0.1:8001/api/health` and `http://127.0.0.1:8000/ml/health`
 must both return `{"status": "ok", ...}`.
 
+**One command instead (same commands and variables as above):**
+```powershell
+powershell -ExecutionPolicy Bypass -File D:\team_app\start_demo.ps1   # 3 windows, waits for each (60 s), opens /nowcast
+powershell -ExecutionPolicy Bypass -File D:\team_app\stop_demo.ps1    # stops only what listens on 8001, 8000, 5173
+```
+`start_demo.ps1` refuses to start (and names the process) if a port is already taken. It finds
+`nowcast_data`, `.venv` and Node next to this repo / in Program Files; override with
+`NOWCAST_DATA_ROOT`, `NOWCAST_PYTHON`, `NODE_DIR`. `-NoBrowser` skips opening the browser.
+
 ### Fallback: frontend straight to the ML API (team backend down)
 
 This is one setting, with no code change. The ML API allows the Vite dev origins through CORS.
