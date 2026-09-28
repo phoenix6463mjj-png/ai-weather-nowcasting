@@ -3,6 +3,7 @@ import { X, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import { getAlertDetail, issueFileUrl } from '../../services/nowcastApi';
 import { HAZARD_STYLE, LEVEL_STYLE, VERIFY_STYLE, valueText, kindText, fmtUtc, stateName, FF_VERIFY_NOTE } from '../../utils/hazardLabels';
 import IMDChip from './IMDChip';
+import IngredientsPanel from './IngredientsPanel';
 
 const Section = ({ title, children }) => (
     <section className="px-4 py-3 border-b border-slate-100 dark:border-slate-800">
@@ -167,6 +168,12 @@ const ExplainPanel = ({ episode, ts, alertId, onClose }) => {
             ) : (
                 <Section title="Why: top 5 reasons">
                     <Waterfall items={d.waterfall || []} />
+                </Section>
+            )}
+
+            {d.ingredients && (
+                <Section title={d.ingredients.heading}>
+                    <IngredientsPanel ing={d.ingredients} />
                 </Section>
             )}
 

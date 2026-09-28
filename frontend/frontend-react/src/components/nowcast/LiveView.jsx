@@ -34,6 +34,12 @@ const LiveAlertPanel = ({ a, onClose }) => (
             <p>peak {a.peak_cell[0].toFixed(2)}N {a.peak_cell[1].toFixed(2)}E · {Math.round(a.area_km2).toLocaleString()} km²</p>
             <p className="text-slate-500">No observed verification exists for live runs.</p>
         </div>
+        <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-800">
+            <h4 className="text-[10px] font-black uppercase text-slate-500 mb-1">Ingredients</h4>
+            <p data-testid="ingredients-unavailable" className="text-[11px] font-bold text-slate-600 dark:text-slate-300">
+                Not available: no per-feature SHAP is stored for live runs.
+            </p>
+        </div>
         <div className="px-4 py-3">
             <h4 className="text-[10px] font-black uppercase text-slate-500 mb-1.5">Why: top reasons</h4>
             <ul className="space-y-1.5">

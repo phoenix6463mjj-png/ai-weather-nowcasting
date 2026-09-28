@@ -578,3 +578,122 @@ test('data credits footer shows the full Copernicus notice, visible without hove
     await page.getByRole('button', { name: /Less/ }).click();
     await shot(page, 'data_credits_footer_replay');
 });
+
+// ---------------------------------------------------------------- ingredients panel (checkpoint 03)
+async function openAlert(page, hazard, level = 'Warning') {
+    await page.getByTestId('watch-toggle').check();
+    const detail = page.waitForResponse((r) => /\/alerts\/[^/]+$/.test(r.url()) && r.ok());
+    await page.locator(`[data-testid="alert-row"][data-hazard="${hazard}"][data-level="${level}"]`).first().locator('button').click();
+    return (await (await detail).json()).ingredients;
+}
+
+async function expectBarsMatch(page, ing) {
+    const rows = page.getByTestId('ingredient-row');
+    await expect(rows).toHaveCount(6);
+    let sum = 0;
+    for (let i = 0; i < 6; i++) {
+        const g = ing.groups[i];
+        await expect(rows.nth(i)).toHaveAttribute('data-group', g.group);
+        await expect(rows.nth(i)).toContainText(g.label);
+        expect(Number(await rows.nth(i).getAttribute('data-value'))).toBe(g.shap_logodds);
+        sum += g.shap_logodds;
+    }
+    const lead = page.getByTestId('ingredient-lead');
+    await expect(lead).toContainText('lead time (not weather)');
+    expect(Number(await lead.getAttribute('data-value'))).toBe(ing.lead.shap_logodds);
+    expect(Math.abs(sum + ing.lead.shap_logodds + ing.base_logodds - ing.raw_logodds)).toBeLessThan(1e-5);
+}
+
+test('ingredients: cloudburst bars = API, sums = raw log-odds, boost line from the trace, demo aggregate', async ({ page }) => {
+    await openIssue(page, 'REF045', '20230813T2100Z');
+    await page.getByTestId('lead-4').click();
+    const ing = await openAlert(page, 'cloudburst');
+    expect(ing.model).toBe('theta30');
+    await expect(page.getByTestId('explain-panel')).toContainText('Ingredients: contribution to this alert (log-odds, ranking not magnitude)');
+    await expect(page.getByTestId('ingredients-label')).toHaveText('explains the ≥30 mm/hr rain probability behind this alert (log-odds, before calibration)');
+    await expectBarsMatch(page, ing);
+    await expect(page.getByTestId('ingredients-boost')).toHaveText(ing.boost);
+    await expect(page.getByTestId('ingredients-boost')).toContainText('+ orographic boost applied after the model (not in SHAP): cloudburst index = P30 x (1 + min(lift/0.05, 1))');
+    await expect(page.getByTestId('ingredients-agg-lead')).toHaveText(ing.aggregate.lead_trend);
+    await expect(page.getByTestId('ingredients-agg-moisture')).toHaveText(ing.aggregate.moisture);
+    await expect(page.getByTestId('ingredients-agg-scope')).toHaveText(ing.aggregate.scope);
+    await expect(page.getByTestId('ingredients-agg-scope')).toContainText('1,034 alerts; ≥30 mm/hr model');
+    await page.getByTestId('ingredients-panel').scrollIntoViewIfNeeded();
+    await shot(page, 'ingredients_cloudburst_REF045_0813T2100Z_L4');
+});
+
+test('ingredients: flash flood uses the ≥10 model with its own label and no boost line', async ({ page }) => {
+    await openIssue(page, 'REF045', '20230812T2100Z');
+    const ing = await openAlert(page, 'flash_flood');
+    expect(ing.model).toBe('theta10');
+    await expect(page.getByTestId('ingredients-label')).toHaveText("explains the ≥10 mm/hr rain probability at the basin's strongest-inflow cell (log-odds, before calibration); the basin ratio itself is computed from the rain forecast and is not explained by SHAP.");
+    await expectBarsMatch(page, ing);
+    await expect(page.getByTestId('ingredients-boost')).toHaveCount(0);
+    await expect(page.getByTestId('ingredients-agg-scope')).toContainText('273 alerts; flash flood: ≥10 mm/hr model');
+    await page.getByTestId('ingredients-panel').scrollIntoViewIfNeeded();
+    await shot(page, 'ingredients_flashflood_REF045_0812T2100Z');
+});
+
+test('ingredients: thunderstorm (no boost) and REF025 in-sample alert keep their badges', async ({ page }) => {
+    await openIssue(page, 'REF045', '20230813T1500Z');
+    await page.getByTestId('lead-2').click();
+    const ing = await openAlert(page, 'thunderstorm', 'Watch');
+    await expectBarsMatch(page, ing);
+    await expect(page.getByTestId('ingredients-boost')).toHaveCount(0);
+    await openIssue(page, 'REF025', '20210718T1800Z');
+    await expect(page.getByTestId('in-sample-badge')).toBeVisible();
+    const ing25 = await openAlert(page, 'cloudburst');
+    await expectBarsMatch(page, ing25);
+    await expect(page.getByTestId('explain-panel')).toContainText('IN-SAMPLE');
+});
+
+test('ingredients: "not available" on the forecast-only issue and on live alerts', async ({ page }) => {
+    await openIssue(page, 'REF051', '20240731T1300Z');
+    await page.getByTestId('watch-toggle').check();
+    await page.getByTestId('alert-row').first().locator('button').click();
+    await expect(page.getByTestId('ingredients-unavailable')).toHaveText('Not available: no explanation available: input window starts 12:00Z.');
+    await expect(page.getByTestId('ingredient-row')).toHaveCount(0);
+    await shot(page, 'ingredients_forecast_only_REF051_1300Z');
+    await page.getByTestId('tab-live').click();
+    await page.getByTestId('watch-toggle').check();
+    await page.getByTestId('alert-row').first().locator('button').click();
+    await expect(page.getByTestId('ingredients-unavailable')).toContainText('Not available');
+    await expect(page.getByTestId('explain-panel')).toContainText('NOT validated');
+});
+
+// ---------------------------------------------------------------- footer at small viewports
+for (const [w, h] of [[1280, 720], [1366, 768]]) {
+    test(`data credits footer fully visible and legible at ${w}x${h}`, async ({ page }) => {
+        await page.setViewportSize({ width: w, height: h });
+        await page.goto('/nowcast');
+        const footer = page.getByTestId('data-credits');
+        const credit = page.getByTestId('credit-copernicus_dem');
+        await expect(credit).toContainText(COPERNICUS_NOTICE);
+        await page.mouse.move(0, 0);
+        for (const tab of ['replay', 'india', 'live']) {
+            await page.getByTestId(`tab-${tab}`).click();
+            await expect(credit).toBeInViewport({ ratio: 1 });
+            const r = await footer.evaluate((el) => {
+                const b = el.getBoundingClientRect();
+                const lines = [...el.querySelector('[data-testid="credit-copernicus_dem"]').getClientRects()];
+                // sample points along every rendered line of the notice: the topmost element must be in the footer
+                const hit = lines.every((l) => [0.1, 0.5, 0.9].every((f) => {
+                    const e = document.elementFromPoint(l.left + f * l.width, l.top + l.height / 2);
+                    return e && el.contains(e);
+                }));
+                return { bottom: b.bottom, left: b.left, right: b.right, vw: innerWidth, vh: innerHeight,
+                    clipX: el.scrollWidth > el.clientWidth, clipY: el.scrollHeight > el.clientHeight, hit,
+                    font: parseFloat(getComputedStyle(el).fontSize) };
+            });
+            expect(r.bottom).toBeLessThanOrEqual(r.vh);
+            expect(r.left).toBeGreaterThanOrEqual(0);
+            expect(r.right).toBeLessThanOrEqual(r.vw);
+            expect(r.clipX, 'horizontal clipping').toBe(false);
+            expect(r.clipY, 'vertical clipping').toBe(false);
+            expect(r.hit, 'nothing overlaps the notice').toBe(true);
+            expect(r.font).toBeGreaterThanOrEqual(10);
+        }
+        await page.getByTestId('tab-replay').click();
+        await shot(page, `data_credits_footer_${w}x${h}`);
+    });
+}
