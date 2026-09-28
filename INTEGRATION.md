@@ -203,8 +203,8 @@ The PNGs are resampled to Web-Mercator rows by the API, so they sit correctly in
   - Below that, a **Validation 2022–23 (descriptive)** block from `AGGREGATE_VAL.json`: the same
     two statements over validation alert-selected rows, each stated only if it holds in both 2022
     and 2023 (otherwise "mixed across years"), with the scope "Validation 2022–23, alert-selected
-    rows; ≥30 model: all N rows; ≥10 model: estimated from a 25% deterministic sample of N rows.
-    Descriptive."
+    rows; ≥30 model: all 343,851 rows; ≥10 model: estimated from a 25% deterministic sample
+    (373,636 of 1,498,609 selected rows). Descriptive."
   - Forecast-only issues (REF051 13:00Z) and live alerts show "Not available".
 - **Documented-event check** (the "Documented-event check" tab in the alert panel, REF045 and REF051):
   - Event times come from the cited reports (`nowcast_data/catalog/documented_event_times.csv`).

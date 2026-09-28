@@ -710,7 +710,7 @@ test('ingredients: validation 2022-23 lines shown next to the demo statement, pe
     await expect(page.getByTestId('ingredients-val-moisture')).toHaveText(v.moisture);
     await expect(page.getByTestId('ingredients-val-scope')).toHaveText(v.scope);
     await expect(page.getByTestId('ingredients-val-scope')).toContainText('Validation 2022–23, alert-selected rows; ≥30 model: all ');
-    await expect(page.getByTestId('ingredients-val-scope')).toContainText('≥10 model: estimated from a 25% deterministic sample of ');
+    await expect(page.getByTestId('ingredients-val-scope')).toContainText('≥10 model: estimated from a 25% deterministic sample (373,636 of 1,498,609 selected rows). Descriptive.');
     if (!v.moisture_order_both_years) await expect(page.getByTestId('ingredients-val-moisture')).toContainText('mixed across years');
     await page.getByTestId('ingredients-val').scrollIntoViewIfNeeded();
     await shot(page, 'ingredients_validation_cloudburst_REF045_0813T2100Z_L4');
