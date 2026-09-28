@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, X, ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { AlertTriangle, ChevronLeft, ArrowUpRight, ArrowDownRight, BellRing, FlaskConical, Info } from 'lucide-react';
 import { getLiveRuns, getLiveMeta, getLiveAlerts, liveMapUrl } from '../../services/nowcastApi';
 import { HAZARDS, HAZARD_STYLE, LEVEL_STYLE, valueText, kindText, fmtUtc, defaultLead, FIELD_OPTIONS } from '../../utils/hazardLabels';
 import AlertMap from './AlertMap';
@@ -8,11 +8,17 @@ import MapLegend from './MapLegend';
 import AlertList from './AlertList';
 import IMDChip from './IMDChip';
 import useTerrain from './useTerrain';
+import Drawer from './Drawer';
+import LayersPanel from './LayersPanel';
+import IngredientsTab from './IngredientsTab';
+import CaveatsPanel from './CaveatsPanel';
+import { MapBadges } from './MapFrame';
 
 const LIVE_FIELDS = FIELD_OPTIONS.filter((o) => o.id !== 'flash_flood');
+const LIVE_INGREDIENTS_NOTE = 'no per-feature SHAP is stored for live runs';
 
 // Live alerts carry only the model's top-5 reasons (no explain.json, no verification).
-const LiveAlertPanel = ({ a, onClose }) => (
+const LiveAlertPanel = ({ a, onBack, onIngredients }) => (
     <div data-testid="explain-panel" data-hazard={a.hazard}>
         <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-700">
             <div className="flex items-center gap-2">
@@ -20,7 +26,10 @@ const LiveAlertPanel = ({ a, onClose }) => (
                 <h3 className="text-base font-black">{HAZARD_STYLE[a.hazard].name}</h3>
                 <span className={`text-[10px] font-black px-1.5 py-0.5 rounded ${LEVEL_STYLE[a.level]?.badge}`}>{a.level}</span>
                 <IMDChip level={a.level} />
-                <button onClick={onClose} className="ml-auto p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800"><X size={16} /></button>
+                <button onClick={onBack} title="Back to list"
+                    className="ml-auto flex items-center gap-0.5 px-1.5 py-1 rounded text-[11px] font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800">
+                    <ChevronLeft size={14} /> List
+                </button>
             </div>
             <p data-testid="explain-value" className="text-2xl font-black mt-1 tabular-nums">{valueText(a)}</p>
             <p className="text-[11px] text-slate-500 dark:text-slate-400">{kindText(a)}</p>
@@ -36,9 +45,10 @@ const LiveAlertPanel = ({ a, onClose }) => (
         </div>
         <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-800">
             <h4 className="text-[10px] font-black uppercase text-slate-500 mb-1">Ingredients</h4>
-            <p data-testid="ingredients-unavailable" className="text-[11px] font-bold text-slate-600 dark:text-slate-300">
-                Not available: no per-feature SHAP is stored for live runs.
-            </p>
+            <button type="button" data-testid="explain-open-ingredients" onClick={onIngredients}
+                className="flex items-center gap-1.5 text-xs font-bold text-blue-700 dark:text-blue-400 hover:underline">
+                <FlaskConical size={13} /> Ingredients section (not available for live runs)
+            </button>
         </div>
         <div className="px-4 py-3">
             <h4 className="text-[10px] font-black uppercase text-slate-500 mb-1.5">Why: top reasons</h4>
@@ -66,6 +76,9 @@ const LiveView = () => {
     const terrain = useTerrain('national');
     const [selected, setSelected] = useState(null);
     const [error, setError] = useState(null);
+    const [drawer, setDrawer] = useState(null);
+    const closeDrawer = useCallback(() => setDrawer(null), []);
+    const select = (a) => { setSelected(a); if (a) setDrawer('alert'); };
 
     useEffect(() => {
         let live = true;
@@ -93,58 +106,69 @@ const LiveView = () => {
     const hiddenWatch = alerts.filter((a) => a.lead_time_h === lead && hazards.includes(a.hazard) && a.level === 'Watch').length;
     const overlays = meta && lead && field ? [{ url: liveMapUrl(meta.run, lead, field), opacity: 1, zIndex: 1, kind: `field-${field}` }] : [];
 
+    const tabs = [
+        { id: 'alert', label: 'Alert', icon: BellRing, width: 420 },
+        { id: 'ingredients', label: 'Ingredients', icon: FlaskConical, width: 420 },
+        { id: 'caveats', label: 'Caveats', icon: Info, width: 420 },
+    ];
+
     return (
-        <div className="flex-1 flex flex-col overflow-hidden">
-            <div data-testid="live-not-validated" className="px-6 py-2.5 bg-amber-100 dark:bg-amber-950/50 border-b-2 border-amber-400 flex items-start gap-3 shrink-0">
-                <AlertTriangle size={20} className="text-amber-700 dark:text-amber-400 shrink-0 mt-0.5" />
-                <div className="text-xs text-amber-950 dark:text-amber-100">
-                    <p className="text-sm font-black">System running operationally — NOT validated. These are not validated warnings.</p>
-                    <p>{runs?.label}</p>
-                    {meta && (
-                        <p className="mt-0.5">
-                            Issued {fmtUtc(meta.issue_time)} (one frozen run, not refreshing) ·
-                            rain input ~{(meta.latency_min.imerg / 60).toFixed(1)} h old (IMERG Early), environment ~{(meta.latency_min.gfs / 60).toFixed(1)} h old (GFS) ·
-                            flash flood not computed on the national live grid
+        <div className="flex-1 flex overflow-hidden min-h-0">
+            <div className="flex-1 flex flex-col min-w-0">
+                <MapBadges testid="live-not-validated" tone="bg-amber-100 dark:bg-amber-950/50 border-b-2 border-amber-400">
+                    <AlertTriangle size={18} className="text-amber-700 dark:text-amber-400 shrink-0" />
+                    <div className="text-[11px] text-amber-950 dark:text-amber-100 leading-snug min-w-0 flex-1">
+                        <p className="text-xs font-black">System running operationally — NOT validated. These are not validated warnings.</p>
+                        <p>
+                            {runs?.label}
+                            {meta && (
+                                <> · Issued {fmtUtc(meta.issue_time)} (one frozen run, not refreshing) ·
+                                    rain input ~{(meta.latency_min.imerg / 60).toFixed(1)} h old (IMERG Early), environment ~{(meta.latency_min.gfs / 60).toFixed(1)} h old (GFS) ·
+                                    flash flood not computed on the national live grid</>
+                            )}
                         </p>
+                    </div>
+                </MapBadges>
+                {error && <div className="bg-red-600 text-white px-6 py-2 text-sm font-semibold">{error}</div>}
+                {runs && !runs.runs.length && <p className="p-6 text-sm">No live runs available.</p>}
+                <div className="flex-1 relative min-h-0">
+                    {meta && <AlertMap bounds={meta.bounds} alerts={shown} selectedId={selected?.alert_id} onSelect={select} overlays={overlays} dimFill={!!field}
+                        terrain={terrain.layers} terrainNotice={terrain.fullNotice} />}
+                    {meta && lead && (
+                        <div className="absolute top-3 left-3 bottom-3 z-[400] flex flex-col pointer-events-none">
+                            <LayersPanel summary={`Live ${meta.run} · L${lead} h · ${showWatch ? 'Watch + Warning' : 'Warnings'}`}>
+                                <MapControls leads={meta.leads_available} lead={lead} setLead={setLead}
+                                    hazards={hazards} setHazards={setHazards} showWatch={showWatch} setShowWatch={setShowWatch}
+                                    counts={counts} field={field} setField={setField} fieldOptions={LIVE_FIELDS} terrain={terrain} />
+                            </LayersPanel>
+                        </div>
+                    )}
+                    {meta && (
+                        <div className="absolute top-[84px] bottom-[26px] right-3 z-[400] flex flex-col justify-end pointer-events-none">
+                            <MapLegend legends={meta.legends} field={field} hazards={hazards} verification={false}
+                                terrain={terrain.layers.length > 0} noteTitle="Verification" note="Live: no observed verification layer." />
+                        </div>
                     )}
                 </div>
             </div>
-            {error && <div className="bg-red-600 text-white px-6 py-2 text-sm font-semibold">{error}</div>}
-            {runs && !runs.runs.length && <p className="p-6 text-sm">No live runs available.</p>}
-            <div className="flex-1 flex overflow-hidden">
-                <div className="flex-1 relative">
-                    {meta && <AlertMap bounds={meta.bounds} alerts={shown} selectedId={selected?.alert_id} onSelect={setSelected} overlays={overlays} dimFill={!!field}
-                        terrain={terrain.layers} terrainNotice={terrain.fullNotice} />}
-                    {meta && lead && (
-                        <div className="absolute top-3 right-3 bottom-3 z-[400] flex flex-col pointer-events-none">
-                            <MapControls leads={meta.leads_available} lead={lead} setLead={setLead}
-                                hazards={hazards} setHazards={setHazards} showWatch={showWatch} setShowWatch={setShowWatch}
-                                counts={counts} field={field} setField={setField} fieldOptions={LIVE_FIELDS} terrain={terrain} />
-                        </div>
-                    )}
-                    {meta && (
-                        <div className="absolute top-[84px] bottom-3 left-3 z-[400] flex flex-col justify-end pointer-events-none">
-                            <MapLegend legends={meta.legends} field={field} observed={false} missed={false} verification={false}
-                                note="Live: no observed verification layer." />
-                        </div>
-                    )}
-                </div>
-                <aside className="w-[400px] shrink-0 border-l border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0f172a] overflow-y-auto">
-                    {selected ? <LiveAlertPanel key={selected.alert_id} a={selected} onClose={() => setSelected(null)} /> : (
-                        <>
+            <Drawer tabs={tabs} active={drawer} onOpen={setDrawer} onClose={closeDrawer}>
+                {(id) => (id === 'alert' ? (
+                    selected ? <LiveAlertPanel key={selected.alert_id} a={selected} onBack={() => setSelected(null)} onIngredients={() => setDrawer('ingredients')} /> : (
+                        <div data-testid="alert-list-view">
                             <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-700">
                                 <h3 className="text-sm font-black">Live run {meta?.run}</h3>
                                 {lead && <p className="text-xs text-slate-600 dark:text-slate-300 mt-1">Lead {lead} h: {shown.length} alert{shown.length === 1 ? '' : 's'} shown (not validated)</p>}
                                 {!showWatch && hiddenWatch > 0 && (
-                                    <p className="text-[11px] text-amber-700 dark:text-amber-400 mt-1">{hiddenWatch} Watch alert{hiddenWatch === 1 ? '' : 's'} hidden at this lead. Tick "Also show Watch".</p>
+                                    <p className="text-[11px] text-amber-700 dark:text-amber-400 mt-1">{hiddenWatch} Watch alert{hiddenWatch === 1 ? '' : 's'} hidden at this lead. Tick "Also show Watch" in Layers.</p>
                                 )}
                             </div>
-                            <AlertList alerts={shown} selectedId={selected?.alert_id} onSelect={setSelected}
-                                emptyText={showWatch ? 'No live alerts at this lead.' : 'No live Warnings at this lead. Tick "Also show Watch".'} />
-                        </>
-                    )}
-                </aside>
-            </div>
+                            <AlertList alerts={shown} selectedId={selected?.alert_id} onSelect={select}
+                                emptyText={showWatch ? 'No live alerts at this lead.' : 'No live Warnings at this lead. Tick "Also show Watch" in Layers.'} />
+                        </div>
+                    )
+                ) : id === 'ingredients' ? <IngredientsTab selected={selected} d={selected} liveNote={LIVE_INGREDIENTS_NOTE} />
+                    : <CaveatsPanel />)}
+            </Drawer>
         </div>
     );
 };

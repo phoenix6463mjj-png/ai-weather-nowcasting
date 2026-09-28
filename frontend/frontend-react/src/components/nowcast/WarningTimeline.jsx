@@ -101,9 +101,10 @@ const WarningTimeline = ({ site, timeline, onJump }) => {
                 <p className="text-[9px] text-slate-500">times UTC (IST = UTC + 5:30) · click a marker to open it on the map</p>
             </div>
             <Row label={`${new Date(t0).toUTCString().slice(5, 11)} (UTC)`} h="h-4">
-                {hours.map((t) => (
-                    <span key={t} className="absolute -translate-x-1/2 text-[9px] text-slate-400 tabular-nums" style={{ left: x(t) }}>{hh(t)}</span>
-                ))}
+                {/* label every 2 h (readable in the narrower drawer), tick the hours between */}
+                {hours.map((t) => (new Date(t).getUTCHours() % 2 === 0
+                    ? <span key={t} className="absolute -translate-x-1/2 text-[9px] text-slate-400 tabular-nums" style={{ left: x(t) }}>{hh(t)}</span>
+                    : <span key={t} className="absolute top-1 h-1.5 w-px bg-slate-300" style={{ left: x(t) }} />))}
             </Row>
 
             <Row label="Reported event window" source="reports" testid="tl-window"

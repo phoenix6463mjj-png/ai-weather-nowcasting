@@ -40,8 +40,17 @@ async function activeLead(page) {
     return Number(id.replace('lead-', ''));
 }
 
+// The alert list lives in the drawer's Alert section (collapsed by default): open it, back to the list.
+async function showAlertList(page) {
+    if ((await page.getByTestId('drawer').getAttribute('data-open')) !== 'alert') await page.getByTestId('drawer-tab-alert').click();
+    const back = page.getByTestId('explain-panel').locator('button[title="Back to list"]');
+    if (await back.count()) await back.click();
+    await expect(page.getByTestId('alert-list-view')).toBeVisible();
+}
+
 // Map polygons and list rows must equal the API's alerts under the same filter.
 async function expectCountsMatch(page, alerts, lead, withWatch) {
+    await showAlertList(page);
     const expected = alerts.filter((a) => a.lead_time_h === lead && (withWatch || a.level === 'Warning'));
     await expect(page.locator('path.nowcast-alert-poly')).toHaveCount(expected.length);
     await expect(page.getByTestId('alert-row')).toHaveCount(expected.length);
@@ -102,7 +111,9 @@ test('explain panel: cloudburst index is not shown as a percentage', async ({ pa
     const alerts = await openIssue(page, 'REF045', '20230813T2100Z');
     const cb = alerts.find((a) => a.hazard === 'cloudburst' && a.level === 'Warning');
     await page.getByTestId(`lead-${cb.lead_time_h}`).click();
+    await showAlertList(page);
     await page.locator('[data-testid="alert-row"][data-hazard="cloudburst"]').first().locator('button').click();
+    await expect(page.getByTestId('drawer')).toHaveAttribute('data-open', 'alert');
     const panel = page.getByTestId('explain-panel');
     await expect(panel).toBeVisible();
     await expect(panel).toHaveAttribute('data-hazard', 'cloudburst');
@@ -118,6 +129,7 @@ test('explain panel: flash flood shows a ratio with Watch/Warning, no %', async 
     const alerts = await openIssue(page, 'REF045', '20230812T2100Z');
     const ff = alerts.find((a) => a.hazard === 'flash_flood' && a.level === 'Warning');
     await page.getByTestId(`lead-${ff.lead_time_h}`).click();
+    await showAlertList(page);
     await page.locator('[data-testid="alert-row"][data-hazard="flash_flood"]').first().locator('button').click();
     const panel = page.getByTestId('explain-panel');
     await expect(panel).toHaveAttribute('data-hazard', 'flash_flood');
@@ -209,6 +221,7 @@ test('National tab: probability map only, no alerts, flash-flood placeholder sta
     await expect(banner).toContainText('probability map only');
     await expect(banner).toContainText('No alerts are produced');
     await expect(banner).toContainText('placeholder');
+    await page.getByTestId('drawer-tab-about').click();                // notes live in the drawer's About section
     await expect(page.getByTestId('india-notes')).toContainText('Absence of alerts does not mean');
     await expect(page.locator('path.nowcast-alert-poly')).toHaveCount(0);
     await expect(page.getByTestId('field-select').locator('option[value="flash_flood"]')).toHaveCount(0);
@@ -261,6 +274,7 @@ test('Live tab: not-validated banner, polygons = API alerts, labels correct, not
 test('replay button re-runs the model and matches the precomputed files', async ({ page }) => {
     test.setTimeout(120_000);
     const alerts = await openIssue(page, 'REF045', '20230813T2100Z');
+    await showAlertList(page);                                            // the replay button heads the Alert section
     const resp = page.waitForResponse((r) => r.url().endsWith('/replay') && r.request().method() === 'POST', { timeout: 90_000 });
     await page.getByTestId('replay-button').click();
     await expect(page.getByTestId('replay-button')).toContainText('Running');
@@ -302,6 +316,7 @@ const FF_NOTE = 'FF verification uses a rain-rate proxy (≥30 mm/hr observed), 
 
 test('flash-flood verification note is shown in summary, legend, rows and panel', async ({ page }) => {
     await openIssue(page, 'REF045', '20230812T2100Z');           // default L6: 1 flash-flood Warning
+    await showAlertList(page);
     await expect(page.getByTestId('ff-verify-note-summary')).toHaveText(FF_NOTE);
     await expect(page.getByTestId('ff-verify-note-legend')).toHaveText(FF_NOTE);
     const ffRow = page.locator('[data-testid="alert-row"][data-hazard="flash_flood"]').first();
@@ -351,7 +366,7 @@ const EVENT_DISAGREE = 'IMERG verification and documented-report check can disag
 
 test('documented-event check REF045: 8 early-warning alerts (2 precise), rules, jump to alert', async ({ page }) => {
     await openIssue(page, 'REF045', '20230813T1500Z');
-    await page.getByTestId('aside-tab-event').click();
+    await page.getByTestId('drawer-tab-event').click();
     const panel = page.getByTestId('event-check-panel');
     await expect(page.getByTestId('event-label')).toHaveText(EVENT_LABEL);
     await expect(page.getByTestId('event-disagree')).toHaveText(EVENT_DISAGREE);
@@ -377,7 +392,7 @@ test('documented-event check REF045: 8 early-warning alerts (2 precise), rules, 
 
 test('documented-event check REF051: Malana 5 alerts + nearby cells at 13:00Z, Tosh date only', async ({ page }) => {
     await openIssue(page, 'REF051', '20240731T1800Z');
-    await page.getByTestId('aside-tab-event').click();
+    await page.getByTestId('drawer-tab-event').click();
     const malana = page.getByTestId('event-site-REF051');
     await expect(malana.getByTestId('event-result')).toContainText('5 alert(s)');
     await expect(malana.getByTestId('event-alert')).toHaveCount(5);
@@ -413,7 +428,7 @@ test('documented-event check REF051: Malana 5 alerts + nearby cells at 13:00Z, T
 test('no documented-event check for the in-sample REF025', async ({ page }) => {
     await openIssue(page, 'REF025', '20210718T1800Z');
     await expect(page.getByTestId('in-sample-badge')).toBeVisible();
-    await expect(page.getByTestId('aside-tab-event')).toHaveCount(0);
+    await expect(page.getByTestId('drawer-tab-event')).toHaveCount(0);
 });
 
 // ---------------------------------------------------------------- IMD colour chips (checkpoint 01)
@@ -453,7 +468,7 @@ test('IMD colour chips: orange on every Watch, red on every Warning, label prese
     await panel.locator('button[title="Back to list"]').click();
 
     // documented-event check cards
-    await page.getByTestId('aside-tab-event').click();
+    await page.getByTestId('drawer-tab-event').click();
     const site = page.getByTestId('event-site-REF045');
     const cards = site.getByTestId('event-alert');
     const nc = await cards.count();
@@ -468,6 +483,7 @@ test('IMD pill also on the live alert panel', async ({ page }) => {
     await page.goto('/nowcast');
     await page.getByTestId('tab-live').click();
     await page.getByTestId('watch-toggle').check();
+    await showAlertList(page);
     const row = page.getByTestId('alert-row').first();
     const level = await row.getAttribute('data-level');
     await row.locator('button').click();
@@ -572,19 +588,25 @@ test('data credits footer shows the full Copernicus notice, visible without hove
         await expect(credit.locator('a', { hasText: 'licence' })).toHaveAttribute('href', /dataspace\.copernicus\.eu/);
     }
     await page.getByTestId('tab-replay').click();
-    await page.getByRole('button', { name: /All \d+/ }).click();       // expanded caveats must not push it off-screen
+    await page.getByTestId('drawer-tab-caveats').click();               // open caveats must not push it off-screen
+    await expect(page.getByTestId('caveat').first()).toBeVisible();
     await expect(credit).toBeInViewport({ ratio: 1 });
     await shot(page, 'data_credits_footer_replay_caveats_open');
-    await page.getByRole('button', { name: /Less/ }).click();
+    await page.keyboard.press('Escape');
     await shot(page, 'data_credits_footer_replay');
 });
 
 // ---------------------------------------------------------------- ingredients panel (checkpoint 03)
 async function openAlert(page, hazard, level = 'Warning') {
     await page.getByTestId('watch-toggle').check();
+    await showAlertList(page);
     const detail = page.waitForResponse((r) => /\/alerts\/[^/]+$/.test(r.url()) && r.ok());
     await page.locator(`[data-testid="alert-row"][data-hazard="${hazard}"][data-level="${level}"]`).first().locator('button').click();
-    return (await (await detail).json()).ingredients;
+    const ing = (await (await detail).json()).ingredients;
+    await page.getByTestId('explain-open-ingredients').click();          // Alert section -> Ingredients section
+    await expect(page.getByTestId('drawer')).toHaveAttribute('data-open', 'ingredients');
+    await expect(page.getByTestId('ingredients-tab')).toBeVisible();
+    return ing;
 }
 
 async function expectBarsMatch(page, ing) {
@@ -609,7 +631,7 @@ test('ingredients: cloudburst bars = API, sums = raw log-odds, boost line from t
     await page.getByTestId('lead-4').click();
     const ing = await openAlert(page, 'cloudburst');
     expect(ing.model).toBe('theta30');
-    await expect(page.getByTestId('explain-panel')).toContainText('Ingredients: contribution to this alert (log-odds, ranking not magnitude)');
+    await expect(page.getByTestId('ingredients-tab')).toContainText('Ingredients: contribution to this alert (log-odds, ranking not magnitude)');
     await expect(page.getByTestId('ingredients-label')).toHaveText('explains the ≥30 mm/hr rain probability behind this alert (log-odds, before calibration)');
     await expectBarsMatch(page, ing);
     await expect(page.getByTestId('ingredients-boost')).toHaveText(ing.boost);
@@ -644,21 +666,33 @@ test('ingredients: thunderstorm (no boost) and REF025 in-sample alert keep their
     await expect(page.getByTestId('in-sample-badge')).toBeVisible();
     const ing25 = await openAlert(page, 'cloudburst');
     await expectBarsMatch(page, ing25);
+    await expect(page.getByTestId('ingredients-tab')).toContainText('IN-SAMPLE');
+    await page.getByTestId('drawer-tab-alert').click();
     await expect(page.getByTestId('explain-panel')).toContainText('IN-SAMPLE');
 });
 
 test('ingredients: "not available" on the forecast-only issue and on live alerts', async ({ page }) => {
     await openIssue(page, 'REF051', '20240731T1300Z');
     await page.getByTestId('watch-toggle').check();
+    await showAlertList(page);
     await page.getByTestId('alert-row').first().locator('button').click();
+    await page.getByTestId('drawer-tab-ingredients').click();
     await expect(page.getByTestId('ingredients-unavailable')).toHaveText('Not available: no explanation available: input window starts 12:00Z.');
     await expect(page.getByTestId('ingredient-row')).toHaveCount(0);
     await shot(page, 'ingredients_forecast_only_REF051_1300Z');
     await page.getByTestId('tab-live').click();
     await page.getByTestId('watch-toggle').check();
+    await showAlertList(page);
     await page.getByTestId('alert-row').first().locator('button').click();
-    await expect(page.getByTestId('ingredients-unavailable')).toContainText('Not available');
     await expect(page.getByTestId('explain-panel')).toContainText('NOT validated');
+    await page.getByTestId('explain-open-ingredients').click();
+    await expect(page.getByTestId('ingredients-unavailable')).toHaveText('Not available: no per-feature SHAP is stored for live runs.');
+    await expect(page.getByTestId('ingredients-tab')).toContainText('NOT validated');
+    // no alert selected -> the Ingredients section says how to get one
+    await page.getByTestId('drawer-tab-alert').click();
+    await page.getByTestId('explain-panel').locator('button[title="Back to list"]').click();
+    await page.getByTestId('drawer-tab-ingredients').click();
+    await expect(page.getByTestId('ingredients-empty')).toContainText('Select an alert');
 });
 
 // ---------------------------------------------------------------- footer at small viewports
@@ -723,19 +757,26 @@ test('ingredients: validation 2022-23 lines shown next to the demo statement, pe
 
 // ---------------------------------------------------------------- map legend + controls at small viewports
 for (const [w, h] of [[1280, 720], [1366, 768]]) {
-    test(`map legend collapsed and controls not clipped at ${w}x${h}`, async ({ page }) => {
+    test(`map legend + Layers panel collapsed and controls not clipped at ${w}x${h}`, async ({ page }) => {
         await page.setViewportSize({ width: w, height: h });
         await openIssue(page, 'REF045', '20230813T1500Z');
         const legend = page.getByTestId('map-legend');
         await expect(legend).toHaveAttribute('data-open', 'false');
         await expect(page.getByTestId('legend-toggle')).toHaveAttribute('aria-expanded', 'false');
         await expect(legend).not.toContainText('Warning (solid outline)');
+        // Layers panel: collapsed on small screens, one-line summary of the current selection
+        const layers = page.getByTestId('layers-panel');
+        await expect(layers).toHaveAttribute('data-open', 'false');
+        await expect(page.getByTestId('layers-summary')).toContainText(`L${await activeLead(page)} h`);
+        await shot(page, `layers_collapsed_${w}x${h}`);
+        await page.getByTestId('layers-toggle').click();
+        await expect(layers).toHaveAttribute('data-open', 'true');
         const map = page.locator('.leaflet-container');
-        const controls = page.getByTestId('map-controls');
+        const controls = page.getByTestId('layers-panel');
         const [mb, cb] = [await map.boundingBox(), await controls.boundingBox()];
         expect(cb.y + cb.height, 'controls bottom inside the map').toBeLessThanOrEqual(mb.y + mb.height + 0.5);
         // every control is reachable (the panel scrolls inside the map instead of being cut off)
-        for (const id of ['lead-6', 'field-select', 'terrain-toggle', 'watch-toggle']) {
+        for (const id of ['episode-select', 'issue-select', 'lead-6', 'field-select', 'terrain-toggle', 'watch-toggle']) {
             await page.getByTestId(id).scrollIntoViewIfNeeded();
             await expect(page.getByTestId(id)).toBeInViewport({ ratio: 1 });
             const b = await page.getByTestId(id).boundingBox();
@@ -743,7 +784,7 @@ for (const [w, h] of [[1280, 720], [1366, 768]]) {
         }
         await page.getByTestId('watch-toggle').check();                       // usable, not just visible
         await expect(page.getByTestId('watch-toggle')).toBeChecked();
-        await controls.evaluate((el) => { el.scrollTop = 0; });
+        await controls.locator('.overflow-y-auto').evaluate((el) => { el.scrollTop = 0; });
         await shot(page, `map_legend_collapsed_${w}x${h}`);
         await page.getByTestId('legend-toggle').click();
         await expect(legend).toHaveAttribute('data-open', 'true');
@@ -769,7 +810,7 @@ async function openTimeline(page, ep, ts) {
     const tlr = page.waitForResponse((r) => r.url().endsWith(`/episodes/${ep}/timeline`) && r.ok());
     await openIssue(page, ep, ts);
     const [check, tl] = [await (await chk).json(), await (await tlr).json()];
-    await page.getByTestId('aside-tab-event').click();
+    await page.getByTestId('drawer-tab-event').click();
     await expect(page.getByTestId('warning-timeline')).toBeVisible();
     return { site: check.sites.find((s) => s.site_episode === ep), tl };
 }
@@ -938,3 +979,152 @@ test('Approach page: status table, IWV attribution from AGGREGATE_VAL, IMERG evi
     await page.getByTestId('page-link-nowcast').click();
     await expect(page.getByTestId('replay-view')).toBeVisible();
 });
+
+// ---------------------------------------------------------------- layout consolidation (checkpoint U1)
+const DRAWER_TABS = ['alert', 'ingredients', 'event', 'caveats'];
+const boxesOverlap = (a, b) => a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
+
+// map controls (Layers panel, zoom) are inside the map and not covered by the drawer
+async function expectControlsClear(page) {
+    const map = await page.locator('.leaflet-container').boundingBox();
+    const drawer = await page.getByTestId('drawer').boundingBox();
+    for (const loc of [page.getByTestId('layers-panel'), page.locator('.leaflet-control-zoom'), page.getByTestId('map-legend')]) {
+        const b = await loc.boundingBox();
+        expect(b.x).toBeGreaterThanOrEqual(map.x - 0.5);
+        expect(b.x + b.width).toBeLessThanOrEqual(map.x + map.width + 0.5);
+        expect(boxesOverlap(b, drawer), 'control covered by the drawer').toBe(false);
+    }
+    expect(map.x + map.width).toBeLessThanOrEqual(drawer.x + 0.5);          // the drawer pushes the map
+}
+
+for (const [w, h] of [[1920, 1080], [1366, 768]]) {
+    test(`layout ${w}x${h}: map first, one drawer (collapsed, one section at a time, Esc/× close), badges on the map`, async ({ page }) => {
+        await page.setViewportSize({ width: w, height: h });
+        const cav = page.waitForResponse((r) => r.url().endsWith('/caveats') && r.ok());
+        const alerts = await openIssue(page, 'REF045', '20230813T1500Z');
+        const drawer = page.getByTestId('drawer');
+        // default: drawer collapsed (only the icon rail), badges visible above the map, credits visible
+        await expect(drawer).toHaveAttribute('data-open', '');
+        await expect(page.locator('[data-testid^="drawer-panel-"]')).toHaveCount(0);
+        for (const t of DRAWER_TABS) await expect(page.getByTestId(`drawer-tab-${t}`)).toBeVisible();
+        await expect(page.getByTestId('oos-badge')).toBeInViewport({ ratio: 1 });
+        await expect(page.getByTestId('layers-panel')).toHaveAttribute('data-open', String(w >= 1400 && h >= 900));
+        await expect(page.getByTestId('credit-copernicus_dem')).toBeInViewport({ ratio: 1 });
+        await expect(page.locator('path.nowcast-alert-poly')).toHaveCount(
+            alerts.filter((a) => a.lead_time_h === 2 && a.level === 'Warning').length);
+        await expectControlsClear(page);
+        await shot(page, `layout_default_${w}x${h}`);
+
+        // clicking an alert on the map opens the drawer on the Alert section
+        const detail = page.waitForResponse((r) => /\/alerts\/[^/]+$/.test(r.url()) && r.ok());
+        await page.locator('path.nowcast-alert-poly').first().dispatchEvent('click');
+        const d = await (await detail).json();
+        await expect(drawer).toHaveAttribute('data-open', 'alert');
+        await expect(page.getByTestId('explain-panel')).toHaveAttribute('data-hazard', d.hazard);
+        await expect(page.locator('[data-testid^="drawer-panel-"]')).toHaveCount(1);
+        await expect(page.getByTestId('oos-badge')).toBeInViewport({ ratio: 1 });
+        await expectControlsClear(page);
+        await shot(page, `layout_drawer_alert_${w}x${h}`);
+
+        // one section at a time
+        await page.getByTestId('drawer-tab-ingredients').click();
+        await expect(drawer).toHaveAttribute('data-open', 'ingredients');
+        await expect(page.getByTestId('explain-panel')).toHaveCount(0);
+        await expect(page.getByTestId('ingredients-tab')).toBeVisible();
+        await expect(page.getByTestId('ingredient-row')).toHaveCount(6);
+        await expect(page.locator('[data-testid^="drawer-panel-"]')).toHaveCount(1);
+        await shot(page, `layout_drawer_ingredients_${w}x${h}`);
+
+        await page.getByTestId('drawer-tab-event').click();
+        await expect(drawer).toHaveAttribute('data-open', 'event');
+        await expect(page.getByTestId('warning-timeline')).toBeVisible();
+        await expect(page.getByTestId('ingredients-tab')).toHaveCount(0);
+        await expectControlsClear(page);
+        await expect(page.getByTestId('oos-badge')).toBeInViewport({ ratio: 1 });
+        await shot(page, `layout_drawer_event_${w}x${h}`);
+
+        await page.getByTestId('drawer-tab-caveats').click();
+        const caveats = (await (await cav).json()).caveats;
+        await expect(page.getByTestId('caveat')).toHaveCount(caveats.length);
+        await expect(page.getByTestId('caveats-panel')).toContainText(caveats[0].short);
+        await expect(page.getByTestId('caveats-panel')).toContainText(caveats[0].source);
+        await expect(page.getByTestId('warning-timeline')).toHaveCount(0);
+        await expect(page.getByTestId('credit-copernicus_dem')).toBeInViewport({ ratio: 1 });
+        await shot(page, `layout_drawer_caveats_${w}x${h}`);
+
+        // Esc closes; × closes; clicking the open section's icon closes
+        await page.keyboard.press('Escape');
+        await expect(drawer).toHaveAttribute('data-open', '');
+        await page.getByTestId('drawer-tab-caveats').click();
+        await page.getByTestId('drawer-close').click();
+        await expect(drawer).toHaveAttribute('data-open', '');
+        await page.getByTestId('drawer-tab-alert').click();
+        await page.getByTestId('drawer-tab-alert').click();
+        await expect(drawer).toHaveAttribute('data-open', '');
+    });
+}
+
+test('legend lists only visible layers (hazards, forecast layer, terrain, observed)', async ({ page }) => {
+    await openIssue(page, 'REF045', '20230813T2100Z');
+    await page.getByTestId('lead-4').click();
+    const legend = page.getByTestId('map-legend');
+    await expect(legend).toHaveAttribute('data-open', 'true');
+    await expect(page.getByTestId('raster-legend-label')).toHaveCount(0);            // no forecast layer selected
+    await expect(page.getByTestId('legend-observed')).toHaveCount(1);
+    await expect(page.getByTestId('legend-terrain')).toHaveCount(1);
+    await expect(page.getByTestId('legend-hazards').locator('[data-hazard]')).toHaveCount(3);
+    await page.locator('label', { hasText: 'Cloudburst' }).locator('input').uncheck();
+    await expect(page.getByTestId('legend-hazards').locator('[data-hazard="cloudburst"]')).toHaveCount(0);
+    await page.getByTestId('terrain-toggle').uncheck();
+    await expect(page.getByTestId('legend-terrain')).toHaveCount(0);
+    await page.getByTestId('field-select').selectOption('thunderstorm');
+    await expect(page.getByTestId('raster-legend-label')).toContainText('probability');
+    for (const h of ['Thunderstorm', 'Flash flood']) await page.locator('label', { hasText: h }).locator('input').uncheck();
+    await expect(legend).not.toContainText('Warning (solid outline)');               // no alert layer on -> no alert legend
+    await expect(page.getByTestId('raster-legend-label')).toHaveCount(1);
+});
+
+test('National and Live use the same frame: Layers panel, legend, drawer (About/Alert/Ingredients/Caveats)', async ({ page }) => {
+    await page.setViewportSize({ width: 1366, height: 768 });
+    await page.goto('/nowcast');
+    await page.getByTestId('tab-india').click();
+    await expect(page.getByTestId('india-banner')).toBeInViewport();
+    await expect(page.getByTestId('drawer')).toHaveAttribute('data-open', '');
+    await page.getByTestId('drawer-tab-about').click();
+    await expect(page.getByTestId('india-notes')).toContainText('Absence of alerts does not mean');
+    await expectControlsClear(page);
+    await shot(page, 'layout_national_about_1366x768');
+    await page.getByTestId('tab-live').click();
+    await expect(page.getByTestId('live-not-validated')).toBeInViewport();
+    await expect(page.getByTestId('drawer')).toHaveAttribute('data-open', '');
+    await page.getByTestId('layers-toggle').click();
+    await page.getByTestId('watch-toggle').check();
+    await page.locator('path.nowcast-peak-marker').first().dispatchEvent('click');
+    await expect(page.getByTestId('drawer')).toHaveAttribute('data-open', 'alert');
+    await expect(page.getByTestId('explain-panel')).toContainText('NOT validated');
+    await expect(page.getByTestId('live-not-validated')).toBeInViewport();
+    await expectControlsClear(page);
+    await shot(page, 'layout_live_alert_1366x768');
+});
+
+for (const [path, id, name] of [['/nowcast/results', 'results-page', 'results'], ['/nowcast/approach', 'approach-page', 'approach']]) {
+    test(`${name} page reads cleanly at 1366x768 (no horizontal overflow, nothing clipped)`, async ({ page }) => {
+        await page.setViewportSize({ width: 1366, height: 768 });
+        await page.goto(path);
+        await expect(page.getByTestId(id)).toBeVisible();
+        await page.waitForTimeout(800);
+        const r = await page.evaluate(() => {
+            const bad = [];
+            for (const el of document.querySelectorAll('main *, [data-testid$="-page"] *')) {
+                if (el.closest('svg') && el.tagName.toLowerCase() !== 'svg') continue;
+                const cs = getComputedStyle(el);
+                if ((cs.overflowX === 'visible' || cs.overflowX === 'hidden') && el.scrollWidth > el.clientWidth + 1 && el.clientWidth > 0
+                    && !['inline'].includes(cs.display)) bad.push(`${el.tagName}.${String(el.className).slice(0, 40)} ${el.scrollWidth}>${el.clientWidth}`);
+            }
+            return { docW: document.documentElement.scrollWidth, vw: innerWidth, bad: bad.slice(0, 10) };
+        });
+        expect(r.docW, 'page wider than the viewport').toBeLessThanOrEqual(r.vw);
+        expect(r.bad, 'elements with clipped / overflowing content').toEqual([]);
+        await shot(page, `${name}_1366x768`);
+    });
+}

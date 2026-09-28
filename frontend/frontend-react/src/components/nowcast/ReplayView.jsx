@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { getEpisodes, getEventCheck, getTimeline, getIssueMeta, getIssueAlerts, issueMapUrl, issueMissedUrl } from '../../services/nowcastApi';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { BellRing, FlaskConical, CalendarClock, Info } from 'lucide-react';
+import { getEpisodes, getEventCheck, getTimeline, getIssueMeta, getIssueAlerts, getAlertDetail, issueMapUrl, issueMissedUrl } from '../../services/nowcastApi';
 import { HAZARDS, fmtUtc, fmtIssueShort, issueDefaultLead, FF_VERIFY_NOTE } from '../../utils/hazardLabels';
 import AlertMap from './AlertMap';
 import MapControls from './MapControls';
@@ -10,6 +11,12 @@ import MapLegend from './MapLegend';
 import ReplayButton from './ReplayButton';
 import EventCheckPanel from './EventCheckPanel';
 import useTerrain from './useTerrain';
+import Drawer from './Drawer';
+import LayersPanel from './LayersPanel';
+import IngredientsTab from './IngredientsTab';
+import CaveatsPanel from './CaveatsPanel';
+import { MapBadges } from './MapFrame';
+import useEventDrawerWidth from './useEventDrawerWidth';
 
 const tsOf = (iso) => iso.replace(/[-:]/g, '');       // '2023-08-13T12:00Z' -> '20230813T1200Z'
 
@@ -34,8 +41,10 @@ const ReplayView = () => {
     const [field, setField] = useState('');
     const [selected, setSelected] = useState(null);
     const [error, setError] = useState(null);
-    const [asideTab, setAsideTab] = useState('alerts');
+    const [drawer, setDrawer] = useState(null);             // open drawer section, null = collapsed
     const [check, setCheck] = useState({ ep: null, data: null, timeline: null });
+    const [detail, setDetail] = useState({ id: null, d: null, error: null });
+    const eventWidth = useEventDrawerWidth();
     const terrain = useTerrain(ep);
     const pendingRef = useRef(null);            // jump target waiting for its issue to load
     const setters = { setLead, setShowWatch, setHazards, setSelected };
@@ -48,7 +57,7 @@ const ReplayView = () => {
             const i = e?.issues.find((x) => x.ts === q.get('ts'));
             setEp(e ? e.episode : r.default.episode);
             setTs(e ? (i ? i.ts : e.issues[0].ts) : r.default.ts);
-            if (e && q.get('tab') === 'event') setAsideTab('event');
+            if (e && q.get('tab') === 'event') setDrawer('event');
         }).catch((e) => setError(e.message));
     }, []);
 
@@ -79,20 +88,33 @@ const ReplayView = () => {
         return () => { live = false; };
     }, [ep]);
 
+    // alert detail for the selected alert: shared by the Alert and Ingredients sections
+    const selId = selected?.alert_id;
+    useEffect(() => {
+        if (!selId || !ep || !ts) return undefined;
+        let live = true;
+        getAlertDetail(ep, ts, selId).then((r) => live && setDetail({ id: selId, d: r, error: null }))
+            .catch((e) => live && setDetail({ id: selId, d: null, error: e.message }));
+        return () => { live = false; };
+    }, [selId, ep, ts]);
+    const det = selId && detail.id === selId ? detail : { d: null, error: null };
+
     const { meta, alerts } = data;
     const loading = !!ep && !!ts && data.key !== `${ep}/${ts}` && !error;
 
     const episode = episodes.find((e) => e.episode === ep);
     const eventCheck = check.ep === ep ? check.data : null;
     const checkApplies = !!eventCheck?.applies;
-    const tab = checkApplies ? asideTab : 'alerts';
+    const active = drawer === 'event' && !checkApplies ? null : drawer;
+    const closeDrawer = useCallback(() => setDrawer(null), []);
+    const select = (a) => { setSelected(a); if (a) setDrawer('alert'); };
     const issueInfo = episode?.issues.find((i) => i.ts === ts);
 
     // documented-event check -> open that issue, lead (and alert) on the map
     const jumpTo = (item) => {
         const key = `${ep}/${tsOf(item.issue_time)}`;
         const target = { key, lead: item.lead_time_h, level: item.level, hazard: item.hazard, alertId: item.alert_id };
-        setAsideTab('alerts');
+        setDrawer('alert');
         if (key === data.key) {
             applyTarget(target, alerts, setters);
         } else {
@@ -144,64 +166,112 @@ const ReplayView = () => {
     };
     const changeIssue = (newTs) => { setSelected(null); setError(null); setTs(newTs); };
 
-    return (
-        <div className="flex-1 flex flex-col overflow-hidden">
-            {/* issue selector */}
-            <div className="px-6 py-3 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0f172a] flex flex-wrap items-center gap-3 shrink-0">
-                <select data-testid="episode-select" value={ep || ''} onChange={(e) => changeEpisode(e.target.value)}
-                    className="text-sm font-bold bg-slate-100 dark:bg-slate-800 dark:text-white rounded-lg px-3 py-1.5 border border-slate-200 dark:border-slate-700">
-                    {episodes.map((e) => (
-                        <option key={e.episode} value={e.episode}>
-                            {e.episode} · {e.sites?.length ? e.sites.map((s) => s.name).join(' + ') : e.location} ({e.site?.date}){e.in_sample ? ' · IN-SAMPLE' : ''}{e.case_study ? ` · ${e.badge.toUpperCase()} CASE STUDY` : ''}
-                        </option>
-                    ))}
-                </select>
-                <select data-testid="issue-select" value={ts || ''} onChange={(e) => changeIssue(e.target.value)}
-                    className="text-sm font-bold bg-slate-100 dark:bg-slate-800 dark:text-white rounded-lg px-3 py-1.5 border border-slate-200 dark:border-slate-700">
-                    {episode?.issues.map((i) => (
-                        <option key={i.ts} value={i.ts}>
-                            issued {fmtIssueShort(i.issue_time)} · {i.n_alerts} alerts{i.explain_available === false ? ' · forecast-only' : ` (${i.n_verified} verified)`}
-                        </option>
-                    ))}
-                </select>
-                <EpisodeBadge episode={episode} />
-                <span className="text-xs text-slate-500 dark:text-slate-400">
-                    Replay of archived inputs (IMERG Final + ERA5) · model lgbm_v0 (frozen), {meta?.cutset} cut-offs
-                </span>
+    const tabs = [
+        { id: 'alert', label: 'Alert', icon: BellRing, width: 420 },
+        { id: 'ingredients', label: 'Ingredients', icon: FlaskConical, width: 440 },
+        ...(checkApplies ? [{ id: 'event', label: 'Event check', icon: CalendarClock, width: eventWidth }] : []),
+        { id: 'caveats', label: 'Caveats', icon: Info, width: 420 },
+    ];
+
+    const alertSection = selected ? (
+        <ExplainPanel episode={ep} ts={ts} d={det.d} error={det.error} onBack={() => setSelected(null)}
+            onIngredients={() => setDrawer('ingredients')} />
+    ) : (
+        <div data-testid="alert-list-view">
+            {meta && data.key === `${ep}/${ts}` && <ReplayButton key={data.key} episode={ep} issueTime={meta.issue_time} />}
+            <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-700">
+                <h3 className="text-sm font-black text-slate-900 dark:text-white">
+                    {meta ? `Issued ${fmtUtc(meta.issue_time)}` : 'Loading…'}
+                </h3>
+                {meta && lead && (
+                    <p className="text-xs text-slate-600 dark:text-slate-300 mt-1">
+                        Lead {lead} h: {shown.length} alert{shown.length === 1 ? '' : 's'} shown ·{' '}
+                        <span className="text-emerald-700 dark:text-emerald-400 font-bold">{nVer} verified</span> ·{' '}
+                        <span className="font-bold">{nFa} not verified (false alarm)</span>
+                    </p>
+                )}
+                {!showWatch && hiddenWatch > 0 && (
+                    <p className="text-[11px] text-amber-700 dark:text-amber-400 mt-1">
+                        {hiddenWatch} Watch alert{hiddenWatch === 1 ? '' : 's'} hidden at this lead. Tick "Also show Watch" in Layers.
+                    </p>
+                )}
+                {meta && (
+                    <>
+                        <p className="text-[10px] text-slate-400 mt-1 leading-snug">{meta.verification_definition}</p>
+                        <p data-testid="ff-verify-note-summary" className="text-[10px] text-amber-700 dark:text-amber-400 mt-0.5 leading-snug">{FF_VERIFY_NOTE}</p>
+                    </>
+                )}
             </div>
+            <AlertList alerts={shown} selectedId={selected?.alert_id} onSelect={select}
+                emptyText={showWatch ? 'No alerts at this lead for the selected hazards.'
+                    : 'No Warnings at this lead for the selected hazards. Tick "Also show Watch" in Layers to see Watch alerts.'} />
+        </div>
+    );
 
-            {episode?.case_study && (
-                <div data-testid="case-study-banner" className="px-6 py-2 bg-violet-50 dark:bg-violet-950/40 border-b border-violet-200 dark:border-violet-900 text-xs text-violet-950 dark:text-violet-100 shrink-0">
-                    <span className="font-black">{episode.sample_label}</span>
-                    {' '}The official 2024 test result is unchanged; sites shown: {episode.sites.map((s) => s.name).join(', ')}.
-                </div>
-            )}
-            {issueInfo?.explain_available === false && (
-                <div data-testid="forecast-only-banner" className="px-6 py-2 bg-slate-100 dark:bg-slate-800 border-b border-slate-300 dark:border-slate-700 text-xs text-slate-800 dark:text-slate-100 shrink-0">
-                    <span className="font-black">Forecast-only issue: {issueInfo.note}.</span>{' '}
-                    Alerts and maps come from the same frozen model; there is no explanation panel and no per-alert IMERG verification for this issue.
-                </div>
-            )}
-            {error && <div className="bg-red-600 text-white px-6 py-2 text-sm font-semibold">{error}</div>}
+    return (
+        <div className="flex-1 flex overflow-hidden min-h-0" data-testid="replay-view" data-loaded={data.key || ''}>
+            <div className="flex-1 flex flex-col min-w-0">
+                {/* badges stay visible at the top of the map (never inside the drawer) */}
+                <MapBadges>
+                    <EpisodeBadge episode={episode} />
+                    {episode?.case_study && (
+                        <span data-testid="case-study-banner" className="text-[11px] text-violet-950 dark:text-violet-100">
+                            <span className="font-black">{episode.sample_label}</span>
+                            {' '}The official 2024 test result is unchanged; sites shown: {episode.sites.map((s) => s.name).join(', ')}.
+                        </span>
+                    )}
+                    {issueInfo?.explain_available === false && (
+                        <span data-testid="forecast-only-banner" className="text-[11px] px-2 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-100">
+                            <span className="font-black">Forecast-only issue: {issueInfo.note}.</span>{' '}
+                            Alerts and maps come from the same frozen model; there is no explanation panel and no per-alert IMERG verification for this issue.
+                        </span>
+                    )}
+                    <span className="ml-auto text-[10px] text-slate-500 dark:text-slate-400">
+                        Replay of archived inputs (IMERG Final + ERA5) · model lgbm_v0 (frozen), {meta?.cutset} cut-offs
+                    </span>
+                </MapBadges>
+                {error && <div className="bg-red-600 text-white px-6 py-2 text-sm font-semibold">{error}</div>}
 
-            <div className="flex-1 flex overflow-hidden" data-testid="replay-view" data-loaded={data.key || ''}>
-                <div className="flex-1 relative">
+                <div className="flex-1 relative min-h-0">
                     {meta && (
                         <AlertMap bounds={meta.bounds} alerts={shown} selectedId={selected?.alert_id}
-                            onSelect={setSelected} sites={meta.sites || []} overlays={overlays} dimFill={!!field}
+                            onSelect={select} sites={meta.sites || []} overlays={overlays} dimFill={!!field}
                             terrain={terrain.layers} terrainNotice={terrain.fullNotice} />
                     )}
-                    {meta && lead && (
-                        <div className="absolute top-3 right-3 bottom-3 z-[400] flex flex-col pointer-events-none">
-                            <MapControls leads={meta.leads_available} lead={lead} setLead={setLead} leadInfo={leadInfo}
-                                hazards={hazards} setHazards={setHazards} showWatch={showWatch} setShowWatch={setShowWatch}
-                                counts={counts} field={field} setField={setField} terrain={terrain} />
-                        </div>
-                    )}
+                    <div className="absolute top-3 left-3 bottom-3 z-[400] flex flex-col pointer-events-none">
+                        <LayersPanel summary={meta && lead ? `${ep} · ${fmtIssueShort(meta.issue_time)} · L${lead} h · ${showWatch ? 'Watch + Warning' : 'Warnings'}` : ''}>
+                            <div className="space-y-1.5">
+                                <p className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400">Event and issue</p>
+                                <select data-testid="episode-select" value={ep || ''} onChange={(e) => changeEpisode(e.target.value)}
+                                    className="w-full text-xs font-bold bg-slate-100 dark:bg-slate-700 dark:text-white rounded-md px-2 py-1 border border-slate-200 dark:border-slate-600">
+                                    {episodes.map((e) => (
+                                        <option key={e.episode} value={e.episode}>
+                                            {e.episode} · {e.sites?.length ? e.sites.map((s) => s.name).join(' + ') : e.location} ({e.site?.date}){e.in_sample ? ' · IN-SAMPLE' : ''}{e.case_study ? ` · ${e.badge.toUpperCase()} CASE STUDY` : ''}
+                                        </option>
+                                    ))}
+                                </select>
+                                <select data-testid="issue-select" value={ts || ''} onChange={(e) => changeIssue(e.target.value)}
+                                    className="w-full text-xs font-bold bg-slate-100 dark:bg-slate-700 dark:text-white rounded-md px-2 py-1 border border-slate-200 dark:border-slate-600">
+                                    {episode?.issues.map((i) => (
+                                        <option key={i.ts} value={i.ts}>
+                                            issued {fmtIssueShort(i.issue_time)} · {i.n_alerts} alerts{i.explain_available === false ? ' · forecast-only' : ` (${i.n_verified} verified)`}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                            {meta && lead && (
+                                <MapControls leads={meta.leads_available} lead={lead} setLead={setLead} leadInfo={leadInfo}
+                                    hazards={hazards} setHazards={setHazards} showWatch={showWatch} setShowWatch={setShowWatch}
+                                    counts={counts} field={field} setField={setField} terrain={terrain} />
+                            )}
+                        </LayersPanel>
+                    </div>
                     {meta && (
-                        <div className="absolute top-[84px] bottom-3 left-3 z-[400] flex flex-col justify-end pointer-events-none">
-                            <MapLegend legends={meta.legends} field={field} site={(meta.sites || []).length} ffNote={FF_VERIFY_NOTE}
-                                verification={meta.explain_available !== false}
+                        <div className="absolute top-[84px] bottom-[26px] right-3 z-[400] flex flex-col justify-end pointer-events-none">
+                            <MapLegend legends={meta.legends} field={field} hazards={hazards} site={(meta.sites || []).length} ffNote={FF_VERIFY_NOTE}
+                                verification={meta.explain_available !== false} observed={obsAvailable} missed={obsAvailable}
+                                terrain={terrain.layers.length > 0}
+                                noteTitle="Observed (replay)"
                                 note={obsAvailable ? null : 'Observed frame unavailable for this lead: no verification overlay.'} />
                         </div>
                     )}
@@ -211,56 +281,16 @@ const ReplayView = () => {
                         </div>
                     )}
                 </div>
-
-                <aside className={`${tab === 'event' && !selected ? 'w-[900px]' : 'w-[400px]'} shrink-0 border-l border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0f172a] overflow-y-auto`}>
-                    {checkApplies && !selected && (
-                        <div className="flex border-b border-slate-200 dark:border-slate-700 sticky top-0 bg-white dark:bg-[#0f172a] z-10">
-                            {[['alerts', 'Alerts'], ['event', 'Documented-event check']].map(([id, label]) => (
-                                <button key={id} data-testid={`aside-tab-${id}`} onClick={() => setAsideTab(id)}
-                                    className={`flex-1 py-2 text-xs font-bold border-b-2 ${tab === id
-                                        ? 'border-blue-600 text-blue-700 dark:text-blue-400' : 'border-transparent text-slate-500 hover:text-slate-900 dark:hover:text-white'}`}>
-                                    {label}
-                                </button>
-                            ))}
-                        </div>
-                    )}
-                    {!selected && tab === 'event' ? (
-                        <EventCheckPanel check={eventCheck} timeline={check.ep === ep ? check.timeline : null} onJump={jumpTo} />
-                    ) : selected ? (
-                        <ExplainPanel key={selected.alert_id} episode={ep} ts={ts} alertId={selected.alert_id} onClose={() => setSelected(null)} />
-                    ) : (
-                        <>
-                            {meta && data.key === `${ep}/${ts}` && <ReplayButton key={data.key} episode={ep} issueTime={meta.issue_time} />}
-                            <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-700">
-                                <h3 className="text-sm font-black text-slate-900 dark:text-white">
-                                    {meta ? `Issued ${fmtUtc(meta.issue_time)}` : 'Loading…'}
-                                </h3>
-                                {meta && lead && (
-                                    <p className="text-xs text-slate-600 dark:text-slate-300 mt-1">
-                                        Lead {lead} h: {shown.length} alert{shown.length === 1 ? '' : 's'} shown ·{' '}
-                                        <span className="text-emerald-700 dark:text-emerald-400 font-bold">{nVer} verified</span> ·{' '}
-                                        <span className="font-bold">{nFa} not verified (false alarm)</span>
-                                    </p>
-                                )}
-                                {!showWatch && hiddenWatch > 0 && (
-                                    <p className="text-[11px] text-amber-700 dark:text-amber-400 mt-1">
-                                        {hiddenWatch} Watch alert{hiddenWatch === 1 ? '' : 's'} hidden at this lead. Tick "Also show Watch".
-                                    </p>
-                                )}
-                                {meta && (
-                                    <>
-                                        <p className="text-[10px] text-slate-400 mt-1 leading-snug">{meta.verification_definition}</p>
-                                        <p data-testid="ff-verify-note-summary" className="text-[10px] text-amber-700 dark:text-amber-400 mt-0.5 leading-snug">{FF_VERIFY_NOTE}</p>
-                                    </>
-                                )}
-                            </div>
-                            <AlertList alerts={shown} selectedId={selected?.alert_id} onSelect={setSelected}
-                                emptyText={showWatch ? 'No alerts at this lead for the selected hazards.'
-                                    : 'No Warnings at this lead for the selected hazards. Tick "Also show Watch" to see Watch alerts.'} />
-                        </>
-                    )}
-                </aside>
             </div>
+
+            <Drawer tabs={tabs} active={active} onOpen={setDrawer} onClose={closeDrawer}>
+                {(id) => (
+                    id === 'alert' ? alertSection
+                        : id === 'ingredients' ? <IngredientsTab selected={selected} d={det.d} error={det.error} />
+                            : id === 'event' ? <EventCheckPanel check={eventCheck} timeline={check.ep === ep ? check.timeline : null} onJump={jumpTo} />
+                                : <CaveatsPanel />
+                )}
+            </Drawer>
         </div>
     );
 };

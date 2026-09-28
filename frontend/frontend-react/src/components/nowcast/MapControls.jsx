@@ -3,11 +3,10 @@ import { TERRAIN_ATTRIBUTION } from './useTerrain';
 
 
 // Lead selector, forecast layer, terrain toggle + opacity, hazard toggles and the Watch toggle
-// (Warnings are always shown).
+// (Warnings are always shown). Rendered inside the Layers panel.
 const MapControls = ({ leads, lead, setLead, leadInfo = {}, hazards, setHazards, showWatch, setShowWatch, counts,
     field, setField, fieldOptions = FIELD_OPTIONS, alertControls = true, terrain }) => (
-    <div data-testid="map-controls"
-        className="pointer-events-auto max-h-full overflow-y-auto bg-white/95 dark:bg-slate-800/95 backdrop-blur shadow-md rounded-xl border border-slate-200 dark:border-slate-700 p-3 space-y-2.5 w-[250px]">
+    <div data-testid="map-controls" className="space-y-2.5">
         <div>
             <p className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 mb-1">Lead time</p>
             <div className="flex gap-1">
@@ -67,7 +66,7 @@ const MapControls = ({ leads, lead, setLead, leadInfo = {}, hazards, setHazards,
         <label className="flex items-center gap-2 text-xs font-bold text-slate-800 dark:text-slate-100 cursor-pointer border-t border-slate-200 dark:border-slate-700 pt-2">
             <input type="checkbox" data-testid="watch-toggle" checked={showWatch} onChange={(e) => setShowWatch(e.target.checked)} />
             Also show Watch
-            <span className="text-slate-400 font-normal">(Warnings always shown)</span>
+            <span className="ml-auto text-slate-400 font-normal text-[10px]">Warnings always shown</span>
         </label>
         </>)}
     </div>

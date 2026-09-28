@@ -13,7 +13,7 @@ export const NowcastPageLinks = () => (
     <nav data-testid="nowcast-page-links" className="flex gap-1">
         {NOWCAST_PAGES.map((p) => (
             <NavLink key={p.to} to={p.to} end={p.end} data-testid={`page-link-${p.to.split('/').pop()}`}
-                className={({ isActive }) => `px-3 py-1.5 rounded-lg text-xs font-bold ${isActive
+                className={({ isActive }) => `px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap ${isActive
                     ? 'bg-blue-600 text-white' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>
                 {p.label}
             </NavLink>

@@ -1,9 +1,7 @@
-import { useEffect, useState } from 'react';
-import { X, ArrowUpRight, ArrowDownRight } from 'lucide-react';
-import { getAlertDetail, issueFileUrl } from '../../services/nowcastApi';
+import { ChevronLeft, ArrowUpRight, ArrowDownRight, FlaskConical } from 'lucide-react';
+import { issueFileUrl } from '../../services/nowcastApi';
 import { HAZARD_STYLE, LEVEL_STYLE, VERIFY_STYLE, valueText, kindText, fmtUtc, stateName, FF_VERIFY_NOTE } from '../../utils/hazardLabels';
 import IMDChip from './IMDChip';
-import IngredientsPanel from './IngredientsPanel';
 
 const Section = ({ title, children }) => (
     <section className="px-4 py-3 border-b border-slate-100 dark:border-slate-800">
@@ -95,17 +93,9 @@ const Confidence = ({ c, hazard }) => {
     );
 };
 
-const ExplainPanel = ({ episode, ts, alertId, onClose }) => {
-    const [d, setD] = useState(null);
-    const [error, setError] = useState(null);
-
-    // the parent remounts this panel per alert (key={alertId}), so state starts empty
-    useEffect(() => {
-        let live = true;
-        getAlertDetail(episode, ts, alertId).then((r) => live && setD(r)).catch((e) => live && setError(e.message));
-        return () => { live = false; };
-    }, [episode, ts, alertId]);
-
+// Alert tab of the drawer: one alert's explanation. The alert detail is fetched by the parent
+// (shared with the Ingredients tab).
+const ExplainPanel = ({ episode, ts, d, error, onBack, onIngredients }) => {
     if (error) return <div className="p-4 text-sm text-red-600">Could not load explanation: {error}</div>;
     if (!d) return <div className="p-4 text-sm text-slate-500">Loading explanation…</div>;
 
@@ -119,8 +109,8 @@ const ExplainPanel = ({ episode, ts, alertId, onClose }) => {
                     <h3 className="text-base font-black">{hz.name}</h3>
                     <span className={`text-[10px] font-black px-1.5 py-0.5 rounded ${LEVEL_STYLE[d.level]?.badge}`}>{d.level}</span>
                     <IMDChip level={d.level} />
-                    <button onClick={onClose} className="ml-auto p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800" title="Back to list">
-                        <X size={16} />
+                    <button onClick={onBack} className="ml-auto flex items-center gap-0.5 px-1.5 py-1 rounded text-[11px] font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800" title="Back to list">
+                        <ChevronLeft size={14} /> List
                     </button>
                 </div>
                 <p data-testid="explain-value" className="text-2xl font-black mt-1 tabular-nums">{valueText(d)}</p>
@@ -171,9 +161,12 @@ const ExplainPanel = ({ episode, ts, alertId, onClose }) => {
                 </Section>
             )}
 
-            {d.ingredients && (
-                <Section title={d.ingredients.heading}>
-                    <IngredientsPanel ing={d.ingredients} />
+            {d.ingredients && onIngredients && (
+                <Section title="Ingredients">
+                    <button type="button" data-testid="explain-open-ingredients" onClick={onIngredients}
+                        className="flex items-center gap-1.5 text-xs font-bold text-blue-700 dark:text-blue-400 hover:underline">
+                        <FlaskConical size={13} /> Show the ingredient contributions for this alert
+                    </button>
                 </Section>
             )}
 

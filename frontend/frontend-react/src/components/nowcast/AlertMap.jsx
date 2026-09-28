@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { MapContainer, TileLayer, GeoJSON, CircleMarker, Tooltip, ImageOverlay, Rectangle, Pane, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, GeoJSON, CircleMarker, Tooltip, ImageOverlay, Rectangle, Pane, ZoomControl, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import { HAZARD_STYLE, LEVEL_STYLE, VERIFY_STYLE, valueText, FF_VERIFY_NOTE } from '../../utils/hazardLabels';
 import { TERRAIN_ATTRIBUTION } from './useTerrain';
@@ -16,6 +16,18 @@ const FitBounds = ({ bounds }) => {
     return null;
 };
 
+// The drawer pushes the map (it never covers it), so the container changes size: keep Leaflet in sync.
+const TrackSize = () => {
+    const map = useMap();
+    useEffect(() => {
+        const el = map.getContainer();
+        const ro = new ResizeObserver(() => map.invalidateSize({ animate: false }))   // keeps the map centre;
+        ro.observe(el);
+        return () => ro.disconnect();
+    }, [map]);
+    return null;
+};
+
 /**
  * Leaflet map of model alert polygons.
  *  - fill/stroke colour = hazard; Warning = solid & opaque, Watch = dashed & light
@@ -25,7 +37,10 @@ const FitBounds = ({ bounds }) => {
  */
 const AlertMap = ({ bounds, alerts = [], selectedId, onSelect, sites = [], overlays = [], showDomain = true, dimFill = false,
     terrain = [], terrainNotice }) => (
-    <MapContainer center={[30, 79]} zoom={6} className="w-full h-full z-0" zoomControl={true}>
+    <MapContainer center={[30, 79]} zoom={6} className="w-full h-full z-0" zoomControl={false}>
+        {/* top-left is the Layers panel, bottom-right the legend */}
+        <ZoomControl position="topright" />
+        <TrackSize />
         <TileLayer
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'

@@ -135,9 +135,44 @@ the Nowcast page header ("Nowcast map · Results · Approach & live readiness"):
   ~528 min; INSAT-3DR 46 min / 3DS 61 min, 30 min each, 15 min combined; 6 h lead ≈ 0.7 h of real
   warning on IMERG Early vs ≈ 5 h on ~1 h-old INSAT). Every text is a verbatim quote with its source.
 
-**Map panels on small screens**: the map legend has a "Legend" header toggle and starts collapsed
-when the window is narrower than 1400 px (open by default otherwise). The legend and the map
-controls are confined to the map area and scroll inside it, so nothing is cut off at 1280×720.
+**Page layout (checkpoint U1, map first)**: the same frame on all three tabs (Event replay,
+National sample, Live).
+- **Map** fills the page. Zoom control top-right.
+- **Badges** in a slim strip at the top of the map, never inside the drawer: split badge
+  (out-of-sample / IN-SAMPLE / test (2024)), the case-study label, the forecast-only note, the
+  replay-inputs note; on Live the "NOT validated" banner, on National the "probability map only" banner.
+- **Layers panel** (top-left, `LayersPanel.jsx`, collapsible; open by default at ≥ 1400×900, else
+  collapsed with a one-line summary of the selection): episode and issue selectors, lead, forecast
+  map layer, terrain + opacity, hazards, "Also show Watch".
+- **Legend** (bottom-right, one compact box, collapsible, open by default at ≥ 1400 px): only the
+  layers that are visible now (alert levels + the switched-on hazards, verification dots, site
+  marker, observed / heavy-rain-outside overlays when drawn, the forecast layer when selected,
+  terrain when on).
+- **Drawer** (right, `Drawer.jsx`): an icon rail is always visible; the drawer is collapsed by
+  default and shows one section at a time; Esc, × or the section's icon close it. It sits beside
+  the map and pushes it (the map keeps its centre), so it never covers the map controls.
+  Sections: **Alert** (replay button, issue summary, alert list; click an alert → its explanation;
+  "List" goes back), **Ingredients** (for the selected alert), **Event check** (REF045 / REF051;
+  wider, up to 900 px, for the timeline), **Caveats**. National: **About map**, **Caveats**.
+  Clicking an alert on the map or in a list opens the Alert section; `?ep=…&ts=…&tab=event` opens
+  Event check.
+- **Data credits** footer unchanged.
+
+| feature | before U1 | after U1 (clicks from the default view) |
+|---|---|---|
+| episode / issue selectors | row above the map | Layers panel (0; 1 when collapsed) |
+| split / in-sample / case-study badges, forecast-only note | row + banners above the map | badge strip at the top of the map (0) |
+| lead, forecast layer, terrain + opacity, hazards, Watch toggle | panel top-right of the map | Layers panel (0; 1 when collapsed) |
+| legend | bottom-left of the map | bottom-right, visible layers only (0; 1 when collapsed) |
+| replay button, issue summary, alert list | right-hand panel | drawer → Alert (1) |
+| explain panel (reasons, trace, SHAP, confidence, basin) | right-hand panel after clicking an alert | drawer → Alert, opens on alert click (1) |
+| ingredients | inside the explain panel | drawer → Ingredients (2: alert + tab; or the link in the Alert section) |
+| documented-event check + warning timeline | "Documented-event check" tab of the right-hand panel | drawer → Event check (1) |
+| caveats | bar under the map (5 shown, "All 10" to expand) | drawer → Caveats, all with their quote and source (1) |
+| Live "NOT validated" banner | row above the map | badge strip (0) |
+| Live alert panel, top reasons | right-hand panel | drawer → Alert (1); ingredients "not available" → drawer → Ingredients |
+| National notes | right-hand panel | drawer → About map (1) |
+| Results / Approach pages | header links | unchanged (1) |
 
 ## 4. Endpoints
 
@@ -205,7 +240,7 @@ The PNGs are resampled to Web-Mercator rows by the API, so they sit correctly in
   descriptive case study; model frozen before this run; not a new test score." Both documented
   sites (Malana, Tosh) are marked. Issue 31 Jul 13:00Z is forecast-only ("no explanation
   available: input window starts 12:00Z").
-- **Ingredients panel** (explain panel, `IngredientsPanel.jsx`): summed SHAP per ingredient group
+- **Ingredients panel** (drawer → Ingredients, `IngredientsTab.jsx` + `IngredientsPanel.jsx`): summed SHAP per ingredient group
   (moisture, instability, lift & wind, observed rain & motion, terrain, ground wetness) as a
   diverging bar each, plus "lead time (not weather)" separately; heading "Ingredients: contribution
   to this alert (log-odds, ranking not magnitude)".
@@ -222,7 +257,7 @@ The PNGs are resampled to Web-Mercator rows by the API, so they sit correctly in
     rows; ≥30 model: all 343,851 rows; ≥10 model: estimated from a 25% deterministic sample
     (373,636 of 1,498,609 selected rows). Descriptive."
   - Forecast-only issues (REF051 13:00Z) and live alerts show "Not available".
-- **Documented-event check** (the "Documented-event check" tab in the alert panel, REF045 and REF051):
+- **Documented-event check** (drawer → Event check, REF045 and REF051):
   - Event times come from the cited reports (`nowcast_data/catalog/documented_event_times.csv`).
     Label: "Checked against the documented event location, not satellite rain; IMERG may not
     resolve cloudbursts." and "IMERG verification and documented-report check can disagree;
@@ -232,7 +267,7 @@ The PNGs are resampled to Web-Mercator rows by the API, so they sit correctly in
   - Each alert shows hours of warning, area, peak→site distance, "precise" (≤ 25 km and
     ≤ 5,000 km²) or "broad area", and its IMERG status.
   - Date-only reports (Tosh) make no before/after claim.
-  - **Warning timeline** (`WarningTimeline.jsx`, top of the timed site; the tab widens to 900 px):
+  - **Warning timeline** (`WarningTimeline.jsx`, top of the timed site; the section is up to 900 px wide, narrower on small screens, with the hour axis labelled every 2 h):
     a UTC time bar with rows for the reported event window [reports], the IMERG ≥30 mm/hr onset and
     peak within 25 km of the site [satellite] (Pipalkoti: "never reached 30 mm/hr", peak 17.52),
     the ERA5 TCWV anomaly, its change since the previous issue and the CAPE anomaly per issue
@@ -243,7 +278,7 @@ The PNGs are resampled to Web-Mercator rows by the API, so they sit correctly in
     Clicking a lane or an ingredient cell opens that issue (and lead/alert) on the map.
   - The forecast-only 13:00Z issue is shown under a separate criterion: "nearby alert cells
     (≤25 km), not a site-covering alert".
-- **Caveats bar** (always visible): low absolute severe-rain skill (val CSI at ≥30 mm/hr 0.20 at 1 h
+- **Caveats** (drawer → Caveats, each with its verbatim quote and source): low absolute severe-rain skill (val CSI at ≥30 mm/hr 0.20 at 1 h
   down to 0.06 at 6 h), 1 h persistence tie, flash-flood areas 1.2–2.4× too broad, 3 of 7 test
   cloudbursts invisible in IMERG, neighbourhood probabilities, top-scale overconfidence, the
   uncalibrated cloudburst index, replay inputs not real-time, and unofficial boundaries.
@@ -251,8 +286,8 @@ The PNGs are resampled to Web-Mercator rows by the API, so they sit correctly in
 ## 6. Tests
 
 ```powershell
-# ML API (no servers needed); NOWCAST_TEST_REPLAY=1 also runs one real replay
-cd D:\nowcast_data; D:\.venv\Scripts\python.exe -m pytest serve/tests -q
+# ML API (no servers needed); NOWCAST_TEST_REPLAY=1 also runs the real-replay tests (none skipped)
+cd D:\nowcast_data; $env:NOWCAST_TEST_REPLAY = "1"; D:\.venv\Scripts\python.exe -m pytest serve/tests -q
 
 # browser end-to-end (all three servers running; first time: npm ci; npx playwright install chromium)
 $env:Path = "C:\Program Files\nodejs;" + $env:Path
@@ -274,7 +309,7 @@ The e2e tests assert on the DOM:
   the toggle removes it (and its attribution); the opacity slider changes it; it follows the
   episode, including the forecast-only REF051 13:00Z issue and REF025;
 - the Data credits footer shows the full Copernicus notice, visible and fully on screen without
-  hover, on all three tabs and with the caveats expanded; at 1280×720 and 1366×768 it is not
+  hover, on all three tabs and with the Caveats section open; at 1280×720 and 1366×768 it is not
   clipped, not overlapped and at least 10 px;
 - ingredients: the 6 bars and the lead bar equal the API values, and groups + lead + base = the
   raw log-odds; labels per hazard (≥30 vs ≥10), the cloudburst boost line, the demo aggregate
@@ -288,8 +323,17 @@ The e2e tests assert on the DOM:
   event-check API (ids and hours of warning = window start − issue time), every row has its source
   label, IMERG texts match the data, the forecast-only gap shows, and clicking a marker opens that
   issue/lead/alert;
-- at 1280×720 and 1366×768 the legend starts collapsed, every map control is reachable inside the
-  map and usable, and the expanded legend stays inside the map; at 1600 px it starts open.
+- at 1280×720 and 1366×768 the legend and the Layers panel start collapsed (the summary shows the
+  lead), every control (episode, issue, lead, layer, terrain, Watch) is reachable inside the map and
+  usable, and the expanded legend stays inside the map; at 1600 px the legend starts open;
+- layout (U1) at 1920×1080 and 1366×768: drawer collapsed by default with all section icons; badges
+  and the credits in view; clicking an alert polygon opens the Alert section; only one section is
+  mounted at a time (Alert → Ingredients → Event check → Caveats, with screenshots of each); Esc, ×
+  and the active icon close it; the Layers panel, zoom control and legend stay inside the map and
+  are never covered by the drawer; National/Live use the same frame; the legend lists only visible
+  layers (hazard swatches follow the hazard toggles, terrain row follows the terrain toggle, the
+  forecast-layer entry only when one is selected, no alert entries with all hazards off);
+- Results and Approach pages at 1366×768: no horizontal overflow and no clipped element.
 
 ## 7. Troubleshooting
 
