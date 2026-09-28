@@ -1,5 +1,20 @@
+import { useEffect, useState } from 'react';
 import { HAZARD_STYLE, LEVEL_STYLE, fmtIssueShort } from '../../utils/hazardLabels';
 import IMDChip from './IMDChip';
+import InsatTimelineRows from './InsatTimelineRows';
+
+// width of the plot column (row minus the 215 px label and 190 px right columns)
+function usePlotWidth() {
+    const [el, setEl] = useState(null);
+    const [w, setW] = useState(0);
+    useEffect(() => {
+        if (!el || typeof ResizeObserver === 'undefined') return undefined;
+        const ro = new ResizeObserver(([e]) => setW(Math.max(0, e.contentRect.width - 215 - 190)));
+        ro.observe(el);
+        return () => ro.disconnect();
+    }, [el]);
+    return [setEl, w];
+}
 
 // Warning timeline for one documented site. Alerts, nearby cells and the reported window come
 // from the event-check API (not recomputed); ingredients and the IMERG site series from
@@ -39,6 +54,7 @@ const laneRight = (a, kind) => (kind === 'alert'
     : <><Source s="model" /> L{a.lead_time_h} · {a.n_cells} cells, nearest {a.nearest_cell_km} km</>);
 
 const WarningTimeline = ({ site, timeline, onJump }) => {
+    const [rootRef, plotPx] = usePlotWidth();
     const win = site.source?.window_utc;
     if (!timeline || !win?.[0]) return null;
     const [w0, w1] = win.map(ms);
@@ -95,7 +111,7 @@ const WarningTimeline = ({ site, timeline, onJump }) => {
     };
 
     return (
-        <div data-testid="warning-timeline" data-t0={new Date(t0).toISOString()} data-t1={new Date(t1).toISOString()} className="rounded-lg border border-slate-200 dark:border-slate-700 p-2.5 space-y-1">
+        <div ref={rootRef} data-testid="warning-timeline" data-t0={new Date(t0).toISOString()} data-t1={new Date(t1).toISOString()} className="rounded-lg border border-slate-200 dark:border-slate-700 p-2.5 space-y-1">
             <div className="flex items-baseline justify-between">
                 <p className="text-[11px] font-black">Warning timeline: {site.site}</p>
                 <p className="text-[9px] text-slate-500">times UTC (IST = UTC + 5:30) · click a marker to open it on the map</p>
@@ -129,6 +145,11 @@ const WarningTimeline = ({ site, timeline, onJump }) => {
                     ? `IMERG first reached 30 mm/hr at ${fmtIssueShort(im.onset_ge30.t)} (${im.onset_ge30.max_mmhr} mm/hr); peak ${im.peak.max_mmhr} mm/hr at ${fmtIssueShort(im.peak.t)} (${im.n_frames_ge30} half-hour frames ≥30).`
                     : `IMERG never reached 30 mm/hr within ${im.radius_km} km of the site (peak ${im.peak.max_mmhr} mm/hr at ${fmtIssueShort(im.peak.t)}).`}
             </p>
+
+            {timeline.insat && (
+                <InsatTimelineRows insat={timeline.insat} siteEpisode={site.site_episode} t0={t0} t1={t1} x={x}
+                    plotPx={plotPx} Row={Row} band={band} />
+            )}
 
             {ROWS.map(([k, src, lab]) => (
                 <Row key={k} label={lab} source={src} testid={`tl-row-${k}`} h="h-9" wrap>

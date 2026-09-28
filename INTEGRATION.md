@@ -179,6 +179,7 @@ National sample, Live).
 | documented-event check + warning timeline | "Documented-event check" tab of the right-hand panel | drawer → Event check (1) |
 | caveats | bar under the map (5 shown, "All 10" to expand) | drawer → Caveats, all with their quote and source (1) |
 | forecaster review + CAP download (checkpoint 05) | — | drawer → Alert → "Forecaster review (CAP 1.2, demo)" (1: click an alert) |
+| INSAT-3DR cloud-top temperature (observation, checkpoint I2b) | — | Layers panel toggle, off by default, with opacity (1); legend entry only while on; drawer → Event check → INSAT rows (1) |
 | Live "NOT validated" banner | row above the map | badge strip (0) |
 | Live alert panel, top reasons | right-hand panel | drawer → Alert (1); ingredients "not available" → drawer → Ingredients |
 | National notes | right-hand panel | drawer → About map (1) |
@@ -197,6 +198,28 @@ alert is open (`CapReview.jsx`). There is no new panel.
   integration with Sachet, IMD or NDMA.
 - CAP rules: `nowcast_data/serve/README.md`, "CAP 1.2 output".
 
+**INSAT-3DR case-study layer (checkpoint I2b)**: satellite observation (INSAT via MOSDAC) for
+REF045 and REF051 only. It is **not a model input** (models/v0 is frozen). There is no new panel.
+- **Layers panel:** "INSAT-3DR cloud-top temperature (observation)", off by default, with opacity.
+  When on, the map shows only the scan usable at the issue time (acquisition end + latency ≤ issue
+  time; 45 min default latency), labelled "INSAT-3DR image available at issue time: acquired HH:MMZ,
+  ~N min latency". Earlier issues say that no image is available. For REF025 the toggle is replaced by
+  "not available for this event".
+- **Legend:** an INSAT entry only while the layer is on (a colour strip in K; the colours are display
+  classes, not thresholds), with the two required lines.
+- **Drawer → Event check:** two timeline rows [satellite: INSAT-3DR via MOSDAC]: the site-patch
+  10th-percentile BT and its 30-min change, per scan, at the acquisition time.
+  - Hatched = no file: REF045 18:15, 18:45 and 19:15Z. No change is computed across a gap or a
+    look-up-table-floor value (≤ 180).
+  - Numbers appear in the cells when they fit (1920). "Show INSAT values per scan" opens the exact
+    values and the method.
+  - Reference line: 0 °C (273.15 K) with its quote and citation (`serve/assets/insat/thresholds.json`).
+- **Required lines** wherever INSAT values appear: "INSAT position uncertainty ≈ 5–10 km (navigation +
+  parallax); site values use a 25 km patch." and "Observation only — not used by the model."
+- **Data credits footer:** "Data Source MOSDAC/SAC/ISRO. https://mosdac.gov.in" + DOI link.
+- Neutral labels only; no sentence about early signals. Details: `nowcast_data/serve/README.md`,
+  "INSAT-3DR case-study layer".
+
 ## 4. Endpoints
 
 Through the proxy, use `http://127.0.0.1:8000/ml/<path>`; directly, `http://127.0.0.1:8001/api/<path>`.
@@ -211,6 +234,7 @@ The paths are identical.
 | GET | `episodes/{ep}/timeline` | warning-timeline ingredient inputs per issue + IMERG site series (REF045, REF051) |
 | GET | `results`, `approach` | data and verbatim quotes for the Results and Approach pages |
 | GET | `credits` | data credits for the footer, each notice verbatim from its attribution file |
+| GET | `insat`, `insat/{ep}`, `insat/{ep}/{slot}.png`, `issues/{ep}/{ts}/insat` | INSAT-3DR case-study observation layer (REF045, REF051): scans, colour scale, the scan usable at an issue time (availability rule) |
 | GET | `terrain`, `terrain/{layer}.png` | terrain (Copernicus DEM GLO-90) hillshade layers with bounds and attribution; layer = `national`, `REF045`, `REF051`, `REF025` |
 | GET | `episodes` | REF045 (validation, out-of-sample), REF051 Malana (**test (2024)** descriptive case study, both documented sites) and REF025 (training, **in-sample**): issue times with alert / verified / false-alarm counts (REF051 13:00Z is forecast-only); default REF045 13 Aug 2023 15:00Z |
 | GET | `episodes/{ep}/event-check` | documented-event check for REF045 / REF051 (report-based; not a model output): see §5 |
@@ -363,7 +387,18 @@ The e2e tests assert on the DOM:
   reject and edit disable it again; the downloaded file has status Exercise (live: Test, never
   Actual), the edited headline/description and "approved for issue (demo) … edited"; the review
   applies to that alert only; the format line and "nothing is ever sent anywhere" are shown; no
-  request leaves the machine except map tiles.
+  request leaves the machine except map tiles;
+- INSAT-3DR (1920×1080, 1366×768):
+  - the layer is off by default; when on, the image is the API's scan for that issue time, e.g.
+    REF045 15:00Z → the 13:45Z scan;
+  - no scan with acquisition end + latency after the issue time is ever shown (3 REF051 issues); an
+    early REF045 issue says that no image is available;
+  - same bounds as the forecast rasters; opacity works; legend only while on, with both lines;
+  - REF025 shows "not available";
+  - timeline cells equal the API series (values and 30-min changes, by scan time); 3 hatched gaps on
+    REF045 and no change after the gap; lines and reference quote present; no "%", "validat" or
+    "early signal";
+  - credit line and DOI in the footer.
 
 ## 7. Troubleshooting
 

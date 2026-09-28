@@ -1211,3 +1211,131 @@ test('CAP review on a live alert: status Test (not validated), download blocked 
     await expect(page.getByTestId('cap-download')).toBeEnabled();
     await expect(page.getByTestId('explain-panel')).toContainText('NOT validated');
 });
+
+// ---------------------------------------------------------------- INSAT-3DR case-study observation layer (checkpoint I2b)
+const INSAT_LINES = ['INSAT position uncertainty ≈ 5–10 km (navigation + parallax); site values use a 25 km patch.',
+    'Observation only — not used by the model.'];
+
+async function openLayers(page) {
+    if ((await page.getByTestId('layers-panel').getAttribute('data-open')) === 'false') await page.getByTestId('layers-toggle').click();
+}
+
+test('INSAT layer: off by default; on = the image usable at issue time (API rule), legend + both lines; off again', async ({ page }) => {
+    for (const [w, h] of [[1920, 1080], [1366, 768]]) {
+        await page.setViewportSize({ width: w, height: h });
+        const at = page.waitForResponse((r) => r.url().endsWith('/issues/REF045/20230813T1500Z/insat') && r.ok());
+        await openIssue(page, 'REF045', '20230813T1500Z');
+        const api = await (await at).json();
+        expect(api.available).toBe(true);
+        expect(api.slot).toBe('2023-08-13T13:45Z');                  // 14:15Z scan ends 14:42Z, usable only at 15:27Z
+        await openLayers(page);
+        const toggle = page.getByTestId('insat-toggle');
+        await expect(toggle).not.toBeChecked();
+        await expect(page.locator('img.nowcast-raster.insat')).toHaveCount(0);
+        await expect(page.getByTestId('legend-insat')).toHaveCount(0);
+        await toggle.check();
+        const img = page.locator('img.nowcast-raster.insat');
+        await expect(img).toHaveAttribute('src', new RegExp(`/insat/REF045/${api.id}\\.png$`));
+        await expect(page.getByTestId('insat-availability')).toHaveText(api.label);
+        await expect(page.getByTestId('insat-availability')).toContainText('acquired 13:45Z, ~45 min latency');
+        if ((await page.getByTestId('map-legend').getAttribute('data-open')) === 'false') await page.getByTestId('legend-toggle').click();
+        await expect(page.getByTestId('legend-insat')).toContainText('Satellite observation (INSAT via MOSDAC)');
+        await expect(page.getByTestId('legend-insat').getByTestId('insat-line')).toHaveText(INSAT_LINES);
+        await expect(page.getByTestId('legend-insat')).not.toContainText('%');
+        // same bounds as the forecast rasters (the overlay is drawn at meta.bounds)
+        const meta = await (await page.request.get('http://127.0.0.1:8000/ml/issues/REF045/20230813T1500Z/meta')).json();
+        const info = await (await page.request.get('http://127.0.0.1:8000/ml/insat/REF045')).json();
+        expect(info.bounds).toEqual(meta.bounds);
+        await page.getByTestId('insat-opacity').fill('0.4');
+        await expect.poll(async () => Number(await img.evaluate((e) => getComputedStyle(e).opacity))).toBeCloseTo(0.4, 2);
+        await shot(page, `insat_overlay_REF045_${w}x${h}`);
+        await toggle.uncheck();
+        await expect(img).toHaveCount(0);
+        await expect(page.getByTestId('legend-insat')).toHaveCount(0);
+    }
+});
+
+test('INSAT availability rule in the UI: no image acquired after issue − latency; early issue says not available', async ({ page }) => {
+    await page.setViewportSize({ width: 1920, height: 1080 });
+    const index = await (await page.request.get('http://127.0.0.1:8000/ml/insat/REF051')).json();
+    const lat = index.latency.minutes;
+    for (const ts of ['20240731T1300Z', '20240731T1800Z', '20240731T2200Z']) {
+        await openIssue(page, 'REF051', ts);
+        await openLayers(page);
+        await page.getByTestId('insat-toggle').check();
+        const av = page.getByTestId('insat-availability');
+        await expect(av).toHaveAttribute('data-available', 'true');
+        const slot = await av.getAttribute('data-slot');
+        const s = index.slots.find((x) => x.slot === slot);
+        const T = new Date(`${ts.slice(0, 4)}-${ts.slice(4, 6)}-${ts.slice(6, 8)}T${ts.slice(9, 11)}:${ts.slice(11, 13)}:00Z`).getTime();
+        expect(new Date(s.acq_end).getTime() + lat * 60e3).toBeLessThanOrEqual(T);
+        // no later scan was usable yet
+        for (const o of index.slots.filter((x) => new Date(x.acq_end) > new Date(s.acq_end))) {
+            expect(new Date(o.acq_end).getTime() + lat * 60e3).toBeGreaterThan(T);
+        }
+        await expect(page.locator('img.nowcast-raster.insat')).toHaveAttribute('src', new RegExp(`${s.id}\\.png$`));
+    }
+    // REF045 12 Aug issue: before the first downloaded scan -> no image, stated
+    await openIssue(page, 'REF045', '20230812T2100Z');
+    await openLayers(page);
+    await page.getByTestId('insat-toggle').check();
+    await expect(page.getByTestId('insat-availability')).toHaveAttribute('data-available', 'false');
+    await expect(page.getByTestId('insat-availability')).toContainText('No INSAT-3DR image available at issue time');
+    await expect(page.locator('img.nowcast-raster.insat')).toHaveCount(0);
+});
+
+test('INSAT not available for REF025 (in-sample event, no case files)', async ({ page }) => {
+    await openIssue(page, 'REF025', '20210718T1800Z');
+    await openLayers(page);
+    await expect(page.getByTestId('insat-unavailable')).toContainText('not available for this event');
+    await expect(page.getByTestId('insat-toggle')).toHaveCount(0);
+});
+
+test('INSAT timeline rows: cells = API series by scan time, gaps hatched, no change across gaps, lines + reference', async ({ page }) => {
+    for (const [ep, ts, nGaps] of [['REF045', '20230813T1500Z', 3], ['REF051', '20240731T1800Z', 0]]) {
+        const { tl } = await openTimeline(page, ep, ts);
+        const site = tl.insat.sites.find((s) => s.site_episode === ep);
+        const box = page.getByTestId('warning-timeline');
+        const t0 = new Date(await box.getAttribute('data-t0')).getTime();
+        const t1 = new Date(await box.getAttribute('data-t1')).getTime();
+        const inRange = site.series.filter((s) => new Date(s.slot).getTime() >= t0 && new Date(s.slot).getTime() + 30 * 60e3 <= t1);
+        await expect(page.getByTestId('insat-cell-p10')).toHaveCount(inRange.length);
+        await expect(page.getByTestId('insat-cell-d30')).toHaveCount(inRange.length);
+        for (const s of inRange) {
+            await expect(page.locator(`[data-testid="insat-cell-p10"][data-slot="${s.slot}"]`)).toHaveAttribute('data-value', String(s.p10_bt_k));
+            await expect(page.locator(`[data-testid="insat-cell-d30"][data-slot="${s.slot}"]`))
+                .toHaveAttribute('data-value', s.d30_p10_k == null ? '' : String(s.d30_p10_k));
+        }
+        await expect(page.getByTestId('tl-insat-p10').getByTestId('insat-gap')).toHaveCount(nGaps);
+        if (nGaps) {
+            // the scan after the gap has no 30-min change
+            await expect(page.locator('[data-testid="insat-cell-d30"][data-slot="2023-08-13T19:45Z"]')).toHaveAttribute('data-value', '');
+        }
+        await expect(page.getByTestId('tl-insat-p10').getByTestId('tl-source')).toHaveAttribute('data-source', 'satellite');
+        await expect(page.getByTestId('tl-insat-p10')).toContainText('INSAT-3DR via MOSDAC');
+        await expect(page.getByTestId('insat-notes').getByTestId('insat-line')).toHaveText(INSAT_LINES);
+        await expect(page.getByTestId('insat-threshold')).toContainText('0 °C (273.15 K)');
+        await expect(page.getByTestId('insat-threshold')).toContainText(tl.insat.thresholds[0].quote);
+        await page.getByTestId('insat-table-toggle').click();
+        await expect(page.getByTestId('insat-table-row')).toHaveCount(site.series.length);
+        await expect(page.getByTestId('insat-method')).toContainText('look-up table');
+        for (const bad of ['early signal', 'validat', 'precursor', '%']) {
+            await expect(page.getByTestId('insat-rows')).not.toContainText(bad);
+        }
+        await page.getByTestId('insat-table-toggle').click();
+        await shot(page, `insat_timeline_${ep}_1920x1080`);
+    }
+    // 1366: the rows still fit (colour cells; values in the table)
+    await page.setViewportSize({ width: 1366, height: 768 });
+    await expect(page.getByTestId('insat-rows')).toBeVisible();
+    const rowBox = await page.getByTestId('tl-insat-p10').boundingBox();
+    expect(rowBox.x + rowBox.width).toBeLessThanOrEqual(1366);
+    await shot(page, 'insat_timeline_REF051_1366x768');
+});
+
+test('data credits: MOSDAC credit line and the 3DR L1C DOI', async ({ page }) => {
+    await page.goto('/nowcast');
+    const c = page.getByTestId('credit-insat_mosdac');
+    await expect(c).toContainText('Data Source MOSDAC/SAC/ISRO. https://mosdac.gov.in');
+    await expect(c.getByRole('link', { name: 'DOI' })).toHaveAttribute('href', 'https://doi.org/10.19038/SAC/10/3RIMG_L1C_ASIA_MER');
+});

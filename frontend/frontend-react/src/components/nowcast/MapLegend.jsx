@@ -20,9 +20,10 @@ const Head = ({ children }) => <p className="text-[10px] font-black uppercase te
  * match the PNGs.
  *   hazards:   hazards whose alerts are switched on ([] = no alert layer)
  *   observed / missed: whether those overlays are drawn now; note: why they are not (if relevant)
+ *   insat:     { classes, lines, availability } while the INSAT-3DR layer is switched on, else null
  */
 const MapLegend = ({ legends, field, hazards = [], observed = false, missed = false, verification = true,
-    site = 0, terrain = false, note, noteTitle, ffNote }) => {
+    site = 0, terrain = false, note, noteTitle, ffNote, insat = null }) => {
     const f = field && legends?.[field];
     // collapsed by default on narrower screens so it does not cover the map
     const [open, setOpen] = useState(() => typeof window === 'undefined' || window.innerWidth >= LEGEND_OPEN_MIN_WIDTH);
@@ -35,6 +36,32 @@ const MapLegend = ({ legends, field, hazards = [], observed = false, missed = fa
                 Legend {open ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
             </button>
             {open && (<>
+                {insat && (
+                    <div data-testid="legend-insat" className="space-y-0.5">
+                        <Head>Satellite observation (INSAT via MOSDAC)</Head>
+                        <p className="text-[11px] font-semibold text-slate-800 dark:text-slate-100">INSAT-3DR cloud-top brightness temperature (K)</p>
+                        {/* one strip, coldest left; tick labels are the class boundaries */}
+                        <div data-testid="legend-insat-strip" className="relative pb-3">
+                            <div className="flex h-2.5 rounded-sm overflow-hidden border border-slate-300 dark:border-slate-600">
+                                {insat.classes.filter((c) => c.color).map((c) => (
+                                    <span key={c.label} title={c.label} className="flex-1" style={{ background: c.color }} />
+                                ))}
+                            </div>
+                            {(() => {
+                                const cs = insat.classes.filter((c) => c.color);
+                                return cs.slice(0, -1).map((c, i) => (
+                                    <span key={c.to} className="absolute top-3 -translate-x-1/2 text-[9px] text-slate-500 dark:text-slate-400 tabular-nums"
+                                        style={{ left: `${((i + 1) / cs.length) * 100}%` }}>{i % 2 === 0 ? c.to : ''}</span>
+                                )).concat(<span key="end" className="absolute top-3 right-0 text-[9px] text-slate-500 tabular-nums">{cs[cs.length - 1].to}</span>);
+                            })()}
+                        </div>
+                        <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-snug">
+                            {insat.classes.find((c) => !c.color)?.label} · display classes, not thresholds
+                        </p>
+                        {insat.availability && <p data-testid="legend-insat-availability" className="text-[10px] text-slate-600 dark:text-slate-300 leading-snug">{insat.availability} (at issue time, not at the lead&apos;s valid time)</p>}
+                        {insat.lines.map((l) => <p key={l} data-testid="insat-line" className="text-[10px] text-amber-700 dark:text-amber-400 leading-snug">{l}</p>)}
+                    </div>
+                )}
                 {alerts && (
                     <>
                         <Head>Alerts</Head>

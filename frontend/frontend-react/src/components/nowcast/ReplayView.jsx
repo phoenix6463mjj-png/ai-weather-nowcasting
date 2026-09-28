@@ -11,6 +11,8 @@ import MapLegend from './MapLegend';
 import ReplayButton from './ReplayButton';
 import EventCheckPanel from './EventCheckPanel';
 import useTerrain from './useTerrain';
+import useInsat from './useInsat';
+import InsatControl from './InsatControl';
 import Drawer from './Drawer';
 import LayersPanel from './LayersPanel';
 import IngredientsTab from './IngredientsTab';
@@ -47,6 +49,7 @@ const ReplayView = () => {
     const [reviews, setReviews] = useState({});            // forecaster review per alert (this page only; never sent)
     const eventWidth = useEventDrawerWidth();
     const terrain = useTerrain(ep);
+    const insat = useInsat(ep, ts);
     const pendingRef = useRef(null);            // jump target waiting for its issue to load
     const setters = { setLead, setShowWatch, setHazards, setSelected };
 
@@ -149,6 +152,8 @@ const ReplayView = () => {
     const obsAvailable = !!(meta && lead && meta.per_lead[String(lead)]?.observed_available);
     const overlays = [];
     if (meta && lead && data.key === `${ep}/${ts}`) {
+        // INSAT-3DR observation (issue time, availability rule applied by the API): below the forecast rasters
+        if (insat.overlay) overlays.push(insat.overlay);
         if (field) overlays.push({ url: issueMapUrl(ep, ts, lead, field), opacity: 1, zIndex: 1, kind: `field-${field}` });
         if (obsAvailable) {
             overlays.push({ url: issueMapUrl(ep, ts, lead, 'observed_ge30'), opacity: 0.85, zIndex: 2, kind: 'observed' });
@@ -241,7 +246,7 @@ const ReplayView = () => {
                             terrain={terrain.layers} terrainNotice={terrain.fullNotice} />
                     )}
                     <div className="absolute top-3 left-3 bottom-3 z-[400] flex flex-col pointer-events-none">
-                        <LayersPanel summary={meta && lead ? `${ep} · ${fmtIssueShort(meta.issue_time)} · L${lead} h · ${showWatch ? 'Watch + Warning' : 'Warnings'}` : ''}>
+                        <LayersPanel summary={meta && lead ? `${ep} · ${fmtIssueShort(meta.issue_time)} · L${lead} h · ${showWatch ? 'Watch + Warning' : 'Warnings'}${insat.on && insat.available ? ' · INSAT-3DR' : ''}` : ''}>
                             <div className="space-y-1.5">
                                 <p className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400">Event and issue</p>
                                 <select data-testid="episode-select" value={ep || ''} onChange={(e) => changeEpisode(e.target.value)}
@@ -266,6 +271,7 @@ const ReplayView = () => {
                                     hazards={hazards} setHazards={setHazards} showWatch={showWatch} setShowWatch={setShowWatch}
                                     counts={counts} field={field} setField={setField} terrain={terrain} />
                             )}
+                            <InsatControl insat={insat} />
                         </LayersPanel>
                     </div>
                     {meta && (
@@ -273,6 +279,10 @@ const ReplayView = () => {
                             <MapLegend legends={meta.legends} field={field} hazards={hazards} site={(meta.sites || []).length} ffNote={FF_VERIFY_NOTE}
                                 verification={meta.explain_available !== false} observed={obsAvailable} missed={obsAvailable}
                                 terrain={terrain.layers.length > 0}
+                                insat={insat.on && insat.info ? {
+                                    classes: insat.info.colour_scale.classes, lines: insat.info.lines,
+                                    availability: insat.atIssue?.label,
+                                } : null}
                                 noteTitle="Observed (replay)"
                                 note={obsAvailable ? null : 'Observed frame unavailable for this lead: no verification overlay.'} />
                         </div>
