@@ -793,6 +793,15 @@ async function expectTimelineMatchesApi(page, site, tl) {
         await expect(row.getByTestId('imd-chip')).toHaveCount(1);
     }
     await expect(tlBox.getByTestId('tl-nearby')).toHaveCount(site.nearby_cells.items.length);
+    // every alert / nearby-cells lane starts and reaches the window inside the visible range
+    const xs = await tlBox.locator('[data-testid="tl-alert"], [data-testid="tl-nearby"]')
+        .evaluateAll((els) => els.map((el) => [Number(el.dataset.x), Number(el.dataset.xWindow)]));
+    expect(xs.length).toBe(site.qualifying.length + site.nearby_cells.items.length);
+    for (const [xi, xw] of xs) { expect(xi).toBeGreaterThan(0); expect(xw).toBeLessThan(100); expect(xi).toBeLessThan(xw); }
+    await expect(tlBox.getByTestId('tl-row-tcwv_anom_mean').getByTestId('tl-row-label')).toContainText('area mean (patch), not at the site');
+    await expect(tlBox.getByTestId('tl-row-cape_anom_mean').getByTestId('tl-row-label')).toContainText('area mean (patch), not at the site');
+    await expect(tlBox.getByTestId('tl-row-tcwv_anom_change').getByTestId('tl-row-label')).toContainText('derived, not a model feature');
+    await expect(tlBox.getByTestId('tl-row-tcwv_anom_change').locator('[data-testid="tl-source"]')).toHaveAttribute('data-source', 'derived');
     for (const n of site.nearby_cells.items) {
         await expect(tlBox.locator(`[data-testid="tl-nearby"][data-issue="${n.issue_time}"]`).first()).toContainText(`${n.hours_of_warning} h`);
     }
@@ -818,6 +827,9 @@ test('warning timeline REF045 Pipalkoti: markers = event-check API, sources, IME
     await expect(page.getByTestId('tl-imerg-note')).toHaveText(
         `IMERG never reached 30 mm/hr within 25 km of the site (peak ${tl.imerg.peak.max_mmhr} mm/hr at 13 Aug 17:00Z).`);
     await expect(page.getByTestId('tl-imerg-onset')).toHaveCount(0);
+    await expect(page.getByTestId('tl-row-tcwv_anom_change')).toContainText('since previous issue (3 h)');
+    await expect(page.getByTestId('warning-timeline')).toHaveAttribute('data-t0', '2023-08-13T09:00:00.000Z');
+    await expect(page.getByTestId('warning-timeline')).toHaveAttribute('data-t1', '2023-08-13T22:00:00.000Z');
     await shot(page, 'timeline_REF045_1920x1080');
     // click the 12:00Z cloudburst Watch lane -> that issue, lead and alert on the map
     const a = site.qualifying.find((x) => x.issue_time.startsWith('2023-08-13T12:00'));
@@ -834,6 +846,9 @@ test('warning timeline REF051 Malana: markers = event-check API, window label, o
     await expect(page.getByTestId('tl-window-label')).toContainText("state authority's preliminary range; covers several Kullu cloudbursts");
     await expect(page.getByTestId('tl-imerg-onset')).toContainText(String(tl.imerg.onset_ge30.max_mmhr));
     await expect(page.getByTestId('tl-imerg-note')).toContainText('IMERG first reached 30 mm/hr at 31 Jul 18:30Z');
+    await expect(page.getByTestId('tl-row-tcwv_anom_change')).toContainText('since previous issue (1 h)');
+    await expect(page.getByTestId('warning-timeline')).toHaveAttribute('data-t0', '2024-07-31T11:00:00.000Z');
+    await expect(page.getByTestId('warning-timeline')).toHaveAttribute('data-t1', '2024-08-01T00:00:00.000Z');
     await expect(page.locator('[data-testid="tl-ingredient"][data-ts="20240731T1300Z"]')).toHaveCount(3);
     await expect(page.locator('[data-testid="tl-ingredient"][data-ts="20240731T1300Z"]').first()).toHaveAttribute('data-forecast-only', 'true');
     await expect(page.getByTestId('warning-timeline')).toContainText('nearby alert cells (≤25 km), not a site-covering alert');

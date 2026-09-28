@@ -15,15 +15,16 @@ const SOURCE_STYLE = {
     'model inputs': 'bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-300',
     reports: 'bg-violet-100 text-violet-800 dark:bg-violet-900/40 dark:text-violet-300',
     satellite: 'bg-lime-100 text-lime-800 dark:bg-lime-900/40 dark:text-lime-300',
+    derived: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300',
 };
 const Source = ({ s }) => (
     <span data-testid="tl-source" data-source={s} className={`px-1 rounded text-[9px] font-black uppercase ${SOURCE_STYLE[s]}`}>{s}</span>
 );
 
-const Row = ({ label, source, children, right, h = 'h-6', testid }) => (
+const Row = ({ label, source, children, right, h = 'h-6', testid, wrap = false }) => (
     <div className="flex items-stretch" data-testid={testid}>
-        <div className="w-[215px] shrink-0 pr-2 flex items-center gap-1.5 text-[10px] text-slate-700 dark:text-slate-200 leading-tight whitespace-nowrap">
-            {source && <Source s={source} />}<span className="min-w-0 truncate">{label}</span>
+        <div className={`w-[215px] shrink-0 pr-2 flex items-center gap-1.5 text-slate-700 dark:text-slate-200 leading-tight ${wrap ? 'text-[9px]' : 'text-[10px] whitespace-nowrap'}`}>
+            {source && <Source s={source} />}<span data-testid="tl-row-label" className={`min-w-0 ${wrap ? '' : 'truncate'}`}>{label}</span>
         </div>
         <div className={`relative flex-1 ${h}`}>{children}</div>
         <div className="w-[190px] shrink-0 pl-2 flex items-center gap-1 text-[9px] text-slate-600 dark:text-slate-300 whitespace-nowrap">{right}</div>
@@ -53,6 +54,13 @@ const WarningTimeline = ({ site, timeline, onJump }) => {
     for (let t = t0; t <= t1; t += H) hours.push(t);
     const issues = timeline.issues.filter((i) => ms(i.issue_time) > t0 + H / 2 && ms(i.issue_time) < t1 - H / 2);
     const hidden = timeline.issues.length - issues.length;
+    // spacing between consecutive issues with inputs, from the data (3 h Pipalkoti, 1 h Malana)
+    const gaps = [...new Set(timeline.issues.filter((i) => i.change_since).map((i) => (ms(i.issue_time) - ms(i.change_since)) / H))];
+    const ROWS = [
+        ['tcwv_anom_mean', 'model inputs', 'TCWV anomaly (SD) · area mean (patch), not at the site'],
+        ['tcwv_anom_change', 'derived', `Change in area-mean TCWV anomaly since previous issue (${gaps.join('/')} h) · derived, not a model feature`],
+        ['cape_anom_mean', 'model inputs', 'CAPE anomaly (SD) · area mean (patch), not at the site'],
+    ];
     const band = (
         <div className="absolute top-0 bottom-0 bg-violet-400/15 border-x border-violet-500/50 pointer-events-none"
             style={{ left: x(w0), width: `calc(${x(w1)} - ${x(w0)})` }} />
@@ -72,6 +80,7 @@ const WarningTimeline = ({ site, timeline, onJump }) => {
         const ti = ms(a.issue_time);
         return (
             <button data-testid={kind === 'alert' ? 'tl-alert' : 'tl-nearby'} data-alert-id={a.alert_id} data-hours={a.hours_of_warning}
+                data-x={((ti - t0) / (t1 - t0)) * 100} data-x-window={((w0 - t0) / (t1 - t0)) * 100}
                 data-issue={a.issue_time} onClick={() => onJump(a)}
                 className="absolute inset-0 w-full text-left hover:bg-slate-100/70 dark:hover:bg-slate-800/60 rounded"
                 title={`issued ${fmtIssueShort(a.issue_time)} → valid ${fmtIssueShort(a.valid_time)} (L${a.lead_time_h}); click to open on the map`}>
@@ -86,7 +95,7 @@ const WarningTimeline = ({ site, timeline, onJump }) => {
     };
 
     return (
-        <div data-testid="warning-timeline" className="rounded-lg border border-slate-200 dark:border-slate-700 p-2.5 space-y-1">
+        <div data-testid="warning-timeline" data-t0={new Date(t0).toISOString()} data-t1={new Date(t1).toISOString()} className="rounded-lg border border-slate-200 dark:border-slate-700 p-2.5 space-y-1">
             <div className="flex items-baseline justify-between">
                 <p className="text-[11px] font-black">Warning timeline: {site.site}</p>
                 <p className="text-[9px] text-slate-500">times UTC (IST = UTC + 5:30) · click a marker to open it on the map</p>
@@ -120,13 +129,13 @@ const WarningTimeline = ({ site, timeline, onJump }) => {
                     : `IMERG never reached 30 mm/hr within ${im.radius_km} km of the site (peak ${im.peak.max_mmhr} mm/hr at ${fmtIssueShort(im.peak.t)}).`}
             </p>
 
-            {[['tcwv_anom_mean', 'TCWV anomaly (SD)'], ['tcwv_anom_change', 'Δ TCWV anomaly (SD)'], ['cape_anom_mean', 'CAPE anomaly (SD)']].map(([k, lab]) => (
-                <Row key={k} label={lab} source="model inputs" testid={`tl-row-${k}`}>
+            {ROWS.map(([k, src, lab]) => (
+                <Row key={k} label={lab} source={src} testid={`tl-row-${k}`} h="h-9" wrap>
                     {band}
                     {issues.map((i) => cell(i, k, signed))}
                 </Row>
             ))}
-            <Note><span className="text-slate-500">Patch means at each issue (ERA5 at issue − 1 h), quoted from explain.json inputs; Δ = change since the previous issue; n/a = forecast-only issue (no explanation inputs).{hidden > 0 ? ` ${hidden} earlier/later issues are outside this time range.` : ''}</span></Note>
+            <Note><span className="text-slate-500">Patch means at each issue (ERA5 at issue − 1 h), quoted from explain.json inputs; n/a = forecast-only issue (no explanation inputs).{hidden > 0 ? ` ${hidden} earlier/later issues are outside this time range.` : ''}</span></Note>
 
             <div className="pt-1 border-t border-slate-100 dark:border-slate-800">
                 <p className="text-[10px] font-bold mb-0.5">Early-warning alerts covering the site (issued before the window, valid during it)</p>
