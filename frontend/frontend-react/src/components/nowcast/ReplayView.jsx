@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { getEpisodes, getEventCheck, getIssueMeta, getIssueAlerts, issueMapUrl, issueMissedUrl } from '../../services/nowcastApi';
+import { getEpisodes, getEventCheck, getTimeline, getIssueMeta, getIssueAlerts, issueMapUrl, issueMissedUrl } from '../../services/nowcastApi';
 import { HAZARDS, fmtUtc, fmtIssueShort, issueDefaultLead, FF_VERIFY_NOTE } from '../../utils/hazardLabels';
 import AlertMap from './AlertMap';
 import MapControls from './MapControls';
@@ -15,7 +15,7 @@ const tsOf = (iso) => iso.replace(/[-:]/g, '');       // '2023-08-13T12:00Z' -> 
 
 // Show a target (lead, level, hazard, alert) picked in the documented-event check.
 function applyTarget(t, list, set) {
-    set.setLead(t.lead);
+    if (t.lead != null) set.setLead(t.lead);
     if (t.level === 'Watch') set.setShowWatch(true);
     if (t.hazard) set.setHazards((h) => (h.includes(t.hazard) ? h : [...h, t.hazard]));
     set.setSelected((t.alertId && list.find((x) => x.alert_id === t.alertId)) || null);
@@ -35,7 +35,7 @@ const ReplayView = () => {
     const [selected, setSelected] = useState(null);
     const [error, setError] = useState(null);
     const [asideTab, setAsideTab] = useState('alerts');
-    const [check, setCheck] = useState({ ep: null, data: null });
+    const [check, setCheck] = useState({ ep: null, data: null, timeline: null });
     const terrain = useTerrain(ep);
     const pendingRef = useRef(null);            // jump target waiting for its issue to load
     const setters = { setLead, setShowWatch, setHazards, setSelected };
@@ -57,6 +57,7 @@ const ReplayView = () => {
             const p = pendingRef.current;
             if (p && p.key === `${ep}/${ts}`) {
                 pendingRef.current = null;
+                if (p.lead == null) setLead(issueDefaultLead(m, a.alerts, ep, ts));
                 applyTarget(p, a.alerts, { setLead, setShowWatch, setHazards, setSelected });
             } else {
                 setLead(issueDefaultLead(m, a.alerts, ep, ts));
@@ -69,8 +70,8 @@ const ReplayView = () => {
     useEffect(() => {
         if (!ep) return;
         let live = true;
-        getEventCheck(ep).then((r) => live && setCheck({ ep, data: r }))
-            .catch(() => live && setCheck({ ep, data: null }));
+        Promise.all([getEventCheck(ep).catch(() => null), getTimeline(ep).catch(() => null)])
+            .then(([r, tl]) => live && setCheck({ ep, data: r, timeline: tl }));
         return () => { live = false; };
     }, [ep]);
 
@@ -207,7 +208,7 @@ const ReplayView = () => {
                     )}
                 </div>
 
-                <aside className="w-[400px] shrink-0 border-l border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0f172a] overflow-y-auto">
+                <aside className={`${tab === 'event' && !selected ? 'w-[900px]' : 'w-[400px]'} shrink-0 border-l border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0f172a] overflow-y-auto`}>
                     {checkApplies && !selected && (
                         <div className="flex border-b border-slate-200 dark:border-slate-700 sticky top-0 bg-white dark:bg-[#0f172a] z-10">
                             {[['alerts', 'Alerts'], ['event', 'Documented-event check']].map(([id, label]) => (
@@ -220,7 +221,7 @@ const ReplayView = () => {
                         </div>
                     )}
                     {!selected && tab === 'event' ? (
-                        <EventCheckPanel check={eventCheck} onJump={jumpTo} />
+                        <EventCheckPanel check={eventCheck} timeline={check.ep === ep ? check.timeline : null} onJump={jumpTo} />
                     ) : selected ? (
                         <ExplainPanel key={selected.alert_id} episode={ep} ts={ts} alertId={selected.alert_id} onClose={() => setSelected(null)} />
                     ) : (

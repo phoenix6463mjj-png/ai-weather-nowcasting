@@ -136,6 +136,7 @@ The paths are identical.
 | GET | `labels` | hazard names, value kinds, raster legends, Watch/Warning definitions |
 | GET | `caveats` | caveats shown on the page, each with a verbatim quote and source doc |
 | GET | `ingredients/aggregate` | descriptive demo SHAP aggregate per model and its UI sentences (the per-alert bars come with `issues/{ep}/{ts}/alerts/{id}` as `ingredients`) |
+| GET | `episodes/{ep}/timeline` | warning-timeline ingredient inputs per issue + IMERG site series (REF045, REF051) |
 | GET | `credits` | data credits for the footer, each notice verbatim from its attribution file |
 | GET | `terrain`, `terrain/{layer}.png` | terrain (Copernicus DEM GLO-90) hillshade layers with bounds and attribution; layer = `national`, `REF045`, `REF051`, `REF025` |
 | GET | `episodes` | REF045 (validation, out-of-sample), REF051 Malana (**test (2024)** descriptive case study, both documented sites) and REF025 (training, **in-sample**): issue times with alert / verified / false-alarm counts (REF051 13:00Z is forecast-only); default REF045 13 Aug 2023 15:00Z |
@@ -216,6 +217,15 @@ The PNGs are resampled to Web-Mercator rows by the API, so they sit correctly in
   - Each alert shows hours of warning, area, peak→site distance, "precise" (≤ 25 km and
     ≤ 5,000 km²) or "broad area", and its IMERG status.
   - Date-only reports (Tosh) make no before/after claim.
+  - **Warning timeline** (`WarningTimeline.jsx`, top of the timed site; the tab widens to 900 px):
+    a UTC time bar with rows for the reported event window [reports], the IMERG ≥30 mm/hr onset and
+    peak within 25 km of the site [satellite] (Pipalkoti: "never reached 30 mm/hr", peak 17.52),
+    the ERA5 TCWV anomaly, its change since the previous issue and the CAPE anomaly per issue
+    [model inputs] ("n/a" gap for the forecast-only 13:00Z issue), one lane per qualifying alert
+    [model] from issue time to the window start labelled with its hours of warning, IMD pill,
+    precise/broad and IMERG status, and the 13:00Z nearby-cells lanes under their separate
+    criterion. Alerts, nearby cells and the window come unchanged from the event-check API.
+    Clicking a lane or an ingredient cell opens that issue (and lead/alert) on the map.
   - The forecast-only 13:00Z issue is shown under a separate criterion: "nearby alert cells
     (≤25 km), not a site-covering alert".
 - **Caveats bar** (always visible): low absolute severe-rain skill (val CSI at ≥30 mm/hr 0.20 at 1 h
@@ -255,6 +265,10 @@ The e2e tests assert on the DOM:
   raw log-odds; labels per hazard (≥30 vs ≥10), the cloudburst boost line, the demo aggregate
   lines; "Not available" on the forecast-only issue and on live alerts; REF025 keeps its badge;
 - validation lines equal the API (per model) next to the demo statement;
+- warning timeline (REF045, REF051 at 1920×1080): the alert and nearby-cells markers equal the
+  event-check API (ids and hours of warning = window start − issue time), every row has its source
+  label, IMERG texts match the data, the forecast-only gap shows, and clicking a marker opens that
+  issue/lead/alert;
 - at 1280×720 and 1366×768 the legend starts collapsed, every map control is reachable inside the
   map and usable, and the expanded legend stays inside the map; at 1600 px it starts open.
 

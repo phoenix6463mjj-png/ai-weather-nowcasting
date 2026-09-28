@@ -1,6 +1,7 @@
 import { FileText } from 'lucide-react';
 import { HAZARD_STYLE, LEVEL_STYLE, VERIFY_STYLE, fmtIssueShort } from '../../utils/hazardLabels';
 import IMDChip from './IMDChip';
+import WarningTimeline from './WarningTimeline';
 
 const Chip = ({ className, children, testid }) => (
     <span data-testid={testid} className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${className}`}>{children}</span>
@@ -57,7 +58,7 @@ const Source = ({ s }) => (
  * Documented-event check: alerts vs the REPORTED event time and location (derived by the
  * serving API from catalog/documented_event_times.csv; not a model output, not a score).
  */
-const EventCheckPanel = ({ check, onJump }) => {
+const EventCheckPanel = ({ check, timeline, onJump }) => {
     if (!check) return <p className="p-4 text-sm text-slate-500">Loading…</p>;
     return (
         <div data-testid="event-check-panel" className="p-4 space-y-4 text-slate-900 dark:text-slate-100">
@@ -70,8 +71,11 @@ const EventCheckPanel = ({ check, onJump }) => {
             {check.sites.map((s) => (
                 <section key={s.site_episode} data-testid={`event-site-${s.site_episode}`} className="space-y-2">
                     <h4 className="text-xs font-black uppercase tracking-wide text-slate-500 dark:text-slate-400">{s.site}</h4>
-                    {s.source && <Source s={s.source} />}
                     <p data-testid="event-result" className="text-xs font-bold">{s.result_text}</p>
+                    {s.kind === 'timed' && timeline?.episode === s.site_episode && (
+                        <WarningTimeline site={s} timeline={timeline} onJump={onJump} />
+                    )}
+                    {s.source && <Source s={s.source} />}
                     {s.kind === 'timed' && s.qualifying.length > 0 && (
                         <ul className="space-y-1.5">{s.qualifying.map((a) => <AlertCard key={a.alert_id} a={a} onJump={onJump} />)}</ul>
                     )}

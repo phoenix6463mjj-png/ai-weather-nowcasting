@@ -761,3 +761,86 @@ test('map legend open by default at 1600 px', async ({ page }) => {
     await page.getByTestId('legend-toggle').click();
     await expect(page.getByTestId('map-legend')).toHaveAttribute('data-open', 'false');
 });
+
+// ---------------------------------------------------------------- warning timeline (checkpoint 04)
+async function openTimeline(page, ep, ts) {
+    await page.setViewportSize({ width: 1920, height: 1080 });
+    const chk = page.waitForResponse((r) => r.url().endsWith(`/episodes/${ep}/event-check`) && r.ok());
+    const tlr = page.waitForResponse((r) => r.url().endsWith(`/episodes/${ep}/timeline`) && r.ok());
+    await openIssue(page, ep, ts);
+    const [check, tl] = [await (await chk).json(), await (await tlr).json()];
+    await page.getByTestId('aside-tab-event').click();
+    await expect(page.getByTestId('warning-timeline')).toBeVisible();
+    return { site: check.sites.find((s) => s.site_episode === ep), tl };
+}
+
+async function expectTimelineMatchesApi(page, site, tl) {
+    const tlBox = page.getByTestId('warning-timeline');
+    const w0 = new Date(site.source.window_utc[0]).getTime();
+    // qualifying alerts: exactly the API's, with its hours of warning (= window start - issue time)
+    const markers = tlBox.getByTestId('tl-alert');
+    await expect(markers).toHaveCount(site.qualifying.length);
+    const got = await markers.evaluateAll((els) => els.map((e) => [e.dataset.alertId, Number(e.dataset.hours), e.dataset.issue]));
+    expect(got.map((g) => g[0]).sort()).toEqual(site.qualifying.map((a) => a.alert_id).sort());
+    for (const [id, hrs, issue] of got) {
+        const a = site.qualifying.find((x) => x.alert_id === id);
+        expect(hrs).toBe(a.hours_of_warning);
+        expect(hrs).toBeCloseTo((w0 - new Date(issue).getTime()) / 3600e3, 5);
+        await expect(tlBox.locator(`[data-testid="tl-alert"][data-alert-id="${id}"]`)).toContainText(`${a.hours_of_warning} h`);
+        const row = tlBox.locator(`[data-testid="tl-alert"][data-alert-id="${id}"]`).locator('xpath=../..');
+        await expect(row).toContainText(a.precision);                       // right-hand column of the same row
+        await expect(row.getByTestId('tl-source')).toHaveAttribute('data-source', 'model');
+        await expect(row.getByTestId('imd-chip')).toHaveCount(1);
+    }
+    await expect(tlBox.getByTestId('tl-nearby')).toHaveCount(site.nearby_cells.items.length);
+    for (const n of site.nearby_cells.items) {
+        await expect(tlBox.locator(`[data-testid="tl-nearby"][data-issue="${n.issue_time}"]`).first()).toContainText(`${n.hours_of_warning} h`);
+    }
+    // every row carries its source
+    const sources = await tlBox.getByTestId('tl-source').evaluateAll((els) => [...new Set(els.map((e) => e.dataset.source))]);
+    for (const s of ['model', 'model inputs', 'reports', 'satellite']) expect(sources, s).toContain(s);
+    await expect(tlBox.getByTestId('tl-imerg-peak')).toContainText(String(tl.imerg.peak.max_mmhr));
+    // ingredient cells: every issue in range, forecast-only shown as a gap
+    for (const i of tl.issues) {
+        const c = tlBox.locator(`[data-testid="tl-ingredient"][data-field="tcwv_anom_mean"][data-ts="${i.ts}"]`);
+        if (await c.count()) {
+            if (i.forecast_only) await expect(c).toHaveText('n/a');
+            else await expect(c).toHaveText(`${i.tcwv_anom_mean > 0 ? '+' : ''}${i.tcwv_anom_mean.toFixed(2)}`);
+        }
+    }
+}
+
+test('warning timeline REF045 Pipalkoti: markers = event-check API, sources, IMERG never reached 30', async ({ page }) => {
+    const { site, tl } = await openTimeline(page, 'REF045', '20230813T1500Z');
+    await expectTimelineMatchesApi(page, site, tl);
+    expect(site.qualifying.length).toBe(8);
+    await expect(page.getByTestId('tl-window')).toContainText('(approximate)');
+    await expect(page.getByTestId('tl-imerg-note')).toHaveText(
+        `IMERG never reached 30 mm/hr within 25 km of the site (peak ${tl.imerg.peak.max_mmhr} mm/hr at 13 Aug 17:00Z).`);
+    await expect(page.getByTestId('tl-imerg-onset')).toHaveCount(0);
+    await shot(page, 'timeline_REF045_1920x1080');
+    // click the 12:00Z cloudburst Watch lane -> that issue, lead and alert on the map
+    const a = site.qualifying.find((x) => x.issue_time.startsWith('2023-08-13T12:00'));
+    await page.locator(`[data-testid="tl-alert"][data-alert-id="${a.alert_id}"]`).click();
+    await expect(page.getByTestId('replay-view')).toHaveAttribute('data-loaded', 'REF045/20230813T1200Z');
+    expect(await activeLead(page)).toBe(a.lead_time_h);
+    await expect(page.getByTestId('explain-panel')).toHaveAttribute('data-hazard', a.hazard);
+});
+
+test('warning timeline REF051 Malana: markers = event-check API, window label, onset + peak, forecast-only gap', async ({ page }) => {
+    const { site, tl } = await openTimeline(page, 'REF051', '20240731T1800Z');
+    await expectTimelineMatchesApi(page, site, tl);
+    expect(site.qualifying.length).toBe(5);
+    await expect(page.getByTestId('tl-window-label')).toContainText("state authority's preliminary range; covers several Kullu cloudbursts");
+    await expect(page.getByTestId('tl-imerg-onset')).toContainText(String(tl.imerg.onset_ge30.max_mmhr));
+    await expect(page.getByTestId('tl-imerg-note')).toContainText('IMERG first reached 30 mm/hr at 31 Jul 18:30Z');
+    await expect(page.locator('[data-testid="tl-ingredient"][data-ts="20240731T1300Z"]')).toHaveCount(3);
+    await expect(page.locator('[data-testid="tl-ingredient"][data-ts="20240731T1300Z"]').first()).toHaveAttribute('data-forecast-only', 'true');
+    await expect(page.getByTestId('warning-timeline')).toContainText('nearby alert cells (≤25 km), not a site-covering alert');
+    await shot(page, 'timeline_REF051_1920x1080');
+    // nearby-cells marker -> forecast-only 13:00Z issue at its lead
+    const n = site.nearby_cells.items[0];
+    await page.getByTestId('tl-nearby').first().click();
+    await expect(page.getByTestId('replay-view')).toHaveAttribute('data-loaded', 'REF051/20240731T1300Z');
+    expect(await activeLead(page)).toBe(n.lead_time_h);
+});
