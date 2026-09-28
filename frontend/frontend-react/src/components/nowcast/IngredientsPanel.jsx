@@ -52,6 +52,14 @@ const IngredientsPanel = ({ ing }) => {
                     <p data-testid="ingredients-agg-scope" className="text-[10px] text-slate-500 dark:text-slate-400 leading-snug">{agg.scope}</p>
                 </div>
             )}
+            {ing.aggregate_val && (
+                <div data-testid="ingredients-val" className="rounded-lg bg-slate-50 dark:bg-slate-900/50 p-2.5 space-y-1">
+                    <p className="text-[10px] font-black uppercase tracking-wide text-slate-500 dark:text-slate-400">Validation 2022–23 (descriptive)</p>
+                    <p data-testid="ingredients-val-lead" className="text-[11px] text-slate-700 dark:text-slate-200 leading-snug">{ing.aggregate_val.lead_trend}</p>
+                    <p data-testid="ingredients-val-moisture" className="text-[11px] text-slate-700 dark:text-slate-200 leading-snug">{ing.aggregate_val.moisture}</p>
+                    <p data-testid="ingredients-val-scope" className="text-[10px] text-slate-500 dark:text-slate-400 leading-snug">{ing.aggregate_val.scope}</p>
+                </div>
+            )}
         </div>
     );
 };

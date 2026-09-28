@@ -116,14 +116,14 @@ const LiveView = () => {
                     {meta && <AlertMap bounds={meta.bounds} alerts={shown} selectedId={selected?.alert_id} onSelect={setSelected} overlays={overlays} dimFill={!!field}
                         terrain={terrain.layers} terrainNotice={terrain.fullNotice} />}
                     {meta && lead && (
-                        <div className="absolute top-3 right-3 z-[400]">
+                        <div className="absolute top-3 right-3 bottom-3 z-[400] flex flex-col pointer-events-none">
                             <MapControls leads={meta.leads_available} lead={lead} setLead={setLead}
                                 hazards={hazards} setHazards={setHazards} showWatch={showWatch} setShowWatch={setShowWatch}
                                 counts={counts} field={field} setField={setField} fieldOptions={LIVE_FIELDS} terrain={terrain} />
                         </div>
                     )}
                     {meta && (
-                        <div className="absolute bottom-3 left-3 z-[400]">
+                        <div className="absolute top-[84px] bottom-3 left-3 z-[400] flex flex-col justify-end pointer-events-none">
                             <MapLegend legends={meta.legends} field={field} observed={false} missed={false} verification={false}
                                 note="Live: no observed verification layer." />
                         </div>

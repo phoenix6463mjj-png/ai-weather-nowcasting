@@ -6,7 +6,8 @@ import { TERRAIN_ATTRIBUTION } from './useTerrain';
 // (Warnings are always shown).
 const MapControls = ({ leads, lead, setLead, leadInfo = {}, hazards, setHazards, showWatch, setShowWatch, counts,
     field, setField, fieldOptions = FIELD_OPTIONS, alertControls = true, terrain }) => (
-    <div className="bg-white/95 dark:bg-slate-800/95 backdrop-blur shadow-md rounded-xl border border-slate-200 dark:border-slate-700 p-3 space-y-2.5 w-[250px]">
+    <div data-testid="map-controls"
+        className="pointer-events-auto max-h-full overflow-y-auto bg-white/95 dark:bg-slate-800/95 backdrop-blur shadow-md rounded-xl border border-slate-200 dark:border-slate-700 p-3 space-y-2.5 w-[250px]">
         <div>
             <p className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 mb-1">Lead time</p>
             <div className="flex gap-1">

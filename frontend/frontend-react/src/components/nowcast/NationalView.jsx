@@ -40,13 +40,13 @@ const NationalView = () => {
                 <div className="flex-1 relative">
                     {meta && <AlertMap bounds={meta.bounds} overlays={overlays} alerts={[]} terrain={terrain.layers} terrainNotice={terrain.fullNotice} />}
                     {meta && (
-                        <div className="absolute top-3 right-3 z-[400]">
+                        <div className="absolute top-3 right-3 bottom-3 z-[400] flex flex-col pointer-events-none">
                             <MapControls leads={meta.leads_available} lead={lead} setLead={setLead}
                                 field={field} setField={setField} fieldOptions={INDIA_FIELDS} alertControls={false} terrain={terrain} />
                         </div>
                     )}
                     {meta && (
-                        <div className="absolute bottom-3 left-3 z-[400]">
+                        <div className="absolute top-[84px] bottom-3 left-3 z-[400] flex flex-col justify-end pointer-events-none">
                             <MapLegend legends={meta.legends} field={field} alerts={false} observed={false} missed={false} />
                         </div>
                     )}

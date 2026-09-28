@@ -1,5 +1,9 @@
+import { useState } from 'react';
+import { ChevronDown, ChevronUp } from 'lucide-react';
 import { HAZARD_STYLE, VERIFY_STYLE, IMD_NOTE } from '../../utils/hazardLabels';
 import IMDChip from './IMDChip';
+
+const LEGEND_OPEN_MIN_WIDTH = 1400;
 
 const Swatch = ({ color, dashed, fill = 0.35, round }) => (
     <span className={`inline-block w-4 h-3 shrink-0 ${round ? 'rounded-full' : 'rounded-sm'}`}
@@ -14,8 +18,16 @@ const Row = ({ children }) => <div className="flex items-center gap-2 text-[11px
  */
 const MapLegend = ({ legends, field, observed = true, missed = true, alerts = true, verification = true, site = false, note, ffNote }) => {
     const f = field && legends?.[field];
+    // collapsed by default on narrower screens so it does not cover the map
+    const [open, setOpen] = useState(() => typeof window === 'undefined' || window.innerWidth >= LEGEND_OPEN_MIN_WIDTH);
     return (
-        <div data-testid="map-legend" className="bg-white/95 dark:bg-slate-800/95 backdrop-blur shadow-md rounded-xl border border-slate-200 dark:border-slate-700 p-3 space-y-1.5 w-[300px]">
+        <div data-testid="map-legend" data-open={open}
+            className="pointer-events-auto max-h-full overflow-y-auto bg-white/95 dark:bg-slate-800/95 backdrop-blur shadow-md rounded-xl border border-slate-200 dark:border-slate-700 p-3 space-y-1.5 w-[300px]">
+            <button type="button" data-testid="legend-toggle" aria-expanded={open} onClick={() => setOpen((o) => !o)}
+                className="w-full flex items-center justify-between text-[10px] font-black uppercase text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white">
+                Legend {open ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
+            </button>
+            {open && (<>
             {alerts && (
                 <>
                     <p className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400">Alerts</p>
@@ -64,6 +76,7 @@ const MapLegend = ({ legends, field, observed = true, missed = true, alerts = tr
                     {f.kind === 'risk_index' && <p className="text-[10px] text-pink-700 dark:text-pink-300">Index values, not percentages.</p>}
                 </>
             )}
+            </>)}
         </div>
     );
 };

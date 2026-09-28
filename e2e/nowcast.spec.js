@@ -697,3 +697,67 @@ for (const [w, h] of [[1280, 720], [1366, 768]]) {
         await shot(page, `data_credits_footer_${w}x${h}`);
     });
 }
+
+// ---------------------------------------------------------------- validation aggregate lines (checkpoint 03 continuation)
+test('ingredients: validation 2022-23 lines shown next to the demo statement, per model', async ({ page }) => {
+    await openIssue(page, 'REF045', '20230813T2100Z');
+    await page.getByTestId('lead-4').click();
+    const ing = await openAlert(page, 'cloudburst');
+    const v = ing.aggregate_val;
+    expect(v.model).toBe('theta30');
+    await expect(page.getByTestId('ingredients-agg-lead')).toHaveText(ing.aggregate.lead_trend);   // demo kept
+    await expect(page.getByTestId('ingredients-val-lead')).toHaveText(v.lead_trend);
+    await expect(page.getByTestId('ingredients-val-moisture')).toHaveText(v.moisture);
+    await expect(page.getByTestId('ingredients-val-scope')).toHaveText(v.scope);
+    await expect(page.getByTestId('ingredients-val-scope')).toContainText('Validation 2022–23, alert-selected rows; ≥30 model: all ');
+    await expect(page.getByTestId('ingredients-val-scope')).toContainText('≥10 model: estimated from a 25% deterministic sample of ');
+    if (!v.moisture_order_both_years) await expect(page.getByTestId('ingredients-val-moisture')).toContainText('mixed across years');
+    await page.getByTestId('ingredients-val').scrollIntoViewIfNeeded();
+    await shot(page, 'ingredients_validation_cloudburst_REF045_0813T2100Z_L4');
+
+    await openIssue(page, 'REF045', '20230812T2100Z');
+    const ff = await openAlert(page, 'flash_flood');
+    expect(ff.aggregate_val.model).toBe('theta10');
+    await expect(page.getByTestId('ingredients-val-moisture')).toHaveText(ff.aggregate_val.moisture);
+});
+
+// ---------------------------------------------------------------- map legend + controls at small viewports
+for (const [w, h] of [[1280, 720], [1366, 768]]) {
+    test(`map legend collapsed and controls not clipped at ${w}x${h}`, async ({ page }) => {
+        await page.setViewportSize({ width: w, height: h });
+        await openIssue(page, 'REF045', '20230813T1500Z');
+        const legend = page.getByTestId('map-legend');
+        await expect(legend).toHaveAttribute('data-open', 'false');
+        await expect(page.getByTestId('legend-toggle')).toHaveAttribute('aria-expanded', 'false');
+        await expect(legend).not.toContainText('Warning (solid outline)');
+        const map = page.locator('.leaflet-container');
+        const controls = page.getByTestId('map-controls');
+        const [mb, cb] = [await map.boundingBox(), await controls.boundingBox()];
+        expect(cb.y + cb.height, 'controls bottom inside the map').toBeLessThanOrEqual(mb.y + mb.height + 0.5);
+        // every control is reachable (the panel scrolls inside the map instead of being cut off)
+        for (const id of ['lead-6', 'field-select', 'terrain-toggle', 'watch-toggle']) {
+            await page.getByTestId(id).scrollIntoViewIfNeeded();
+            await expect(page.getByTestId(id)).toBeInViewport({ ratio: 1 });
+            const b = await page.getByTestId(id).boundingBox();
+            expect(b.y + b.height).toBeLessThanOrEqual(mb.y + mb.height + 0.5);
+        }
+        await page.getByTestId('watch-toggle').check();                       // usable, not just visible
+        await expect(page.getByTestId('watch-toggle')).toBeChecked();
+        await controls.evaluate((el) => { el.scrollTop = 0; });
+        await shot(page, `map_legend_collapsed_${w}x${h}`);
+        await page.getByTestId('legend-toggle').click();
+        await expect(legend).toHaveAttribute('data-open', 'true');
+        await expect(legend).toContainText('Warning (solid outline)');
+        const lb = await legend.boundingBox();
+        expect(lb.y).toBeGreaterThanOrEqual(mb.y);                              // expanded legend stays inside the map
+        expect(lb.y + lb.height).toBeLessThanOrEqual(mb.y + mb.height + 0.5);
+        await shot(page, `map_legend_expanded_${w}x${h}`);
+    });
+}
+
+test('map legend open by default at 1600 px', async ({ page }) => {
+    await openIssue(page, 'REF045', '20230813T1500Z');
+    await expect(page.getByTestId('map-legend')).toHaveAttribute('data-open', 'true');
+    await page.getByTestId('legend-toggle').click();
+    await expect(page.getByTestId('map-legend')).toHaveAttribute('data-open', 'false');
+});
