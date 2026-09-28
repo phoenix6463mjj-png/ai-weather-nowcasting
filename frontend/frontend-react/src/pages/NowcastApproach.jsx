@@ -7,6 +7,7 @@ const STATUS_STYLE = {
     'Tested, no gain': 'bg-slate-200 text-slate-800 dark:bg-slate-700 dark:text-slate-100',
     'Not yet tested': 'bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-300',
     'Blocked by data access': 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300',
+    'Observation layer delivered': 'bg-sky-100 text-sky-900 dark:bg-sky-900/40 dark:text-sky-300',
     'Not yet built': 'bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-300',
 };
 
@@ -48,7 +49,8 @@ const NowcastApproach = () => {
                                             {r.attribution && <p data-testid="iwv-attribution" className="text-[11px] text-slate-600 dark:text-slate-300 bg-sky-50 dark:bg-sky-950/40 rounded p-1.5 leading-snug">{r.attribution}</p>}
                                             {(r.evidence || []).map((q) => <Quote key={q.id} q={q} />)}
                                         </td>
-                                        <td className="py-1.5"><span className={`px-2 py-0.5 rounded-full text-[11px] font-bold whitespace-nowrap ${STATUS_STYLE[r.status]}`}>{r.status}</span></td>
+                                        <td className="py-1.5"><span className={`px-2 py-0.5 rounded-full text-[11px] font-bold whitespace-nowrap ${STATUS_STYLE[r.status]}`}>{r.status}</span>
+                                            {r.status_note && <p data-testid="approach-status-note" className="mt-1 text-[10px] leading-snug text-slate-600 dark:text-slate-300">{r.status_note}</p>}</td>
                                     </tr>
                                 ))}
                             </tbody>

@@ -42,6 +42,21 @@ foreach ($s in $services) {
 }
 if ($busy) { Write-Host 'Nothing started. Run stop_demo.ps1 (or close that program) and try again.' -ForegroundColor Red; exit 1 }
 
+# ---- wait until a service answers 200 (max 60 s)
+function Wait-Service($s) {
+    Write-Host ("Waiting for {0} on :{1} ..." -f $s.Name, $s.Port) -NoNewline
+    $deadline = (Get-Date).AddSeconds(60)
+    while ((Get-Date) -lt $deadline) {
+        try {
+            $r = Invoke-WebRequest -Uri $s.Url -UseBasicParsing -TimeoutSec 5
+            if ($r.StatusCode -eq 200) { Write-Host ' ok' -ForegroundColor Green; return $true }
+        } catch { }
+        Start-Sleep -Seconds 1
+    }
+    Write-Host (' FAILED: no answer from {0} within 60 s (see its window)' -f $s.Url) -ForegroundColor Red
+    return $false
+}
+
 # ---- launch the three windows (each sets its own environment, as in INTEGRATION.md)
 function Start-Window($title, $workDir, $commands) {
     $script = "`$Host.UI.RawUI.WindowTitle = '$title'; Set-Location -LiteralPath '$workDir'; $commands"
@@ -53,6 +68,12 @@ Start-Window 'Nowcast 1/3: ML serve :8001' $dataRoot (
     "`$env:ML_CORS_ORIGINS = 'http://localhost:5173,http://127.0.0.1:5173'; " +
     "& '$python' -m uvicorn serve.app:app --port 8001")
 
+# the team backend proxies to :8001, so start it only after the ML API answers (max 60 s)
+if (-not (Wait-Service $services[0])) {
+    Write-Host 'ML serve API did not start: backend and frontend not started. Check window 1/3; stop it with stop_demo.ps1.' -ForegroundColor Red
+    exit 1
+}
+
 Start-Window 'Nowcast 2/3: team backend :8000' $backend (
     "`$env:ML_API_URL = 'http://127.0.0.1:8001/api'; " +
     "& '$python' -m uvicorn main:app --port 8000")
@@ -63,21 +84,10 @@ Start-Window 'Nowcast 3/3: frontend :5173' $frontend (
     "if (`$v -ne 'v24.19.0') { Write-Host 'Node must be v24.19.0: not starting the dev server.' -ForegroundColor Red } " +
     "else { `$env:VITE_ML_API_BASE = 'http://127.0.0.1:8000/ml'; npm run dev }")
 
-# ---- wait until each service answers (60 s each)
+# ---- wait until the backend and the frontend answer (60 s each)
 $failed = @()
-foreach ($s in $services) {
-    Write-Host ("Waiting for {0} on :{1} ..." -f $s.Name, $s.Port) -NoNewline
-    $deadline = (Get-Date).AddSeconds(60)
-    $ok = $false
-    while ((Get-Date) -lt $deadline) {
-        try {
-            $r = Invoke-WebRequest -Uri $s.Url -UseBasicParsing -TimeoutSec 5
-            if ($r.StatusCode -eq 200) { $ok = $true; break }
-        } catch { }
-        Start-Sleep -Seconds 1
-    }
-    if ($ok) { Write-Host ' ok' -ForegroundColor Green }
-    else { Write-Host (' FAILED: no answer from {0} within 60 s (see its window)' -f $s.Url) -ForegroundColor Red; $failed += $s.Name }
+foreach ($s in $services[1..2]) {
+    if (-not (Wait-Service $s)) { $failed += $s.Name }
 }
 if ($failed.Count) {
     Write-Host ("Not ready: {0}. Check those windows; stop everything with stop_demo.ps1." -f ($failed -join ', ')) -ForegroundColor Red

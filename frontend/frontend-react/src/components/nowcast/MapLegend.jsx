@@ -49,16 +49,17 @@ const MapLegend = ({ legends, field, hazards = [], observed = false, missed = fa
                             </div>
                             {(() => {
                                 const cs = insat.classes.filter((c) => c.color);
-                                return cs.slice(0, -1).map((c, i) => (
+                                return [<span key="floor" data-testid="legend-insat-coldest" className="absolute top-3 left-0 text-[9px] font-bold text-slate-700 dark:text-slate-200">{cs[0].label}</span>].concat(cs.slice(1, -1).map((c, i) => (
                                     <span key={c.to} className="absolute top-3 -translate-x-1/2 text-[9px] text-slate-500 dark:text-slate-400 tabular-nums"
-                                        style={{ left: `${((i + 1) / cs.length) * 100}%` }}>{i % 2 === 0 ? c.to : ''}</span>
-                                )).concat(<span key="end" className="absolute top-3 right-0 text-[9px] text-slate-500 tabular-nums">{cs[cs.length - 1].to}</span>);
+                                        style={{ left: `${((i + 2) / cs.length) * 100}%` }}>{i % 2 === 1 && i < cs.length - 3 ? c.to : ''}</span>
+                                ))).concat(<span key="end" className="absolute top-3 right-0 text-[9px] text-slate-500 tabular-nums">{cs[cs.length - 1].to}</span>);
                             })()}
                         </div>
                         <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-snug">
                             {insat.classes.find((c) => !c.color)?.label} · display classes, not thresholds
                         </p>
                         {insat.availability && <p data-testid="legend-insat-availability" className="text-[10px] text-slate-600 dark:text-slate-300 leading-snug">{insat.availability} (at issue time, not at the lead&apos;s valid time)</p>}
+                        {insat.floorLine && <p data-testid="legend-insat-floor" className="text-[10px] text-slate-600 dark:text-slate-300 leading-snug">{insat.floorLine}</p>}
                         {insat.lines.map((l) => <p key={l} data-testid="insat-line" className="text-[10px] text-amber-700 dark:text-amber-400 leading-snug">{l}</p>)}
                     </div>
                 )}

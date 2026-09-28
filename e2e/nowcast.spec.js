@@ -1215,6 +1215,7 @@ test('CAP review on a live alert: status Test (not validated), download blocked 
 // ---------------------------------------------------------------- INSAT-3DR case-study observation layer (checkpoint I2b)
 const INSAT_LINES = ['INSAT position uncertainty ≈ 5–10 km (navigation + parallax); site values use a 25 km patch.',
     'Observation only — not used by the model.'];
+const INSAT_FLOOR = "≤180 K = at or below the coldest value in the product's lookup table (179.9 K); cooling rate not computable.";
 
 async function openLayers(page) {
     if ((await page.getByTestId('layers-panel').getAttribute('data-open')) === 'false') await page.getByTestId('layers-toggle').click();
@@ -1242,6 +1243,8 @@ test('INSAT layer: off by default; on = the image usable at issue time (API rule
         await expect(page.getByTestId('legend-insat')).toContainText('Satellite observation (INSAT via MOSDAC)');
         await expect(page.getByTestId('legend-insat').getByTestId('insat-line')).toHaveText(INSAT_LINES);
         await expect(page.getByTestId('legend-insat')).not.toContainText('%');
+        await expect(page.getByTestId('legend-insat-floor')).toHaveText(INSAT_FLOOR);
+        await expect(page.getByTestId('legend-insat-coldest')).toHaveText('≤180 K');
         // same bounds as the forecast rasters (the overlay is drawn at meta.bounds)
         const meta = await (await page.request.get('http://127.0.0.1:8000/ml/issues/REF045/20230813T1500Z/meta')).json();
         const info = await (await page.request.get('http://127.0.0.1:8000/ml/insat/REF045')).json();
@@ -1314,11 +1317,17 @@ test('INSAT timeline rows: cells = API series by scan time, gaps hatched, no cha
         await expect(page.getByTestId('tl-insat-p10').getByTestId('tl-source')).toHaveAttribute('data-source', 'satellite');
         await expect(page.getByTestId('tl-insat-p10')).toContainText('INSAT-3DR via MOSDAC');
         await expect(page.getByTestId('insat-notes').getByTestId('insat-line')).toHaveText(INSAT_LINES);
-        await expect(page.getByTestId('insat-threshold')).toContainText('0 °C (273.15 K)');
-        await expect(page.getByTestId('insat-threshold')).toContainText(tl.insat.thresholds[0].quote);
+        // I2c: no threshold line; the 0 °C reference is removed from the UI
+        await expect(page.getByTestId('insat-threshold')).toHaveCount(0);
+        await expect(page.getByTestId('insat-threshold-note')).toHaveText('No verified severe-storm threshold shown.');
+        await expect(page.getByTestId('insat-rows')).not.toContainText('273.15');
+        await expect(page.getByTestId('insat-floor-line')).toHaveText(INSAT_FLOOR);
         await page.getByTestId('insat-table-toggle').click();
         await expect(page.getByTestId('insat-table-row')).toHaveCount(site.series.length);
         await expect(page.getByTestId('insat-method')).toContainText('look-up table');
+        await expect(page.getByTestId('insat-table-floor-line')).toHaveText(INSAT_FLOOR);
+        const floorRow = site.series.find((x) => x.p10_at_lut_floor);
+        await expect(page.locator(`[data-testid="insat-table-row"][data-slot="${floorRow.slot}"]`)).toContainText('≤180 K');
         for (const bad of ['early signal', 'validat', 'precursor', '%']) {
             await expect(page.getByTestId('insat-rows')).not.toContainText(bad);
         }
@@ -1338,4 +1347,17 @@ test('data credits: MOSDAC credit line and the 3DR L1C DOI', async ({ page }) =>
     const c = page.getByTestId('credit-insat_mosdac');
     await expect(c).toContainText('Data Source MOSDAC/SAC/ISRO. https://mosdac.gov.in');
     await expect(c.getByRole('link', { name: 'DOI' })).toHaveAttribute('href', 'https://doi.org/10.19038/SAC/10/3RIMG_L1C_ASIA_MER');
+});
+
+test('Approach page: only the cloud-top temperature row changed (INSAT observation layer, not a model input)', async ({ page }) => {
+    await page.setViewportSize({ width: 1920, height: 1080 });
+    await page.goto('/nowcast/approach');
+    const row = page.locator('[data-testid="approach-row"][data-item="Cloud-top temperature drop rate"]');
+    await expect(row).toHaveAttribute('data-status', 'Observation layer delivered');
+    await expect(row.getByTestId('approach-status-note')).toHaveText(
+        'INSAT-3DR 10.8 µm cloud-top temperature on the two case studies (MOSDAC access granted 28 Sep 2026). '
+        + 'Not a model input; using it in the model needs INSAT history + retraining (roadmap).');
+    await expect(page.getByTestId('approach-table')).not.toContainText('Blocked by data access');
+    await expect(page.getByTestId('approach-status-note')).toHaveCount(1);
+    await shot(page, 'approach_ctt_row_1920x1080');
 });

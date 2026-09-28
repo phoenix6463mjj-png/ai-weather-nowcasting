@@ -280,7 +280,7 @@ const ReplayView = () => {
                                 verification={meta.explain_available !== false} observed={obsAvailable} missed={obsAvailable}
                                 terrain={terrain.layers.length > 0}
                                 insat={insat.on && insat.info ? {
-                                    classes: insat.info.colour_scale.classes, lines: insat.info.lines,
+                                    classes: insat.info.colour_scale.classes, lines: insat.info.lines, floorLine: insat.info.floor_line,
                                     availability: insat.atIssue?.label,
                                 } : null}
                                 noteTitle="Observed (replay)"

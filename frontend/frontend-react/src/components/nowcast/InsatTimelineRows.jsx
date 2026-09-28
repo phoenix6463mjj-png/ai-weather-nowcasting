@@ -29,7 +29,8 @@ const InsatTimelineRows = ({ insat, siteEpisode, t0, t1, x, plotPx, Row, band })
     const hidden = site.series.length - series.length;
     const cellPx = (plotPx * M30) / (t1 - t0);
     const text = cellPx >= MIN_TEXT_PX;
-    const floorK = insat.lut_floor_k;
+    const floorLabel = insat.colour_scale.classes[0].label;          // "≤180 K"
+    const floorShort = floorLabel.replace(' K', '');
     const th = insat.thresholds[0];
     const w = `calc(${x(M30 + t0)} - ${x(t0)})`;
 
@@ -43,8 +44,8 @@ const InsatTimelineRows = ({ insat, siteEpisode, t0, t1, x, plotPx, Row, band })
         if (kind === 'p10') {
             const c = v != null ? classColour(insat.colour_scale, v) : null;
             if (c) { bg = c; fg = luminance(c) < 0.45 ? 'text-white' : 'text-slate-900'; }
-            label = floor ? `≤${Math.round(floorK)}` : v != null ? String(Math.round(v)) : 'n/a';
-            title = `${hm(s.acq_start)}–${hm(s.acq_end)}Z scan: patch 10th-percentile BT ${floor ? `at the LUT floor (≤ ${floorK} K)` : `${v} K`}; min ${s.min_bt_k} K${s.min_at_lut_floor ? ' (LUT floor)' : ''}`;
+            label = floor ? floorShort : v != null ? String(Math.round(v)) : 'n/a';
+            title = `${hm(s.acq_start)}–${hm(s.acq_end)}Z scan: patch 10th-percentile BT ${floor ? floorLabel : `${v} K`}; min ${s.min_bt_k} K${s.min_at_lut_floor ? ' (LUT floor)' : ''}`;
         } else {
             if (v == null) {
                 bg = 'repeating-linear-gradient(45deg,rgba(148,163,184,0.35) 0 2px,transparent 2px 5px)';
@@ -92,14 +93,14 @@ const InsatTimelineRows = ({ insat, siteEpisode, t0, t1, x, plotPx, Row, band })
                 <p>
                     Every downloaded scan of {site.site} at its acquisition time.
                     {gaps.length > 0 && ` Hatched = no file (${gaps.map((g) => `${hm(g.slot)}Z`).join(', ')}); no change across a gap.`}
-                    {' '}≤{Math.round(floorK)} = at the look-up-table floor ({floorK} K); not differenced.
                     {hidden > 0 && ` ${hidden} scans outside this time range are not drawn.`}
                 </p>
-                {th && (
+                <p data-testid="insat-floor-line">{insat.floor_line}</p>
+                {th ? (
                     <p data-testid="insat-threshold">
                         Reference: {th.label} — &ldquo;{th.quote}&rdquo; ({th.short_citation}).
                     </p>
-                )}
+                ) : <p data-testid="insat-threshold-note">{insat.threshold_note}</p>}
                 <button type="button" data-testid="insat-table-toggle" onClick={() => setTable((o) => !o)}
                     className="underline text-slate-700 dark:text-slate-200">{table ? 'Hide' : 'Show'} INSAT values per scan ({site.series.length}) and method</button>
                 {table && (<>
@@ -110,14 +111,15 @@ const InsatTimelineRows = ({ insat, siteEpisode, t0, t1, x, plotPx, Row, band })
                         <p>{insat.scan_note}</p>
                         {th && <p>Reference source: {th.citation} {th.context}</p>}
                     </div>
+                    <p data-testid="insat-table-floor-line" className="text-slate-600 dark:text-slate-300">{insat.floor_line}</p>
                     <table data-testid="insat-table" className="w-full text-[9px] tabular-nums">
                         <thead><tr className="text-left text-slate-500"><th>scan (UTC)</th><th>10th pct (K)</th><th>min (K)</th><th>30-min change (K)</th><th>pixels</th></tr></thead>
                         <tbody>
                             {site.series.map((s) => (
                                 <tr key={s.slot} data-testid="insat-table-row" data-slot={s.slot}>
                                     <td>{hm(s.acq_start)}–{hm(s.acq_end)}</td>
-                                    <td>{s.p10_at_lut_floor ? `≤ ${floorK} (floor)` : s.p10_bt_k}</td>
-                                    <td>{s.min_at_lut_floor ? `≤ ${floorK} (floor)` : s.min_bt_k}</td>
+                                    <td>{s.p10_at_lut_floor ? floorLabel : s.p10_bt_k}</td>
+                                    <td>{s.min_at_lut_floor ? floorLabel : s.min_bt_k}</td>
                                     <td>{s.d30_p10_k ?? <span className="text-slate-400">— {s.change_note}</span>}</td>
                                     <td>{s.n_px}{s.n_px_at_lut_floor ? ` (${s.n_px_at_lut_floor} at floor)` : ''}</td>
                                 </tr>

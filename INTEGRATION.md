@@ -213,7 +213,11 @@ REF045 and REF051 only. It is **not a model input** (models/v0 is frozen). There
     look-up-table-floor value (≤ 180).
   - Numbers appear in the cells when they fit (1920). "Show INSAT values per scan" opens the exact
     values and the method.
-  - Reference line: 0 °C (273.15 K) with its quote and citation (`serve/assets/insat/thresholds.json`).
+  - No threshold line: "No verified severe-storm threshold shown." The verified 0 °C value stays in
+    `serve/assets/insat/thresholds.json` with `shown: false` and the reason.
+  - Everywhere INSAT values appear (legend, timeline, table): "≤180 K = at or below the coldest value
+    in the product's lookup table (179.9 K); cooling rate not computable." The legend's coldest colour
+    is labelled "≤180 K".
 - **Required lines** wherever INSAT values appear: "INSAT position uncertainty ≈ 5–10 km (navigation +
   parallax); site values use a 25 km patch." and "Observation only — not used by the model."
 - **Data credits footer:** "Data Source MOSDAC/SAC/ISRO. https://mosdac.gov.in" + DOI link.
@@ -399,6 +403,17 @@ The e2e tests assert on the DOM:
     REF045 and no change after the gap; lines and reference quote present; no "%", "validat" or
     "early signal";
   - credit line and DOI in the footer.
+
+**Notes (I2c)**
+- `pypdf` 6.19.0 was installed in `D:\.venv` only to read source PDFs (threshold and MOSDAC
+  documentation). It is not a serve dependency; the constrained dry run showed no other package change.
+- `start_demo.ps1` starts the team backend (and the frontend) only after :8001 answers `/api/health`
+  (polled, max 60 s). Otherwise it stops and says so.
+- Approach page: only the cloud-top-temperature row changed, to "Observation layer delivered" plus
+  the INSAT note. Not a model input; using INSAT in the model needs INSAT history + retraining.
+
+**Known issue:** one 502 from the `/ml` proxy was seen once, right after a server restart (I2b
+screenshots). It did not recur in later page loads or in the e2e runs.
 
 ## 7. Troubleshooting
 
