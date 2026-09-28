@@ -178,10 +178,24 @@ National sample, Live).
 | ingredients | inside the explain panel | drawer → Ingredients (2: alert + tab; or the link in the Alert section) |
 | documented-event check + warning timeline | "Documented-event check" tab of the right-hand panel | drawer → Event check (1) |
 | caveats | bar under the map (5 shown, "All 10" to expand) | drawer → Caveats, all with their quote and source (1) |
+| forecaster review + CAP download (checkpoint 05) | — | drawer → Alert → "Forecaster review (CAP 1.2, demo)" (1: click an alert) |
 | Live "NOT validated" banner | row above the map | badge strip (0) |
 | Live alert panel, top reasons | right-hand panel | drawer → Alert (1); ingredients "not available" → drawer → Ingredients |
 | National notes | right-hand panel | drawer → About map (1) |
 | Results / Approach pages | header links | unchanged (1) |
+
+**Forecaster review + CAP 1.2 (checkpoint 05)**: this is in the drawer's Alert section, when an
+alert is open (`CapReview.jsx`). There is no new panel.
+- It shows the alert's CAP message: status Exercise (replay) / Test (live), severity, certainty,
+  urgency, headline and description.
+- **Approve** marks the alert "approved for issue (demo)". **Edit** changes the headline and
+  description only, and sends the alert back to review. **Reject**.
+- **Download CAP** is enabled only for an approved alert. It saves a CAP 1.2 file to this computer.
+- The review lives only in the open page. It is not stored, and nothing is ever sent anywhere; the
+  UI says so.
+- Wording: "CAP 1.2 compatible (format used by India's Sachet alerting platform)". There is no
+  integration with Sachet, IMD or NDMA.
+- CAP rules: `nowcast_data/serve/README.md`, "CAP 1.2 output".
 
 ## 4. Endpoints
 
@@ -207,6 +221,8 @@ The paths are identical.
 | GET | `issues/{ep}/{ts}/map/{lead}/missed_ge30.png?level=&hazard=` | observed ≥30 mm/hr cells outside the alerts currently displayed (derived; no counts) |
 | GET | `issues/{ep}/{ts}/files/{name}` | raw files: `manifest.json`, `alerts.geojson`, `explain.json`, `grids.json`, `prob_L{1,2,3,4,6}h.tif`, figure PNGs |
 | GET | `india/meta`, `india/map/{lead}/{field}.png` | national sample (probability maps only) |
+| GET | `issues/{ep}/{ts}/alerts.cap.xml`, `live/{run}/alerts.cap.xml` | CAP 1.2 messages (replay Exercise / live Test; `?alert_id=` for one) |
+| POST | `issues/{ep}/{ts}/alerts/{id}/cap.xml`, `live/{run}/alerts/{id}/cap.xml` | one approved alert as a CAP file (body `{"review":"approved", headline?, description?}`) |
 | GET | `live`, `live/{run}/meta`, `live/{run}/ui-alerts`, `live/{run}/map/{lead}/{field}.png` | live run(s), labelled **not validated** |
 | GET / POST | `replay/status`, `replay/warm`, `replay` (`{"issue_time": "2023-08-13T21:00Z", "episode": "REF045"}` or `"bbox": [N, W, S, E]`) | on-demand run of `Nowcaster().predict`: one at a time, cached, with a timeout, and a byte comparison with the precomputed files |
 
@@ -342,7 +358,12 @@ The e2e tests assert on the DOM:
   are never covered by the drawer; National/Live use the same frame; the legend lists only visible
   layers (hazard swatches follow the hazard toggles, terrain row follows the terrain toggle, the
   forecast-layer entry only when one is selected, no alert entries with all hazards off);
-- Results and Approach pages at 1366×768: no horizontal overflow and no clipped element.
+- Results and Approach pages at 1366×768: no horizontal overflow and no clipped element;
+- CAP review (1920×1080, 1366×768, live): "Download CAP" is disabled until the alert is approved;
+  reject and edit disable it again; the downloaded file has status Exercise (live: Test, never
+  Actual), the edited headline/description and "approved for issue (demo) … edited"; the review
+  applies to that alert only; the format line and "nothing is ever sent anywhere" are shown; no
+  request leaves the machine except map tiles.
 
 ## 7. Troubleshooting
 

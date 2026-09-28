@@ -44,6 +44,7 @@ const ReplayView = () => {
     const [drawer, setDrawer] = useState(null);             // open drawer section, null = collapsed
     const [check, setCheck] = useState({ ep: null, data: null, timeline: null });
     const [detail, setDetail] = useState({ id: null, d: null, error: null });
+    const [reviews, setReviews] = useState({});            // forecaster review per alert (this page only; never sent)
     const eventWidth = useEventDrawerWidth();
     const terrain = useTerrain(ep);
     const pendingRef = useRef(null);            // jump target waiting for its issue to load
@@ -175,7 +176,8 @@ const ReplayView = () => {
 
     const alertSection = selected ? (
         <ExplainPanel episode={ep} ts={ts} d={det.d} error={det.error} onBack={() => setSelected(null)}
-            onIngredients={() => setDrawer('ingredients')} />
+            onIngredients={() => setDrawer('ingredients')} review={reviews[`${ep}/${ts}/${selId}`]}
+            onReview={(r) => setReviews((m) => ({ ...m, [`${ep}/${ts}/${selId}`]: r }))} />
     ) : (
         <div data-testid="alert-list-view">
             {meta && data.key === `${ep}/${ts}` && <ReplayButton key={data.key} episode={ep} issueTime={meta.issue_time} />}

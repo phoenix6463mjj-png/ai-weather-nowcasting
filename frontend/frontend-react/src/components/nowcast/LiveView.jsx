@@ -7,6 +7,7 @@ import MapControls from './MapControls';
 import MapLegend from './MapLegend';
 import AlertList from './AlertList';
 import IMDChip from './IMDChip';
+import CapReview from './CapReview';
 import useTerrain from './useTerrain';
 import Drawer from './Drawer';
 import LayersPanel from './LayersPanel';
@@ -18,7 +19,7 @@ const LIVE_FIELDS = FIELD_OPTIONS.filter((o) => o.id !== 'flash_flood');
 const LIVE_INGREDIENTS_NOTE = 'no per-feature SHAP is stored for live runs';
 
 // Live alerts carry only the model's top-5 reasons (no explain.json, no verification).
-const LiveAlertPanel = ({ a, onBack, onIngredients }) => (
+const LiveAlertPanel = ({ a, run, onBack, onIngredients, review, onReview }) => (
     <div data-testid="explain-panel" data-hazard={a.hazard}>
         <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-700">
             <div className="flex items-center gap-2">
@@ -36,6 +37,10 @@ const LiveAlertPanel = ({ a, onBack, onIngredients }) => (
             <p className="mt-1.5 text-[11px] font-black text-amber-900 bg-amber-200 rounded px-2 py-1">
                 Live output: system running operationally, NOT validated
             </p>
+        </div>
+        <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-800">
+            <h4 className="text-[10px] font-black uppercase text-slate-500 mb-1.5">Forecaster review (CAP 1.2, demo)</h4>
+            <CapReview src={{ kind: 'live', run }} alertId={a.alert_id} review={review} onChange={onReview} />
         </div>
         <div className="px-4 py-3 text-xs space-y-0.5 border-b border-slate-100 dark:border-slate-800">
             <p>Issued {fmtUtc(a.issue_time)}</p>
@@ -77,6 +82,7 @@ const LiveView = () => {
     const [selected, setSelected] = useState(null);
     const [error, setError] = useState(null);
     const [drawer, setDrawer] = useState(null);
+    const [reviews, setReviews] = useState({});            // forecaster review per alert (this page only; never sent)
     const closeDrawer = useCallback(() => setDrawer(null), []);
     const select = (a) => { setSelected(a); if (a) setDrawer('alert'); };
 
@@ -153,7 +159,8 @@ const LiveView = () => {
             </div>
             <Drawer tabs={tabs} active={drawer} onOpen={setDrawer} onClose={closeDrawer}>
                 {(id) => (id === 'alert' ? (
-                    selected ? <LiveAlertPanel key={selected.alert_id} a={selected} onBack={() => setSelected(null)} onIngredients={() => setDrawer('ingredients')} /> : (
+                    selected ? <LiveAlertPanel key={selected.alert_id} a={selected} run={meta?.run} onBack={() => setSelected(null)} onIngredients={() => setDrawer('ingredients')}
+                        review={reviews[selected.alert_id]} onReview={(r) => setReviews((m) => ({ ...m, [selected.alert_id]: r }))} /> : (
                         <div data-testid="alert-list-view">
                             <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-700">
                                 <h3 className="text-sm font-black">Live run {meta?.run}</h3>

@@ -2,6 +2,7 @@ import { ChevronLeft, ArrowUpRight, ArrowDownRight, FlaskConical } from 'lucide-
 import { issueFileUrl } from '../../services/nowcastApi';
 import { HAZARD_STYLE, LEVEL_STYLE, VERIFY_STYLE, valueText, kindText, fmtUtc, stateName, FF_VERIFY_NOTE } from '../../utils/hazardLabels';
 import IMDChip from './IMDChip';
+import CapReview from './CapReview';
 
 const Section = ({ title, children }) => (
     <section className="px-4 py-3 border-b border-slate-100 dark:border-slate-800">
@@ -95,7 +96,7 @@ const Confidence = ({ c, hazard }) => {
 
 // Alert tab of the drawer: one alert's explanation. The alert detail is fetched by the parent
 // (shared with the Ingredients tab).
-const ExplainPanel = ({ episode, ts, d, error, onBack, onIngredients }) => {
+const ExplainPanel = ({ episode, ts, d, error, onBack, onIngredients, review, onReview }) => {
     if (error) return <div className="p-4 text-sm text-red-600">Could not load explanation: {error}</div>;
     if (!d) return <div className="p-4 text-sm text-slate-500">Loading explanation…</div>;
 
@@ -121,6 +122,12 @@ const ExplainPanel = ({ episode, ts, d, error, onBack, onIngredients }) => {
                     </p>
                 )}
             </div>
+
+            {onReview && (
+                <Section title="Forecaster review (CAP 1.2, demo)">
+                    <CapReview src={{ kind: 'replay', ep: episode, ts }} alertId={d.alert_id} review={review} onChange={onReview} />
+                </Section>
+            )}
 
             <Section title="When and where">
                 <div className="text-xs space-y-0.5">

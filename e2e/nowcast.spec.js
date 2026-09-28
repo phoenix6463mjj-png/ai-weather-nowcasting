@@ -25,6 +25,8 @@ async function openIssue(page, ep, ts) {
         body = await firstResp.json();
     } else {
         const target = page.waitForResponse(isTarget);
+        // the selectors live in the Layers panel, which starts collapsed on small screens
+        if ((await page.getByTestId('layers-panel').getAttribute('data-open')) === 'false') await page.getByTestId('layers-toggle').click();
         if ((await page.getByTestId('episode-select').inputValue()) !== ep) {
             await page.getByTestId('episode-select').selectOption(ep);
         }
@@ -1128,3 +1130,84 @@ for (const [path, id, name] of [['/nowcast/results', 'results-page', 'results'],
         await shot(page, `${name}_1366x768`);
     });
 }
+
+// ---------------------------------------------------------------- CAP 1.2 + forecaster review (checkpoint 05)
+const CAP_LABEL = "CAP 1.2 compatible (format used by India's Sachet alerting platform)";
+
+for (const [w, h] of [[1920, 1080], [1366, 768]]) {
+    test(`CAP review ${w}x${h}: download blocked until approved, edits kept, Exercise status, nothing sent`, async ({ page }) => {
+        await page.setViewportSize({ width: w, height: h });
+        const offsite = [];
+        page.on('request', (r) => {
+            const u = new URL(r.url());
+            if (!['localhost', '127.0.0.1'].includes(u.hostname) && !u.hostname.endsWith('tile.openstreetmap.org')) offsite.push(r.url());
+        });
+        await openIssue(page, 'REF045', '20230813T2100Z');
+        await page.getByTestId('lead-4').click();
+        await showAlertList(page);
+        const row = page.locator('[data-testid="alert-row"][data-level="Warning"]').first();
+        const level = await row.getAttribute('data-level');
+        await row.locator('button').click();
+        const review = page.getByTestId('cap-review');
+        await expect(review).toHaveAttribute('data-status', 'pending');
+        await expect(page.getByTestId('cap-status')).toHaveText('Exercise');
+        await expect(review).toContainText(level === 'Warning' ? 'severity Severe · certainty Likely' : 'severity Moderate · certainty Possible');
+        await expect(page.getByTestId('cap-format')).toContainText(CAP_LABEL);
+        await expect(page.getByTestId('cap-format')).toContainText('nothing is ever sent anywhere');
+        await expect(page.getByTestId('cap-headline')).toContainText('EXERCISE:');
+        await expect(page.getByTestId('cap-download')).toBeDisabled();                  // not reviewed yet
+        await shot(page, `cap_review_pending_${w}x${h}`);
+
+        await page.getByTestId('cap-reject').click();
+        await expect(review).toHaveAttribute('data-status', 'rejected');
+        await expect(page.getByTestId('cap-download')).toBeDisabled();
+        await page.getByTestId('cap-approve').click();
+        await expect(page.getByTestId('cap-review-status')).toHaveText('approved for issue (demo)');
+        await expect(page.getByTestId('cap-download')).toBeEnabled();
+
+        // edit (headline + description only) sends it back to review
+        await page.getByTestId('cap-edit').click();
+        await page.getByTestId('cap-edit-headline').fill('EXERCISE: forecaster-edited headline');
+        await page.getByTestId('cap-edit-description').fill('Forecaster-edited description for the demo.');
+        await page.getByTestId('cap-save').click();
+        await expect(review).toHaveAttribute('data-status', 'pending');
+        await expect(page.getByTestId('cap-download')).toBeDisabled();
+        await expect(page.getByTestId('cap-headline')).toHaveText('EXERCISE: forecaster-edited headline');
+        await page.getByTestId('cap-approve').click();
+        await shot(page, `cap_review_approved_${w}x${h}`);
+
+        const dl = page.waitForEvent('download');
+        await page.getByTestId('cap-download').click();
+        const file = await dl;
+        expect(file.suggestedFilename()).toMatch(/\.cap\.xml$/);
+        const xml = await (await import('node:fs/promises')).readFile(await file.path(), 'utf-8');
+        expect(xml).toContain('<status>Exercise</status>');
+        expect(xml).not.toContain('<status>Actual</status>');
+        expect(xml).toContain('<headline>EXERCISE: forecaster-edited headline</headline>');
+        expect(xml).toContain('<description>Forecaster-edited description for the demo.</description>');
+        expect(xml).toContain('approved for issue (demo); headline/description edited by the forecaster');
+        expect(xml).toContain('<language>en-IN</language>');
+        await expect(page.getByTestId('cap-download-result')).toContainText('not sent anywhere');
+
+        // the review belongs to that alert only: another alert starts unreviewed
+        await page.getByTestId('explain-panel').locator('button[title="Back to list"]').click();
+        await page.locator('[data-testid="alert-row"]').nth(1).locator('button').click();
+        await expect(page.getByTestId('cap-review')).toHaveAttribute('data-status', 'pending');
+        await expect(page.getByTestId('cap-download')).toBeDisabled();
+        expect(offsite, 'requests leaving this machine (other than map tiles)').toEqual([]);
+    });
+}
+
+test('CAP review on a live alert: status Test (not validated), download blocked until approved', async ({ page }) => {
+    await page.goto('/nowcast');
+    await page.getByTestId('tab-live').click();
+    await page.getByTestId('watch-toggle').check();
+    await showAlertList(page);
+    await page.getByTestId('alert-row').first().locator('button').click();
+    await expect(page.getByTestId('cap-status')).toHaveText('Test');
+    await expect(page.getByTestId('cap-headline')).toContainText('TEST:');
+    await expect(page.getByTestId('cap-download')).toBeDisabled();
+    await page.getByTestId('cap-approve').click();
+    await expect(page.getByTestId('cap-download')).toBeEnabled();
+    await expect(page.getByTestId('explain-panel')).toContainText('NOT validated');
+});
