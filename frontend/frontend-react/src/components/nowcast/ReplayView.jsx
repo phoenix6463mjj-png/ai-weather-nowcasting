@@ -43,8 +43,12 @@ const ReplayView = () => {
     useEffect(() => {
         getEpisodes().then((r) => {
             setEpisodes(r.episodes);
-            setEp(r.default.episode);
-            setTs(r.default.ts);
+            const q = new URLSearchParams(window.location.search);
+            const e = r.episodes.find((x) => x.episode === q.get('ep'));
+            const i = e?.issues.find((x) => x.ts === q.get('ts'));
+            setEp(e ? e.episode : r.default.episode);
+            setTs(e ? (i ? i.ts : e.issues[0].ts) : r.default.ts);
+            if (e && q.get('tab') === 'event') setAsideTab('event');
         }).catch((e) => setError(e.message));
     }, []);
 

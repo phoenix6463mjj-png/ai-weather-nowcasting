@@ -121,6 +121,20 @@ assets (≈ 13 MB, see `serve/README.md`).
 - Elevation and slope GeoTIFFs for REF045/REF051 are stored for later refuge-point screening. They
   are not drawn yet.
 
+**Results page** (`/nowcast/results`) and **Approach & live readiness** (`/nowcast/approach`), linked from
+the Nowcast page header ("Nowcast map · Results · Approach & live readiness"):
+- Results: CSI of v0 vs advection vs persistence per lead × threshold, validation and 2024 test side by
+  side, with FAR-caveat markers (v0's FAR above advection's) and the 1 h ≥30 persistence tie; ≥30
+  mm/hr reliability (bins with < 100 cells hidden); two case studies built from the event-check API
+  (Pipalkoti 2023 validation, Malana 2024 test/descriptive), each linking to its warning timeline
+  (`/nowcast?ep=…&ts=…&tab=event`); negative results (v1 pressure levels incl. shear, U-Net);
+  limitations from `caveats`. Charts are plain SVG (`SvgPlot.jsx`): recharts 2.8 does not render
+  axes/scales correctly under React 19, and upgrading it would change a shared dependency.
+- Approach: proposal item → implemented feature → status; IMERG evidence (24 documented val/test
+  cloudbursts, median peak 17.6 mm/hr; Pipalkoti 17.5); live readiness (IMERG Early ~318 min, GFS
+  ~528 min; INSAT-3DR 46 min / 3DS 61 min, 30 min each, 15 min combined; 6 h lead ≈ 0.7 h of real
+  warning on IMERG Early vs ≈ 5 h on ~1 h-old INSAT). Every text is a verbatim quote with its source.
+
 **Map panels on small screens**: the map legend has a "Legend" header toggle and starts collapsed
 when the window is narrower than 1400 px (open by default otherwise). The legend and the map
 controls are confined to the map area and scroll inside it, so nothing is cut off at 1280×720.
@@ -137,6 +151,7 @@ The paths are identical.
 | GET | `caveats` | caveats shown on the page, each with a verbatim quote and source doc |
 | GET | `ingredients/aggregate` | descriptive demo SHAP aggregate per model and its UI sentences (the per-alert bars come with `issues/{ep}/{ts}/alerts/{id}` as `ingredients`) |
 | GET | `episodes/{ep}/timeline` | warning-timeline ingredient inputs per issue + IMERG site series (REF045, REF051) |
+| GET | `results`, `approach` | data and verbatim quotes for the Results and Approach pages |
 | GET | `credits` | data credits for the footer, each notice verbatim from its attribution file |
 | GET | `terrain`, `terrain/{layer}.png` | terrain (Copernicus DEM GLO-90) hillshade layers with bounds and attribution; layer = `national`, `REF045`, `REF051`, `REF025` |
 | GET | `episodes` | REF045 (validation, out-of-sample), REF051 Malana (**test (2024)** descriptive case study, both documented sites) and REF025 (training, **in-sample**): issue times with alert / verified / false-alarm counts (REF051 13:00Z is forecast-only); default REF045 13 Aug 2023 15:00Z |
@@ -265,6 +280,10 @@ The e2e tests assert on the DOM:
   raw log-odds; labels per hazard (≥30 vs ≥10), the cloudburst boost line, the demo aggregate
   lines; "Not available" on the forecast-only issue and on live alerts; REF025 keeps its badge;
 - validation lines equal the API (per model) next to the demo statement;
+- Results page: every plotted v0 CSI point equals the API (which equals the score CSVs), the caveat
+  markers match the flags, case-study texts use the event-check numbers, the timeline link opens the
+  issue; Approach page: 9 rows with the API statuses, IWV attribution with its validation scope, the
+  IMERG evidence and the latency arithmetic;
 - warning timeline (REF045, REF051 at 1920×1080): the alert and nearby-cells markers equal the
   event-check API (ids and hours of warning = window start − issue time), every row has its source
   label, IMERG texts match the data, the forecast-only gap shows, and clicking a marker opens that

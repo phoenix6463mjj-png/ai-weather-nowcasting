@@ -6,6 +6,8 @@ import Analytics from './pages/Analytics';
 import Alerts from './pages/Alerts';
 import Reports from './pages/Reports';
 import Nowcast from './pages/Nowcast';
+import NowcastResults from './pages/NowcastResults';
+import NowcastApproach from './pages/NowcastApproach';
 
 function App() {
   return (
@@ -17,6 +19,8 @@ function App() {
         <Route path="/alerts" element={<Alerts />} />
         <Route path="/reports" element={<Reports />} />
         <Route path="/nowcast" element={<Nowcast />} />
+        <Route path="/nowcast/results" element={<NowcastResults />} />
+        <Route path="/nowcast/approach" element={<NowcastApproach />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

@@ -5,6 +5,7 @@ import CaveatsBar from '../components/nowcast/CaveatsBar';
 import NationalView from '../components/nowcast/NationalView';
 import LiveView from '../components/nowcast/LiveView';
 import DataCredits from '../components/nowcast/DataCredits';
+import { NowcastPageLinks } from '../components/nowcast/PageShell';
 
 // lgbm_v0 nowcast outputs (served by nowcast_data/serve through the backend's /ml proxy).
 const TABS = [
@@ -23,6 +24,7 @@ const Nowcast = () => {
                     <h2 className="text-lg font-black leading-tight">ML Nowcast: thunderstorm, cloudburst and flash-flood risk, 1–6 h</h2>
                     <p className="text-[11px] text-slate-500 dark:text-slate-400">LightGBM model lgbm_v0 (frozen) · 0.1° grid · Himalaya cloudburst study</p>
                 </div>
+                <div className="pb-2"><NowcastPageLinks /></div>
                 <nav className="flex gap-1 ml-auto">
                     {TABS.map((t) => (
                         <button key={t.id} onClick={() => setTab(t.id)} data-testid={`tab-${t.id}`}

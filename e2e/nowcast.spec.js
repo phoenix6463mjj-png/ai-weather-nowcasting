@@ -859,3 +859,82 @@ test('warning timeline REF051 Malana: markers = event-check API, window label, o
     await expect(page.getByTestId('replay-view')).toHaveAttribute('data-loaded', 'REF051/20240731T1300Z');
     expect(await activeLead(page)).toBe(n.lead_time_h);
 });
+
+// ---------------------------------------------------------------- Results + Approach pages (checkpoint 06)
+test('Results page: CSI points = API, caveat markers, case studies from event-check, timeline links', async ({ page }) => {
+    await page.setViewportSize({ width: 1920, height: 1080 });
+    await page.goto('/nowcast');
+    const resp = page.waitForResponse((r) => r.url().endsWith('/results') && r.ok());
+    const chk = page.waitForResponse((r) => r.url().endsWith('/episodes/REF045/event-check') && r.ok());
+    await page.getByTestId('page-link-results').click();
+    await expect(page).toHaveURL(/\/nowcast\/results$/);
+    const res = await (await resp).json();
+    const check = await (await chk).json();
+    for (const split of ['val', 'test']) {
+        for (const th of [1, 10, 30]) {
+            const want = res.csi.filter((r) => r.split === split && r.threshold === th).sort((a, b) => a.lead - b.lead);
+            const chart = page.getByTestId(`csi-chart-${split}-${th}`);
+            const v0 = await chart.locator('[data-series="v0"] circle').evaluateAll((els) => els.map((e) => Number(e.dataset.y)));
+            expect(v0, `${split} ${th}`).toEqual(want.map((r) => r.csi_v0));
+            await expect(chart.getByTestId('csi-far-flag')).toHaveCount(want.filter((r) => r.far_above_advection).length);
+        }
+    }
+    await expect(page.getByTestId('csi-persistence-flag')).toHaveCount(res.csi.filter((r) => r.persistence_ge_v0).length);
+    await expect(page.getByTestId('far-caveat-legend')).toContainText('FAR caveat');
+    await expect(page.getByTestId('reliability-val')).toBeVisible();
+    await expect(page.getByTestId('reliability-min-n')).toContainText('fewer than 100 cells');
+    // case studies (numbers from the event-check API)
+    const site = check.sites.find((s) => s.site_episode === 'REF045');
+    const pa = site.qualifying.filter((a) => a.precision === 'precise' && a.hazard === 'cloudburst')
+        .sort((a, b) => b.hours_of_warning - a.hours_of_warning)[0];
+    const p = page.getByTestId('case-study-REF045');
+    await expect(p).toContainText(`${pa.hours_of_warning} h before the earliest reported time`);
+    await expect(p).toContainText(`${pa.peak_to_site_km} km from the site`);
+    await expect(p).toContainText(`${Math.round(pa.area_km2)} km²`);
+    await expect(p).toContainText('not verified (false alarm)');
+    await expect(p).toContainText('17.52 mm/hr');
+    await expect(p).toContainText('never reached 30 mm/hr');
+    await expect(p).toContainText('approximate');
+    const m = page.getByTestId('case-study-REF051');
+    await expect(m).toContainText('Cloudburst Warning 3 h');
+    await expect(m).toContainText('thunderstorm Warning 4 h');
+    await expect(m).toContainText('broad area');
+    await expect(m).toContainText("state authority's preliminary range; covers several Kullu cloudbursts");
+    await expect(page.getByTestId('case-study-note')).toContainText('This is a case study, not a skill score');
+    await expect(page.getByTestId('negative-results')).toContainText('no measurable skill gain');
+    await expect(page.getByTestId('negative-results')).toContainText('behind v0 in every combination');
+    await expect(page.getByTestId('limitations').locator('li')).toHaveCount(10);
+    await shot(page, 'results_1920x1080');
+    // case-study link opens that timeline
+    await page.getByTestId('case-link-REF045').click();
+    await expect(page.getByTestId('replay-view')).toHaveAttribute('data-loaded', `REF045/${pa.issue_time.replace(/[-:]/g, '')}`);
+    await expect(page.getByTestId('warning-timeline')).toBeVisible();
+});
+
+test('Approach page: status table, IWV attribution from AGGREGATE_VAL, IMERG evidence, live latency arithmetic', async ({ page }) => {
+    await page.setViewportSize({ width: 1920, height: 1080 });
+    const resp = page.waitForResponse((r) => r.url().endsWith('/approach') && r.request().resourceType() === 'fetch' && r.ok());
+    await page.goto('/nowcast/approach');
+    const a = await (await resp).json();
+    const rows = page.getByTestId('approach-row');
+    await expect(rows).toHaveCount(9);
+    const st = Object.fromEntries(a.rows.map((r) => [r.item, r.status]));
+    for (const [item, status] of Object.entries(st)) {
+        await expect(page.locator(`[data-testid="approach-row"][data-item="${item}"]`)).toHaveAttribute('data-status', status);
+    }
+    expect(st['Wind shear']).toBe('Tested, no gain');
+    expect(st['Alert API / CAP']).toBe('Not yet built');
+    await expect(page.getByTestId('iwv-attribution')).toHaveText(a.rows[0].attribution);
+    await expect(page.getByTestId('iwv-attribution')).toContainText('Validation 2022–23, alert-selected rows');
+    await expect(page.getByTestId('approach-page')).not.toContainText('core driver');
+    await expect(page.getByTestId('imerg-evidence')).toContainText('| all | 24 | 17.6 |');
+    await expect(page.getByTestId('imerg-evidence')).toContainText('Pipalkoti area | 17.5');
+    const lat = a.live.latency;
+    await expect(page.getByTestId('latency-arithmetic')).toContainText(`≈ ${lat.real_warning_imerg_h} h of real warning`);
+    await expect(page.getByTestId('latency-arithmetic')).toContainText(`≈ ${lat.real_warning_insat_h} h`);
+    await expect(page.getByTestId('lat-imerg')).toContainText(`~${lat.numbers.imerg_early_min[0]} min`);
+    await expect(page.getByTestId('lat-3ds')).toContainText(`${lat.numbers.insat_3ds_min[0]} min`);
+    await shot(page, 'approach_1920x1080');
+    await page.getByTestId('page-link-nowcast').click();
+    await expect(page.getByTestId('replay-view')).toBeVisible();
+});
