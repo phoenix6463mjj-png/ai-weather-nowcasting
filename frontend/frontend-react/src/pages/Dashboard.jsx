@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { API_BASE } from '../config';
+import { fetchWithWake, isServerUnavailable, WAKE_UNAVAILABLE } from '../utils/serverWake';
 import { RISK_COLOURS, isLiveSource, sourceBadge } from '../utils/dashboardRisk';
 import OpenMeteoCredit from '../components/OpenMeteoCredit';
 import NominatimCredit from '../components/NominatimCredit';
@@ -43,7 +44,7 @@ const Dashboard = () => {
         setError(null);
         try {
             // Fetch ONLY from /alerts — SINGLE SOURCE OF TRUTH (380 ZONES)
-            const response = await fetch(`${API_BASE}/alerts?limit=380`);
+            const response = await fetchWithWake(`${API_BASE}/alerts?limit=380`);
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}`);
             }
@@ -100,7 +101,7 @@ const Dashboard = () => {
                 return null;
             });
         } catch {
-            setError("Zone data unavailable — backend not reachable");
+            setError(WAKE_UNAVAILABLE);
         } finally {
             setLoading(false);
             isFetchingRef.current = false;
@@ -165,7 +166,7 @@ const Dashboard = () => {
             // Call backend: POST {API_BASE}/predict
             let data = {};
             try {
-                const response = await fetch(`${API_BASE}/predict`, {
+                const response = await fetchWithWake(`${API_BASE}/predict`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
@@ -181,6 +182,7 @@ const Dashboard = () => {
                     console.warn("Backend /predict returned non-OK status:", response.status);
                 }
             } catch (apiErr) {
+                if (isServerUnavailable(apiErr)) throw apiErr;      // server did not wake up: say so, no LOW default
                 console.error("Backend /predict call failed:", apiErr);
             }
 
@@ -233,7 +235,9 @@ const Dashboard = () => {
             setSelectedCity(resolvedCity);
         } catch (err) {
             if (err instanceof SupersededError) return;      // a newer search replaced this one before it was sent
-            setError(err.message || `City '${trimmed}' could not be retrieved. Please check city name.`);
+            // own messages only (never a browser error class such as "Failed to fetch")
+            setError(isServerUnavailable(err) ? WAKE_UNAVAILABLE
+                : (!(err instanceof TypeError) && err.message) || `City '${trimmed}' could not be retrieved. Please check city name.`);
         } finally {
             setSearchLoading(false);
         }

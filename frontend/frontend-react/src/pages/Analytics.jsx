@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { API_BASE } from '../config';
+import { fetchWithWake } from '../utils/serverWake';
 import HonestyBanner from '../components/HonestyBanner';
 import DonutChart from '../components/DonutChart';
 import OpenMeteoCredit from '../components/OpenMeteoCredit';
@@ -74,7 +75,7 @@ const Analytics = () => {
     const srcOf = (d) => d.source || d.weather?.source;
     const liveWeather = dataOrigin === "backend" && data.length > 0 && data.every((d) => ["openweather", "open-meteo"].includes(srcOf(d)));
     const openMeteo = liveWeather && data.every((d) => srcOf(d) === "open-meteo");
-    const dataLabel = dataOrigin === "fallback" ? "built-in example data (backend not reachable)"
+    const dataLabel = dataOrigin === "fallback" ? "built-in example data (server unavailable)"
         : openMeteo ? "Open-Meteo data (model data)" : liveWeather ? "OpenWeather data" : "sample data";
 
     // 1. FILTER BAR STATE
@@ -89,7 +90,7 @@ const Analytics = () => {
         setLoading(true);
         setError(null);
         try {
-            const res = await fetch(`${API_BASE}/batch_predict?limit=100`);
+            const res = await fetchWithWake(`${API_BASE}/batch_predict?limit=100`);
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const json = await res.json();
             if (Array.isArray(json) && json.length > 0) {

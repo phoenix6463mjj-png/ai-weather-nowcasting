@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { API_BASE } from '../config';
+import { fetchWithWake, WAKE_UNAVAILABLE } from '../utils/serverWake';
 import { isLiveSource, sourceBadge, sourceShort } from '../utils/dashboardRisk';
 import OpenMeteoCredit from '../components/OpenMeteoCredit';
 import HonestyBanner from '../components/HonestyBanner';
@@ -121,7 +122,7 @@ const Forecast = () => {
         const fetchBackendData = async () => {
             try {
                 setLoading(true);
-                const res = await fetch(`${API_BASE}/batch_predict?limit=100`);
+                const res = await fetchWithWake(`${API_BASE}/batch_predict?limit=100`);
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 const data = await res.json();
                 if (!Array.isArray(data) || data.length === 0) throw new Error('no data');
@@ -207,7 +208,7 @@ const Forecast = () => {
 
         // STEP 2: Call real-time /nowcast API
         try {
-            const res = await fetch(`${API_BASE}/nowcast?city=${encodeURIComponent(text)}`);
+            const res = await fetchWithWake(`${API_BASE}/nowcast?city=${encodeURIComponent(text)}`);
             if (res.ok) {
                 const data = await res.json();
                 if (data && !data.error && data.city) {
@@ -423,7 +424,7 @@ const Forecast = () => {
                         className={`p-6 rounded-2xl border text-center font-bold ${backendStatus === 'down'
                             ? 'bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-900 text-red-700 dark:text-red-300'
                             : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-500'}`}>
-                        {backendStatus === 'down' ? 'Forecast unavailable — backend not reachable' : 'Loading forecast…'}
+                        {backendStatus === 'down' ? WAKE_UNAVAILABLE : 'Loading forecast…'}
                     </div>
                 </main>
             </div>

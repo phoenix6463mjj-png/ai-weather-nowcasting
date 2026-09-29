@@ -8,6 +8,7 @@ import Reports from './pages/Reports';
 import Nowcast from './pages/Nowcast';
 import NowcastResults from './pages/NowcastResults';
 import NowcastApproach from './pages/NowcastApproach';
+import ServerWakeNotice from './components/ServerWakeNotice';
 
 function App() {
   return (
@@ -23,6 +24,7 @@ function App() {
         <Route path="/nowcast/approach" element={<NowcastApproach />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      <ServerWakeNotice />
     </BrowserRouter>
   );
 }

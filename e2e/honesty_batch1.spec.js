@@ -23,7 +23,12 @@ async function expectNoBanned(page, testid = null) {
 async function zoneSource(page) {
     return (await (await page.request.get(`${API}/alerts?limit=380`)).json()).summary.source;
 }
-const abortBackend = (page, pattern) => page.route(pattern, (r) => r.abort());
+// backend down: short wake-retry timings (utils/serverWake.js) so the page gives up quickly
+const abortBackend = async (page, pattern) => {
+    await page.addInitScript(() => { window.__SERVER_WAKE__ = { retryMs: 200, budgetMs: 1500, attemptMs: 1000 }; });
+    await page.route(pattern, (r) => r.abort());
+};
+const UNAVAILABLE = 'Server unavailable — please refresh in a minute.';
 
 test('Analytics: rule-based labels, no validation/XGBoost/94.6%, donut draws with no console errors', async ({ page }) => {
     await stubImages(page);
@@ -50,7 +55,7 @@ test('Analytics with the backend down: says the data is the built-in example', a
     await stubImages(page);
     await abortBackend(page, '**/batch_predict**');
     await page.goto('/analytics');
-    await expect(page.getByTestId('analytics-summary-source')).toHaveText('Rule-based summary of built-in example data (backend not reachable)');
+    await expect(page.getByTestId('analytics-summary-source')).toHaveText('Rule-based summary of built-in example data (server unavailable)');
 });
 
 test('Reports: every card labelled as an example; no official/Doppler/accuracy/Confidential claims; export footer honest', async ({ page }) => {
@@ -82,11 +87,11 @@ test('Forecast: no confidence value, rule-based alert label, "Backend Synchroniz
     await expectNoBanned(page);
 });
 
-test('Forecast with the backend down: "Forecast unavailable", no built-in Mumbai record, no "Synchronized"', async ({ page }) => {
+test('Forecast with the backend down: "Server unavailable", no built-in Mumbai record, no "Synchronized"', async ({ page }) => {
     await stubImages(page);
     await abortBackend(page, '**/batch_predict**');
     await page.goto('/forecast');
-    await expect(page.getByTestId('forecast-status')).toHaveText('Forecast unavailable — backend not reachable');
+    await expect(page.getByTestId('forecast-status')).toHaveText(UNAVAILABLE);
     await expect(page.getByTestId('forecast-backend-sync')).toHaveCount(0);
     await expect(page.locator('main')).not.toContainText('Mumbai');
     await expectNoBanned(page);
@@ -101,12 +106,12 @@ test('Alerts: official-advisory line instead of action advice; no evacuation / s
     await expectNoBanned(page);
 });
 
-test('Alerts with the backend down: "Alerts unavailable", badge not stuck on Loading, never "stable"', async ({ page }) => {
+test('Alerts with the backend down: "Server unavailable", badge not stuck on Loading, never "stable"', async ({ page }) => {
     await stubImages(page);
     await abortBackend(page, '**/alerts?limit=380');
     await page.goto('/alerts');
-    await expect(page.getByTestId('alerts-error')).toHaveText('Alerts unavailable — backend not reachable');
-    await expect(page.getByTestId('alerts-source-badge')).toHaveText('Backend not reachable');
+    await expect(page.getByTestId('alerts-error')).toHaveText(UNAVAILABLE);
+    await expect(page.getByTestId('alerts-source-badge')).toHaveText('Server unavailable');
     await expect(page.locator('body')).not.toContainText('No alerts in this data');
     await expectNoBanned(page);
 });
@@ -124,7 +129,7 @@ test('Dashboard banner: "(sample data, rule-based)" on sample data; backend down
     await stubImages(p2);
     await abortBackend(p2, '**/alerts?limit=380');
     await p2.goto('/');
-    await expect(p2.getByText('Zone data unavailable — backend not reachable')).toBeVisible();
+    await expect(p2.getByText(UNAVAILABLE).first()).toBeVisible();
     await expect(p2.getByTestId('alert-banner-text')).toHaveCount(0);
     await expect(p2.getByTestId('info-strip')).toHaveCount(0);
     await expect(p2.locator('body')).not.toContainText('No high-risk zones');

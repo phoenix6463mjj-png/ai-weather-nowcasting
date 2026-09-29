@@ -567,6 +567,44 @@ screenshots). It did not recur in later page loads or in the e2e runs.
 - The source pill and the "Fetched" label no longer wrap.
 - Test: `e2e/prehosting.spec.js` ("Alerts wording").
 
+### Friendly backend-wake state (30 Sep 2026, frontend only; audit F3)
+
+- **Where:** every request to the team backend or the ML API goes through
+  `fetchWithWake` (`src/utils/serverWake.js`).
+  - Team pages: Dashboard `/alerts` and `/predict`; Forecast `/batch_predict` and `/nowcast`;
+    Analytics; Alerts; Reports.
+  - ML pages and components: via `services/nowcastApi.js`.
+- **When it retries:** a network failure, a timeout (30 s per attempt) or HTTP 502/503/504. It retries
+  every 5 s for up to 90 s.
+- **What the user sees:**
+  - While it retries, one small notice (bottom centre, `ServerWakeNotice`): "Starting the server — this
+    can take up to a minute on the free host…".
+  - After 90 s: "Server unavailable — please refresh in a minute." The page error slots use the same
+    sentence:
+    - Alerts: error line, and the source pill reads "Server unavailable";
+    - Dashboard: error line;
+    - Forecast: status line;
+    - Analytics: "built-in example data (server unavailable)";
+    - Reports: status "Server unavailable";
+    - ML pages: their error lines.
+- **What it never retries:** other HTTP answers (404 "not available", 403 replay disabled, 500 …).
+  They are passed through unchanged.
+- **No raw details:** addresses, ports and error class names are never shown.
+  - Removed: "Cannot reach the nowcast API at http://…:8000/ml. Is it running?".
+  - The Dashboard search no longer shows a browser error such as "Failed to fetch".
+  - When `/predict` gives up, the Dashboard search shows "Server unavailable" instead of adding the
+    place with a default LOW level.
+- **Not covered:** map images (`<img>` PNGs) are not retried. The notice covers them only because the
+  page's JSON requests fail first. `services/api.js` (axios) is not imported anywhere.
+- **Test timings:** `window.__SERVER_WAKE__ = { retryMs, budgetMs, attemptMs }` shortens them. e2e only.
+- **Tests:** `e2e/server_wake.spec.js`.
+  - Recovery with the real 5 s retry: `/alerts` aborted for 7 s, `/batch_predict` aborted for 6 s,
+    ML API answering 503 for 6 s.
+  - A 404 is not retried.
+  - All 8 routes end on "Server unavailable" with no address or error name.
+  - Screenshots of the notice at both sizes.
+  - The backend-down tests in `honesty_batch1.spec.js` now expect the new wording.
+
 **Tests:**
 - `tests/test_utc_timestamps.py`: the same frozen instant, server in UTC and in India time (TZ
   `UTC0` / `IST-5:30` on Windows, `UTC` / `Asia/Kolkata` elsewhere), gives identical "…Z" output.

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { API_BASE } from '../config';
+import { fetchWithWake } from '../utils/serverWake';
 import HonestyBanner from '../components/HonestyBanner';
 import {
     FileText,
@@ -111,7 +112,7 @@ const Reports = () => {
         let isMounted = true;
         const fetchLiveAlertSummary = async () => {
             try {
-                const res = await fetch(`${API_BASE}/alerts`);
+                const res = await fetchWithWake(`${API_BASE}/alerts`);
                 if (res.ok && isMounted) {
                     const data = await res.json();
                     const liveAlerts = data.alerts || [];
@@ -147,7 +148,7 @@ const Reports = () => {
                     }
                 }
             } catch {
-                if (isMounted) setSummaryStats((s) => ({ ...s, systemStatus: "Backend not reachable" }));
+                if (isMounted) setSummaryStats((s) => ({ ...s, systemStatus: "Server unavailable" }));
             }
         };
 

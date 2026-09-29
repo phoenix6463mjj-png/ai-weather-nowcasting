@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { API_BASE } from '../config';
+import { fetchWithWake, WAKE_UNAVAILABLE } from '../utils/serverWake';
 import { fetchedLabel, isLiveSource, parseUtcIso, sourceBadge } from '../utils/dashboardRisk';
 import OpenMeteoCredit from '../components/OpenMeteoCredit';
 import {
@@ -129,7 +130,7 @@ const Alerts = () => {
         if (!isSilent) setLoading(true);
         setError(null);
         try {
-            const res = await fetch(`${API_BASE}/alerts?limit=380`);
+            const res = await fetchWithWake(`${API_BASE}/alerts?limit=380`);
             if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to fetch alerts`);
             const data = await res.json();
             const fetchedAlerts = data.alerts || [];
@@ -146,7 +147,7 @@ const Alerts = () => {
             setLastSyncTime(parseUtcIso(data.last_updated) || new Date());   // backend UTC time of the zone data
         } catch (err) {
             console.error("Alerts fetch error:", err);
-            setError("Alerts unavailable — backend not reachable");
+            setError(WAKE_UNAVAILABLE);
             setAlerts([]);
         } finally {
             setLoading(false);
@@ -263,7 +264,7 @@ const Alerts = () => {
                             ) : (
                                 <span data-testid="alerts-source-badge" data-source={weatherSource || ''} className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
                                     <span className="w-2 h-2 rounded-full bg-amber-500"></span>
-                                    {error ? 'Backend not reachable' : weatherSource ? sourceBadge(weatherSource) : 'Loading…'}
+                                    {error ? 'Server unavailable' : weatherSource ? sourceBadge(weatherSource) : 'Loading…'}
                                 </span>
                             )}
                             <span className="text-xs text-gray-500 dark:text-gray-400 hidden sm:inline whitespace-nowrap">

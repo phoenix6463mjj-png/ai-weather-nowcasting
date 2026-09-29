@@ -1,13 +1,14 @@
 import { ML_API_BASE } from '../config';
+import { fetchWithWake, ServerUnavailableError } from '../utils/serverWake';
 
 export const mlUrl = (path) => `${ML_API_BASE}/${path.replace(/^\/+/, '')}`;
 
 async function request(path, options, as = 'json') {
     let res;
     try {
-        res = await fetch(mlUrl(path), options);
+        res = await fetchWithWake(mlUrl(path), options);     // retried while the free host wakes up
     } catch {
-        throw new Error(`Cannot reach the nowcast API at ${ML_API_BASE}. Is it running?`);
+        throw new ServerUnavailableError();                   // never the address or the error class
     }
     if (!res.ok) {
         let detail = `HTTP ${res.status}`;
