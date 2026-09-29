@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { API_BASE } from '../config';
 import { 
     FileText, 
     ArrowLeft, 
@@ -109,7 +110,7 @@ const Reports = () => {
         let isMounted = true;
         const fetchLiveAlertSummary = async () => {
             try {
-                const res = await fetch("http://127.0.0.1:8000/alerts");
+                const res = await fetch(`${API_BASE}/alerts`);
                 if (res.ok && isMounted) {
                     const data = await res.json();
                     const liveAlerts = data.alerts || [];

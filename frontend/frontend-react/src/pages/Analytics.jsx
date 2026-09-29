@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { Link } from 'react-router-dom';
+import { API_BASE } from '../config';
 import { 
     BarChart2, 
     ArrowLeft, 
@@ -82,7 +83,7 @@ const Analytics = () => {
         setLoading(true);
         setError(null);
         try {
-            const res = await fetch("http://127.0.0.1:8000/batch_predict?limit=100");
+            const res = await fetch(`${API_BASE}/batch_predict?limit=100`);
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const json = await res.json();
             if (Array.isArray(json) && json.length > 0) {

@@ -104,6 +104,36 @@ test('Dashboard: View Details goes to /alerts; the timeline card and the ML line
     await expect(page).toHaveURL(/\/nowcast$/);
 });
 
+// primary threat, computed here independently of the page: none for LOW zones, else the highest rule score
+function threatOf(a) {
+    if (String(a.risk_level).toUpperCase() === 'LOW') return null;
+    const p = a.prediction || {};
+    const [t, c, f] = [p.prob_thunderstorm, p.prob_cloudburst, p.prob_flood].map(Number);
+    if (f >= t && f >= c) return 'flood';
+    return c >= t ? 'cloudburst' : 'thunderstorm';
+}
+
+test('Dashboard: event-layer toggles filter markers by primary threat; low-risk zones stay visible', async ({ page }) => {
+    const data = await openDashboard(page);
+    const zones = data.alerts;
+    const low = zones.filter((a) => threatOf(a) == null).length;
+    const markers = page.getByTestId('dashboard-markers');
+    await expect(markers).toHaveAttribute('data-count', String(zones.length));
+    const layers = [['thunderstorm', 'Toggle Thunderstorm Filter'], ['cloudburst', 'Toggle Cloudburst Filter'], ['flood', 'Toggle Flash Flood Filter']];
+    const off = new Set();
+    for (const [key, label] of layers) {
+        await page.getByRole('switch', { name: label }).click();
+        off.add(key);
+        const expected = zones.filter((a) => { const t = threatOf(a); return t == null || !off.has(t); }).length;
+        await expect(markers).toHaveAttribute('data-count', String(expected));
+        await expect(markers).toHaveAttribute('data-low', String(low));          // low-risk zones never hidden
+    }
+    // all three off: exactly the low-risk zones remain; back on: everything again
+    await expect(markers).toHaveAttribute('data-count', String(low));
+    for (const [, label] of layers) await page.getByRole('switch', { name: label }).click();
+    await expect(markers).toHaveAttribute('data-count', String(zones.length));
+});
+
 test('Dashboard screenshots at 1920x1080 and 1366x768', async ({ page }) => {
     for (const [w, h] of [[1920, 1080], [1366, 768]]) {
         await page.setViewportSize({ width: w, height: h });

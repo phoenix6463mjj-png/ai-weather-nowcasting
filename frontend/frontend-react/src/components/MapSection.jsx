@@ -119,6 +119,7 @@ const MapSection = ({
     console.log("Rendering clustered points:", locations.length);
 
     return (
+        <>
         <MapContainer
             key={allCities.length || locationsProp.length}
             center={[22.5, 79.5]}
@@ -217,6 +218,10 @@ const MapSection = ({
                 />
             )}
         </MapContainer>
+        {/* test hook: markers handed to the cluster layer after the event-layer filter */}
+        <span hidden data-testid="dashboard-markers" data-count={locations.length}
+            data-low={locations.filter((l) => primaryThreat(l) == null).length} />
+        </>
     );
 };
 

@@ -64,7 +64,7 @@ const NowcastApproach = () => {
                         <Card title="Live readiness" testid="live-readiness">
                             <p className="text-[11px] font-black uppercase text-slate-500 mb-1">Open data today (measured latency)</p>
                             <div className="grid grid-cols-2 gap-2 mb-2">
-                                <Stat testid="lat-imerg" label="IMERG Early" value={`~${n.imerg_early_min[0]} min`} sub={`${lat.imerg_early_age_h} h old at issue`} />
+                                <Stat testid="lat-imerg" label="IMERG Early" value={`~${n.imerg_early_min[0]} min`} sub={lat.imerg_early_label} />
                                 <Stat testid="lat-gfs" label="GFS analysis" value={`~${n.gfs_min[0]} min`} sub="age varies with the 6 h cycle (quoted below)" />
                             </div>
                             <p className="text-[11px] font-black uppercase text-slate-500 mb-1">INSAT via the MOSDAC API (measured, search only)</p>
@@ -74,13 +74,14 @@ const NowcastApproach = () => {
                                 <Stat testid="lat-combined" label="3DR + 3DS" value={`${n.insat_combined_min[0]} min`} sub="effective refresh" />
                             </div>
                             <div data-testid="latency-arithmetic" className="rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 p-2.5 text-xs space-y-0.5 mb-2">
-                                <p>A {lat.lead_h} h lead on ~{lat.imerg_early_age_h} h-old IMERG Early data ≈ <b>{lat.real_warning_imerg_h} h</b> of real warning.</p>
+                                <p>A {lat.lead_h} h lead on IMERG Early data {lat.imerg_early_age_h} h old (our first live poll) ≈ <b>{lat.real_warning_imerg_h} h</b> of real warning;
+                                    at the ~{lat.imerg_early_typical_h} h typical latency LIVE_PIPELINE.md also notes ≈ <b>{lat.real_warning_imerg_typical_h} h</b>.</p>
                                 <p>On ~{lat.insat_age_h} h-old INSAT data ≈ <b>{lat.real_warning_insat_h} h</b>.</p>
                             </div>
                             <p className="text-[11px] font-black uppercase text-slate-500 mb-1">What INSAT access unlocks</p>
                             <ul className="text-xs space-y-0.5 mb-2 list-disc ml-4">
                                 <li>Cloud-top temperature drop rate: convection seen before it rains hard.</li>
-                                <li>About {lat.insat_age_h} h data latency instead of about {lat.imerg_early_age_h} h.</li>
+                                <li>About {lat.insat_age_h} h data latency instead of IMERG Early&apos;s {lat.imerg_early_label}.</li>
                                 <li>Retraining on live-available inputs. The live system claims no validated skill until that is done.</li>
                             </ul>
                             <div className="space-y-1">{[...a.live.insat, ...a.live.unlocks, ...a.live.current].map((q) => <Quote key={q.id} q={q} />)}</div>

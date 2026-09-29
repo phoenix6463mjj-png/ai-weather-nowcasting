@@ -975,6 +975,10 @@ test('Approach page: status table, IWV attribution from AGGREGATE_VAL, IMERG evi
     const lat = a.live.latency;
     await expect(page.getByTestId('latency-arithmetic')).toContainText(`≈ ${lat.real_warning_imerg_h} h of real warning`);
     await expect(page.getByTestId('latency-arithmetic')).toContainText(`≈ ${lat.real_warning_insat_h} h`);
+    // both IMERG Early cases: 5.3 h at our first live poll and the ~4 h typical value (from LIVE_PIPELINE.md)
+    await expect(page.getByTestId('latency-arithmetic')).toContainText(`${lat.imerg_early_age_h} h old (our first live poll)`);
+    await expect(page.getByTestId('latency-arithmetic')).toContainText(`at the ~${lat.imerg_early_typical_h} h typical latency LIVE_PIPELINE.md also notes ≈ ${lat.real_warning_imerg_typical_h} h`);
+    await expect(page.getByTestId('lat-imerg')).toContainText('5.3 h at our first live poll (LIVE_PIPELINE.md also notes ~4 h typical)');
     await expect(page.getByTestId('lat-imerg')).toContainText(`~${lat.numbers.imerg_early_min[0]} min`);
     await expect(page.getByTestId('lat-3ds')).toContainText(`${lat.numbers.insat_3ds_min[0]} min`);
     await shot(page, 'approach_1920x1080');

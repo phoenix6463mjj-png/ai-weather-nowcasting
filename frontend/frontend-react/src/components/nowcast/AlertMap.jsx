@@ -42,7 +42,7 @@ const AlertMap = ({ bounds, alerts = [], selectedId, onSelect, sites = [], overl
         <ZoomControl position="topright" />
         <TrackSize />
         <TileLayer
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         />
         <FitBounds bounds={bounds} />

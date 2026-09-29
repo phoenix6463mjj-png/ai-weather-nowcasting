@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
+import { API_BASE } from '../config';
 import { 
     CloudRain, 
     ArrowLeft, 
@@ -197,13 +198,13 @@ const Forecast = () => {
         }
     }, []);
 
-    // 2. Fetch from backend: http://127.0.0.1:8000/batch_predict?limit=100
+    // 2. Fetch from backend: {API_BASE}/batch_predict?limit=100
     useEffect(() => {
         let isMounted = true;
         const fetchBackendData = async () => {
             try {
                 setLoading(true);
-                const res = await fetch("http://127.0.0.1:8000/batch_predict?limit=100");
+                const res = await fetch(`${API_BASE}/batch_predict?limit=100`);
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 const data = await res.json();
 
@@ -288,7 +289,7 @@ const Forecast = () => {
 
         // STEP 2: Call real-time /nowcast API
         try {
-            const res = await fetch(`http://127.0.0.1:8000/nowcast?city=${encodeURIComponent(text)}`);
+            const res = await fetch(`${API_BASE}/nowcast?city=${encodeURIComponent(text)}`);
             if (res.ok) {
                 const data = await res.json();
                 if (data && !data.error && data.city) {

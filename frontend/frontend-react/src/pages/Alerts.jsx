@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
+import { API_BASE } from '../config';
 import { 
     ArrowLeft, 
     RefreshCw, 
@@ -169,7 +170,7 @@ const Alerts = () => {
         if (!isSilent) setLoading(true);
         setError(null);
         try {
-            const res = await fetch("http://127.0.0.1:8000/alerts?limit=380");
+            const res = await fetch(`${API_BASE}/alerts?limit=380`);
             if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to fetch alerts`);
             const data = await res.json();
             const fetchedAlerts = data.alerts || [];

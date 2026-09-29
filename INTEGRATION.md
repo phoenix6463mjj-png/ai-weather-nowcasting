@@ -3,8 +3,10 @@
 The **ML Nowcast** page (`/nowcast`, link in the top header) shows the outputs of the frozen
 `lgbm_v0` nowcasting model from the `nowcast_data` repo: alert polygons, probability/index/ratio
 maps, observed rain for verification, per-alert explanations, the national sample, and one
-live run. The existing pages (Dashboard, Forecast, Analytics, Alerts, Reports) are unchanged and
-still run on this app's own OpenWeather + rule/`rainfall_model_v2.pkl` pipeline.
+live run. The other pages (Dashboard, Forecast, Analytics, Alerts, Reports) still run on this app's
+own OpenWeather + rule/`rainfall_model_v2.pkl` pipeline. The Dashboard got honest labels (option A,
+see "Dashboard" in §6). The other pages changed only in reading their backend URL from
+`VITE_API_BASE`.
 
 ```
 browser (Vite :5173)  --VITE_ML_API_BASE-->  team backend (:8000) /ml/*  --ML_API_URL-->  nowcast serve (:8001) /api/*
@@ -89,8 +91,9 @@ front, call `Invoke-RestMethod -Method Post http://127.0.0.1:8000/ml/replay/warm
 | `NOWCAST_REPLAY_TIMEOUT_S` | ML serve | `25` | replay request timeout (the run itself completes and is cached) |
 | `OPENWEATHER_API_KEY` | team backend | none | existing pages only; never in code. Without it, weather is **sample data** and the Dashboard says so. With it, the zone list is cached 30 min (free-tier limits) |
 
-`VITE_ML_API_BASE` and `ML_API_URL` are the only service URLs; nothing else is hard-coded for the
-ML integration.
+`VITE_ML_API_BASE`, `VITE_API_BASE` and `ML_API_URL` are the only service URLs. The defaults are the
+local addresses above; nothing else is hard-coded. The only external URLs are the map tiles (OSM, NASA
+GIBS), place search (Nominatim, Dashboard) and the team pages' Unsplash background photos.
 
 ## 3. What was added
 
@@ -459,3 +462,84 @@ screenshots). It did not recur in later page loads or in the e2e runs.
 | `503 a replay is already running` | only one replay runs at a time (8 GB laptop) |
 | `npm run dev` fails with an engine or syntax error | the wrong Node is on PATH. Run the PATH line above; `node -v` must print v24.19.0 |
 | tiles missing | the base map uses OpenStreetMap tiles and needs internet access |
+
+## 8. Attributions (all shown in the UI)
+
+| source | where | credit |
+|---|---|---|
+| Copernicus DEM GLO-90 | terrain hillshade (ML Nowcast, Dashboard "Terrain") | "produced using Copernicus WorldDEM-90 © DLR e.V. 2010-2014 and © Airbus Defence and Space GmbH 2014-2018 provided under COPERNICUS by the European Union and ESA; all rights reserved", verbatim in the Data credits footer + licence and DOI links (`serve/assets/terrain/ATTRIBUTION.md`) |
+| INSAT-3DR via MOSDAC | INSAT layer + Event-check rows (REF045, REF051) | "Data Source MOSDAC/SAC/ISRO. https://mosdac.gov.in" + DOI https://doi.org/10.19038/SAC/10/3RIMG_L1C_ASIA_MER in the footer (`serve/assets/insat/ATTRIBUTION.md`). Only value-added derivatives are shipped, never raw files |
+| NASA GIBS | Dashboard "Satellite" (VIIRS SNPP corrected reflectance, yesterday UTC) | map attribution "Imagery: NASA GIBS (ESDIS), VIIRS SNPP corrected reflectance, <date>" |
+| OpenStreetMap | all base maps | "© OpenStreetMap contributors" (map attribution); tiles from `https://tile.openstreetmap.org` under the OSM tile usage policy (light use) |
+| IMERG (NASA GPM), ERA5 / GFS | model inputs | named on the pages where they are used (replay banner, Live banner, Approach) |
+
+## 9. Known limitations and known issues
+
+**Limitations (by design; stated in the UI):**
+- The model is frozen (lgbm_v0). Replays are case studies. REF025 is in-sample; REF051 is a 2024
+  descriptive case study, not a new test score.
+- Live is **not validated**: its inputs (IMERG Early + GFS) differ from the validated setup (IMERG
+  Final + ERA5). IMERG Early was 5.3 h old at our first live poll (LIVE_PIPELINE.md also notes ~4 h
+  typical). A 6 h lead is therefore worth ≈ 0.7 h (≈ 2 h at ~4 h) of real warning. The only live run
+  on disk is 26 Sep 2026 03:30Z.
+- The national sample has no alerts and no flash-flood band.
+- INSAT is an observation layer only, not a model input. Using it needs INSAT history + retraining.
+  Position uncertainty is ≈ 5–10 km. The product's lookup table stops at 179.9 K, so the coldest tops
+  are shown as "≤180 K" and no cooling rate is computed there.
+- The Dashboard's risk is a rule-based indicator on sample weather unless `OPENWEATHER_API_KEY` is
+  set. Its risk distribution (380 zones) is therefore fixed by the city names while sample data is in
+  use.
+- CAP output is a demo: status Exercise / Test, never Actual. Nothing is sent anywhere, and there is
+  no integration with Sachet, IMD or NDMA.
+
+**Known issues (team pages; not changed):**
+- Dashboard sidebar: "Live Map" and "Locations" only reload the zone list, "Settings" opens Analytics,
+  and the avatar does nothing.
+- Analytics / Reports show fixed validation figures ("94.6% accuracy", "Validation 96.2%", …).
+- The Forecast page labels its data "Source: OpenWeather Real-Time API" and shows a "Score: 90%".
+  Both appear regardless of whether a key is set.
+- The Alerts page (`/alerts`) says "Live Feed", "Real-time weather threats" and "Live • Just now"
+  even on sample data.
+- `backend/main.py` allows any CORS origin with credentials (`allow_origins=["*"]`). Restrict it
+  for hosting.
+- `nowcast_data/scripts/build_state_mask.py` (offline, not shipped) has a hard-coded local input
+  path.
+- One 502 from the `/ml` proxy was seen once, right after a restart.
+- The team's own ESLint errors are unchanged: unused `React` imports, a Dashboard effect, and
+  `api.js` error causes.
+
+## 10. Hosting checklist (checked 29 Sep 2026)
+
+- **Service URLs:** only `VITE_ML_API_BASE`, `VITE_API_BASE` (frontend, build time) and `ML_API_URL`
+  (team backend). Every page reads its backend URL from `src/config.js`. There are no local drive
+  paths in the served code.
+- **CORS:**
+  - ML API: `ML_CORS_ORIGINS` (default: the Vite dev origins), GET/POST only.
+  - Team backend: `allow_origins=["*"]` with credentials. Restrict this to the hosted frontend origin
+    before deploying (known issue, not changed).
+- **Secrets:**
+  - None in either repo: no key literals, and `.env` / `backend/.env` are git-ignored.
+  - `OPENWEATHER_API_KEY` is read from the environment only; the MOSDAC credentials were never used
+    by the served code.
+  - `raw/` is git-ignored, so no MOSDAC HDF5 is tracked.
+  - `demo_inputs/` holds public NASA IMERG netCDF4 subsets (351 files) for on-demand replay only.
+- **Shipped data (nowcast_data):**
+
+  | path | size |
+  |---|---|
+  | `serve/assets` | 16 MB |
+  | `models/v0` | 9.2 MB |
+  | `docs/` | 158 MB (demo_explain 64, demo_replays 33, case_studies 28, sample_output_india 18, live_output 16) |
+  | `demo_inputs` | 110 MB, needed only for "Re-run model now" |
+
+  Total ≈ 293 MB, or ≈ 183 MB without replay inputs.
+- **Python for a hosted build:**
+  - ML API: `serve/requirements.txt` runtime section (fastapi, starlette, pydantic, pydantic_core,
+    anyio, uvicorn, numpy, rasterio, affine, pillow, shapely, pandas). For on-demand replay, also the
+    model runtime from the root `requirements.txt`: lightgbm, scikit-learn, scipy, xarray, netCDF4,
+    h5py, opencv-python-headless, shapely, pandas, pyarrow, psutil, PyYAML.
+  - Team backend: `requirements.txt`.
+  - Not needed: `pytest` / `httpx` (tests), `xmlschema` / `elementpath` (`serve/requirements-dev.txt`,
+    CAP XSD test), `pypdf` (reading source PDFs), `pyproj` / `h5py` (the offline INSAT builder).
+- **Start / stop locally:** `start_demo.ps1` (starts the team backend only after `:8001` answers) and
+  `stop_demo.ps1`.
