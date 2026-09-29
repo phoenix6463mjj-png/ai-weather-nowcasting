@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { API_BASE } from '../config';
-import { isLiveSource, sourceBadge } from '../utils/dashboardRisk';
+import { isLiveSource, sourceBadge, sourceShort } from '../utils/dashboardRisk';
 import OpenMeteoCredit from '../components/OpenMeteoCredit';
 import HonestyBanner from '../components/HonestyBanner';
 import {
@@ -36,6 +36,8 @@ const DEFAULT_WEATHER = {
     lon: 72.8777,
     reason: "Moderate rainfall expected due to coastal moisture build-up"
 };
+
+const LEVEL_WORD = { LOW: "Low", MODERATE: "Moderate", HIGH: "High" };
 
 const Forecast = () => {
     const [searchParams] = useSearchParams();
@@ -345,8 +347,9 @@ const Forecast = () => {
 
     const currentRiskInfo = getRiskBadge(activeNowcast.risk);
 
-    // AI Insight derivation based on dynamic active nowcast
+    // Rule-based summary of the current values; the subtext names the weather source (backend `source`)
     const aiInsightData = useMemo(() => {
+        const evaluated = `Evaluated for ${activeData?.city || "active node"} with fixed rules (${sourceShort(weatherSource)}).`;
         const rain = activeNowcast.rainfall;
         const hum = activeNowcast.humidity;
         const wind = activeNowcast.wind_speed;
@@ -365,7 +368,7 @@ const Forecast = () => {
             return {
                 text: "Flood risk rising due to intense rainfall",
                 severity: "HIGH",
-                subtext: `Telemetry reveals ${rain} mm/h precipitation with wind gusts up to ${wind} m/s. Urban drainage overflow likely.`,
+                subtext: evaluated,
                 color: "rose"
             };
         }
@@ -373,7 +376,7 @@ const Forecast = () => {
             return {
                 text: "Severe thunderstorm conditions forming",
                 severity: "HIGH",
-                subtext: `Boundary layer moisture saturation (${hum}%) coupled with high wind shear indicates active convective cell development.`,
+                subtext: evaluated,
                 color: "rose"
             };
         }
@@ -381,7 +384,7 @@ const Forecast = () => {
             return {
                 text: activeData.reason,
                 severity: activeNowcast.risk,
-                subtext: `Evaluated for ${activeData.city || "active node"} with fixed rules (${liveWeather ? "OpenWeather" : "sample data"}).`,
+                subtext: evaluated,
                 color: activeNowcast.risk === "HIGH" ? "rose" : activeNowcast.risk === "MODERATE" ? "amber" : "emerald"
             };
         }
@@ -389,17 +392,24 @@ const Forecast = () => {
             return {
                 text: "Moderate rainfall and moisture persistence",
                 severity: "MODERATE",
-                subtext: "Intermittent localized downpours with saturated surface absorption.",
+                subtext: evaluated,
                 color: "amber"
             };
         }
         return {
             text: "Normal atmospheric conditions across nowcast window",
             severity: "LOW",
-            subtext: "No rule-based threshold exceeded.",
+            subtext: evaluated,
             color: "emerald"
         };
-    }, [isRealtime, realtimeData, activeNowcast, activeData?.reason, activeData?.city, liveWeather]);
+    }, [isRealtime, realtimeData, activeNowcast, activeData?.reason, activeData?.city, weatherSource]);
+
+    // The rule(s) that put the shown location at its level now (backend `rules_fired`, zone data only)
+    const firedRules = useMemo(() => {
+        if (activeNowcast.risk === "LOW") return "No rule fired (rule-based)";
+        const rules = !isRealtime && Array.isArray(activeData?.rules_fired) ? activeData.rules_fired.filter(Boolean) : [];
+        return rules.length ? `${rules.join('; ')} (rule-based)` : "Rule-based level; the rule that fired was not reported";
+    }, [activeNowcast.risk, isRealtime, activeData]);
 
     const activeNodeName = activeData?.location || activeData?.city || activeData?.name || "Active Node";
 
@@ -786,9 +796,9 @@ const Forecast = () => {
                     <Link to="/nowcast" className="font-bold text-blue-600 dark:text-blue-400 hover:underline">ML Nowcast →</Link>
                 </p>
 
-                {/* AI INSIGHT CARD & RISK INDICATOR BAR */}
+                {/* RULE-BASED SUMMARY & RISK INDICATOR BAR */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {/* Upgraded AI Forecast Insight */}
+                    {/* Rule-based summary */}
                     <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm transition-all duration-300 hover:shadow-xl hover:scale-[1.01] flex flex-col justify-between">
                         <div>
                             <div className="flex items-center justify-between mb-3">
@@ -796,7 +806,7 @@ const Forecast = () => {
                                     <div className="p-2 bg-gradient-to-tr from-purple-500 to-blue-500 text-white rounded-xl shadow-sm">
                                         <ShieldAlert size={18} />
                                     </div>
-                                    <h2 className="text-base font-bold tracking-tight">AI Forecast Insight</h2>
+                                    <h2 data-testid="forecast-summary-title" className="text-base font-bold tracking-tight">Rule-based summary</h2>
                                 </div>
 
                                 <div className="flex items-center gap-2">
@@ -808,9 +818,6 @@ const Forecast = () => {
                                                 : "bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-800"
                                     }`}>
                                         {aiInsightData.severity} SEVERITY
-                                    </span>
-                                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-purple-100 dark:bg-purple-950/50 text-purple-700 dark:text-purple-300">
-                                        XAI
                                     </span>
                                 </div>
                             </div>
@@ -828,7 +835,7 @@ const Forecast = () => {
                                         <p className="text-base font-black text-slate-900 dark:text-white leading-snug">
                                             "{aiInsightData.text}"
                                         </p>
-                                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                                        <p data-testid="forecast-summary-source" className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
                                             {aiInsightData.subtext}
                                         </p>
                                     </div>
@@ -896,12 +903,12 @@ const Forecast = () => {
                             </div>
                         </div>
 
-                        <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-xs">
-                            <span className="text-slate-500 dark:text-slate-400">
-                                {activeNowcast.risk === "HIGH" ? "High convective activity expected" : activeNowcast.risk === "MODERATE" ? "Elevated precipitation expected" : "No rule-based hazard"}
+                        <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800/80 flex items-start justify-between gap-3 text-xs">
+                            <span data-testid="forecast-fired-rules" className="min-w-0 text-slate-500 dark:text-slate-400">
+                                {firedRules}
                             </span>
-                            <span className="font-bold text-slate-700 dark:text-slate-300">
-                                Score: {activeNowcast.risk === "HIGH" ? 90 : activeNowcast.risk === "MODERATE" ? 55 : 20}%
+                            <span data-testid="forecast-risk-level" className="shrink-0 whitespace-nowrap font-bold text-slate-700 dark:text-slate-300">
+                                Level: {LEVEL_WORD[activeNowcast.risk] || "Low"} (rule-based)
                             </span>
                         </div>
                     </div>

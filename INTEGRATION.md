@@ -543,11 +543,17 @@ screenshots). It did not recur in later page loads or in the e2e runs.
   nowcasts: ML Nowcast →" (link to `/nowcast`).
 - Headings no longer claim a 0–4 h prediction or extrapolation: "Nowcasting Engine (current
   conditions)", "Now".
-- Still on the page, reported and not changed:
-  - "Score: 90/55/20 %" in the Risk Indicator Bar (a fixed mapping of the level, covered by the
-    rule-score banner);
-  - the AI Insight fixed sentences, whose subtext says "(OpenWeather)" also for Open-Meteo data;
-  - the Risk Indicator footer "Elevated precipitation expected" / "High convective activity expected".
+- Leftovers, fixed in the next checkpoint (Forecast page only, `e2e/forecast_leftovers.spec.js`):
+  - Risk Indicator Bar:
+    - "Score: 90/55/20 %" became "Level: Low / Moderate / High (rule-based)" (no %);
+    - its footer states the rule(s) that fired now, from `rules_fired`, e.g. "Humidity above 70 %
+      (rule-based)". A LOW zone reads "No rule fired (rule-based)". A searched place (`/nowcast`, no
+      `rules_fired`) reads "Rule-based level; the rule that fired was not reported".
+  - "AI Forecast Insight" became "Rule-based summary", without the XAI pill.
+    - Its subtext names the weather source from the backend's `source` field: "Open-Meteo model data" /
+      "OpenWeather observations" / "sample data".
+    - The invented narrative subtexts ("Urban drainage overflow likely", "active convective cell
+      development", …) were replaced by that line.
 
 **Tests:**
 - `tests/test_utc_timestamps.py`: the same frozen instant, server in UTC and in India time (TZ
