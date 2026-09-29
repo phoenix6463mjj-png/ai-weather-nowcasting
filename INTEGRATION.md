@@ -740,8 +740,31 @@ screenshots). It did not recur in later page loads or in the e2e runs.
 
 ## 10. Hosting checklist (checked 29 Sep 2026)
 
+**Render prep (30 Sep 2026):**
+- Hugging Face Docker Spaces need PRO since July 2026, so the backend target is now a Render free web
+  service. Steps are in `HOSTING.md` §2; the HF route is kept in §5.
+- `hosting/space` is its own Git repo (branch `main`, one commit, 1,095 files, ≈ 64 MB packed), ignored
+  by team_app.
+  - `build_space.py` keeps its `.git` on rebuild.
+  - It adds `render.yaml`, `.gitignore`, `.dockerignore` and `.gitattributes` (`* -text`, byte-exact
+    storage).
+  - It refuses any file over 100 MB.
+  - It no longer ships the two unread 13–14 MB `grids.json` files (national sample and live run).
+- Dockerfile: `uvicorn … --port ${PORT:-7860}`.
+- `render.yaml`:
+  - one free Docker web service, `healthCheckPath: /health`;
+  - `ML_REPLAY_ENABLED=0`;
+  - `CORS_ORIGINS` / `ML_CORS_ORIGINS` with `sync: false`.
+- Measured from the host folder with `PORT=10000`:
+  - first `/health` after 2.4 s;
+  - RSS 190 MB at start, 271 MB warm, 295 MB peak;
+  - 885 requests, all as expected. The only 404 is `/ml/episodes/REF025/timeline`, which is also 404
+    with the full data ("no timeline for REF025").
+- Tests: `tests/test_hosting.py` covers the port, the Blueprint, the build rules and the static
+  `/health`.
+
 **Batch 2:**
-- Step-by-step hosting (HF Space + Vercel) is in `HOSTING.md`.
+- Step-by-step hosting (Render or HF Space, plus Vercel) is in `HOSTING.md`.
 - The hosted backend is ONE process: `backend/host_app.py` mounts the ML API in-process at `/ml`.
 - It is packaged by `hosting/build_space.py` (148 MB, see its `MANIFEST.txt`) with `hosting/Dockerfile`
   and `hosting/requirements-host.txt`.

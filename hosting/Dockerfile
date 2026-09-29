@@ -1,5 +1,6 @@
-# Hugging Face Space (Docker SDK): one process on port 7860 serving the team backend and the lgbm_v0
-# ML API (mounted in-process at /ml). Build context = the folder made by hosting/build_space.py.
+# One process serving the team backend and the lgbm_v0 ML API (mounted in-process at /ml).
+# Build context = the folder made by hosting/build_space.py (its own Git repo).
+# Render (free web service): listens on $PORT (Render sets 10000). Hugging Face Space / local: 7860.
 FROM python:3.10-slim
 
 RUN useradd -m -u 1000 user
@@ -15,8 +16,9 @@ USER user
 ENV NOWCAST_DATA_ROOT=/home/user/app/nowcast_data \
     ML_REPLAY_ENABLED=0 \
     PYTHONUNBUFFERED=1
-# CORS_ORIGINS is set in the Space settings (the deployed frontend's URL).
+# CORS_ORIGINS / ML_CORS_ORIGINS are set in the host's settings (the deployed frontend's URL).
 
 WORKDIR /home/user/app/team_app
 EXPOSE 7860
-CMD ["uvicorn", "backend.host_app:app", "--host", "0.0.0.0", "--port", "7860"]
+# health check: GET /health (static JSON, reads no data)
+CMD ["sh", "-c", "exec uvicorn backend.host_app:app --host 0.0.0.0 --port ${PORT:-7860}"]

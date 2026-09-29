@@ -1,0 +1,8 @@
+# host repo (made by team_app/hosting/build_space.py): shipped files only
+__pycache__/
+*.pyc
+.env
+*.h5
+*.hdf5
+*.nc4
+*.part

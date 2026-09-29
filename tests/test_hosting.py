@@ -27,6 +27,7 @@ if sys.argv[1] == "backend.host_app":
     out["replay_status"] = c.get("/ml/replay/status").json()
     out["replay_post"] = c.post("/ml/replay", json={"issue_time": "2023-08-13T15:00Z", "episode": "REF045"}).status_code
     out["root"] = c.get("/").status_code
+    out["health"] = c.get("/health").json().get("status")
 print("JSON" + json.dumps(out))
 """
 
@@ -77,3 +78,32 @@ def test_hosting_files_ship_no_secrets_or_raw_data():
     df = (ROOT / "hosting" / "Dockerfile").read_text(encoding="utf-8")
     assert "7860" in df and "ML_REPLAY_ENABLED=0" in df and "backend.host_app:app" in df
     assert json.loads((ROOT / "frontend" / "frontend-react" / "vercel.json").read_text())["rewrites"][0]["destination"] == "/index.html"
+
+
+def test_render_blueprint_and_port():
+    import yaml
+    df = (ROOT / "hosting" / "Dockerfile").read_text(encoding="utf-8")
+    assert "--port ${PORT:-7860}" in df and 'CMD ["sh", "-c", "exec uvicorn backend.host_app:app' in df
+    svc = yaml.safe_load((ROOT / "hosting" / "render.yaml").read_text(encoding="utf-8"))["services"]
+    assert len(svc) == 1
+    s = svc[0]
+    assert (s["type"], s["runtime"], s["plan"], s["healthCheckPath"]) == ("web", "docker", "free", "/health")
+    env = {e["key"]: e for e in s["envVars"]}
+    assert env["ML_REPLAY_ENABLED"]["value"] == "0"
+    assert env["CORS_ORIGINS"]["sync"] is False and env["ML_CORS_ORIGINS"]["sync"] is False
+
+
+def test_host_repo_build_rules():
+    build = (ROOT / "hosting" / "build_space.py").read_text(encoding="utf-8")
+    assert 'if p.name == ".git":' in build                      # a rebuild keeps the host repo's history
+    assert "100e6" in build and "GitHub limit" in build          # files over 100 MB are refused
+    for f in ("render.yaml", "space.gitignore", "space.dockerignore", "space.gitattributes"):
+        assert (ROOT / "hosting" / f).is_file() and f'"{f}"' in build
+    assert "* -text" in (ROOT / "hosting" / "space.gitattributes").read_text(encoding="utf-8")
+    assert ".env" in (ROOT / "hosting" / "space.gitignore").read_text(encoding="utf-8")
+    assert "hosting/space/" in (ROOT / ".gitignore").read_text(encoding="utf-8")
+
+
+def test_health_is_static():
+    out = probe("backend.host_app", [], ML_REPLAY_ENABLED="0", NOWCAST_DATA_ROOT=str(NOWCAST))
+    assert out["health"] == "ok"

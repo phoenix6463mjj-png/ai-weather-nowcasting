@@ -1,7 +1,8 @@
-"""Assemble the Hugging Face Space folder (hosting/space/, git-ignored): only the files the hosted app
-reads. Run from anywhere:
+"""Assemble the host folder (hosting/space/, ignored by team_app): only the files the hosted app reads.
+It is its own small Git repo (pushed to GitHub for Render, or uploaded to a Hugging Face Space); a
+rebuild replaces everything except its .git. Run from anywhere:
 
-    python hosting/build_space.py [--nowcast-data D:/nowcast_data] [--out hosting/space]
+    python hosting/build_space.py [--nowcast-data <nowcast_data folder>] [--out hosting/space]
 
 The file set was derived by recording every file the one-process app opened during the full e2e run
 (replay disabled), then widened to whole folders where the API serves any file of a kind (e.g. all
@@ -31,7 +32,9 @@ NOWCAST_FILES = [
     ("models/v0/reliability_val_farcap.csv", "Results page (reliability)"),
 ]
 NOWCAST_EXCLUDE = ["serve/tests/**/*", "serve/build_ingredients*.py", "serve/build_terrain.py", "serve/build_insat_case.py",
-                   "**/__pycache__/**/*", "**/*.pyc"]
+                   "**/__pycache__/**/*", "**/*.pyc",
+                   # 13-14 MB each; no endpoint reads them (national / live maps use prob_L*h.tif + manifest)
+                   "docs/sample_output_india/grids.json", "docs/live_output/*/grids.json"]
 TEAM_FILES = [
     ("backend/main.py", "team backend"),
     ("backend/ml_proxy.py", "imported by main (the proxy route is shadowed by the in-process mount)"),
@@ -51,13 +54,15 @@ EXCLUDED = """Excluded (not read by the hosted app):
 - nowcast_data/docs/demo_replays/ (34 MB): reference outputs for replay byte-comparison (replay only).
 - nowcast_data/docs/*.md except LIVE_PIPELINE.md: the other quotes are stored in code and verified by
   tests, not read at runtime.
+- nowcast_data/docs/sample_output_india/grids.json, docs/live_output/*/grids.json (13-14 MB each): no
+  endpoint reads them; the national and live maps are drawn from prob_L*h.tif and the manifest.
 - nowcast_data/models/ other than the four CSVs: model files are only needed for replay.
 - nowcast_data/nowcast/ (model runtime) and scripts/: replay/offline only.
 - team_app/models/final_rainfall_model.pkl, final_model.pkl, weather_model.pkl and the other pickles
   (~75 MB): not loaded by the backend.
 - team_app/data/raw, data/processed: training data / caches, not read at runtime.
 - team_app/frontend/: hosted separately (Vercel).
-- .env files, tools/mdapi/config.json, ~/.netrc: never copied; secrets go in Space settings only.
+- .env files, tools/mdapi/config.json, ~/.netrc: never copied; secrets go in the host's settings only.
 """
 
 
@@ -85,21 +90,29 @@ def main():
     ap.add_argument("--out", default=str(TEAM / "hosting" / "space"))
     a = ap.parse_args()
     out = Path(a.out)
-    if out.exists():
-        shutil.rmtree(out)
-    out.mkdir(parents=True)
+    out.mkdir(parents=True, exist_ok=True)
+    for p in out.iterdir():                     # fresh contents, but keep the folder's own Git repo
+        if p.name == ".git":
+            continue
+        shutil.rmtree(p) if p.is_dir() else p.unlink()
     log = []
     _copy_globs(Path(a.nowcast_data), NOWCAST_FILES, NOWCAST_EXCLUDE, out / "nowcast_data", log)
     _copy_globs(TEAM, TEAM_FILES, [], out / "team_app", log)
     for f, dst in (("Dockerfile", "Dockerfile"), ("requirements-host.txt", "requirements-host.txt"),
-                   ("space_README.md", "README.md")):
+                   ("space_README.md", "README.md"), ("render.yaml", "render.yaml"),
+                   ("space.gitignore", ".gitignore"), ("space.dockerignore", ".dockerignore"),
+                   ("space.gitattributes", ".gitattributes")):
         shutil.copy2(TEAM / "hosting" / f, out / dst)
     # safety: nothing secret or raw may be in the folder
-    bad = [p for p in out.rglob("*") if p.is_file() and (p.suffix in (".h5", ".hdf5", ".HDF5", ".nc4", ".part")
-           or p.name in (".env", ".netrc", "_netrc", "config.json", "kaggle.json", ".cdsapirc"))]
+    files = [p for p in out.rglob("*") if p.is_file() and ".git" not in p.relative_to(out).parts[:1]]
+    bad = [p for p in files if p.suffix in (".h5", ".hdf5", ".HDF5", ".nc4", ".part")
+           or p.name in (".env", ".netrc", "_netrc", "config.json", "kaggle.json", ".cdsapirc")]
     if bad:
         raise SystemExit(f"refusing: {bad[:5]}")
-    total = sum(p.stat().st_size for p in out.rglob("*") if p.is_file())
+    big = [p for p in files if p.stat().st_size > 100e6]          # GitHub rejects files over 100 MB
+    if big:
+        raise SystemExit(f"refusing, over 100 MB (GitHub limit): {big}")
+    total = sum(p.stat().st_size for p in files)
     lines = [f"{n:5d} files {size / 1e6:8.2f} MB  {what}  ({why})" for what, n, size, why in log]
     (out / "MANIFEST.txt").write_text("\n".join(lines) + f"\n\nTOTAL {total / 1e6:.1f} MB\n\n" + EXCLUDED, encoding="utf-8")
     print("\n".join(lines))

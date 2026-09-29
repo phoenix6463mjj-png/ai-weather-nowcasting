@@ -1,0 +1,19 @@
+# Render Blueprint (New -> Blueprint): one free Docker web service running the one-process host app.
+# Values marked sync: false are asked for when the Blueprint is created (set them to the Vercel URL).
+services:
+  - type: web
+    name: nowcast-api
+    runtime: docker
+    plan: free
+    region: singapore
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: ML_REPLAY_ENABLED          # no on-demand model runs on the host (also set in the Dockerfile)
+        value: "0"
+      - key: CORS_ORIGINS               # the Vercel URL, e.g. https://<project>.vercel.app
+        sync: false
+      - key: ML_CORS_ORIGINS            # same Vercel URL (the outer app handles CORS for /ml as well)
+        sync: false
