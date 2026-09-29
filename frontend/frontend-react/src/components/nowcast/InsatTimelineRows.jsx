@@ -101,6 +101,13 @@ const InsatTimelineRows = ({ insat, siteEpisode, t0, t1, x, plotPx, Row, band })
                         Reference: {th.label} — &ldquo;{th.quote}&rdquo; ({th.short_citation}).
                     </p>
                 ) : <p data-testid="insat-threshold-note">{insat.threshold_note}</p>}
+                {insat.case_study && (
+                    <div data-testid="insat-case-study" className="rounded bg-slate-50 dark:bg-slate-800/60 px-2 py-1.5 space-y-0.5">
+                        <p data-testid="insat-case-study-title" className="font-bold text-slate-800 dark:text-slate-100">{insat.case_study.title}</p>
+                        <p data-testid="insat-case-study-text">{insat.case_study.text}</p>
+                        <p data-testid="insat-case-study-footer" className="italic text-slate-500 dark:text-slate-400">{insat.case_study.footer}</p>
+                    </div>
+                )}
                 <button type="button" data-testid="insat-table-toggle" onClick={() => setTable((o) => !o)}
                     className="underline text-slate-700 dark:text-slate-200">{table ? 'Hide' : 'Show'} INSAT values per scan ({site.series.length}) and method</button>
                 {table && (<>

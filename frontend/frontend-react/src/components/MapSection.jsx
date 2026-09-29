@@ -1,5 +1,7 @@
-import React, { useEffect } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, Tooltip, useMap } from 'react-leaflet';
+import React, { useEffect, useState } from 'react';
+import { MapContainer, TileLayer, ImageOverlay, Marker, Popup, Tooltip, useMap } from 'react-leaflet';
+import { primaryThreat, riskColour } from '../utils/dashboardRisk';
+import { getTerrain, terrainUrl } from '../services/nowcastApi';
 import MarkerClusterGroup from 'react-leaflet-cluster';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet.markercluster/dist/MarkerCluster.css';
@@ -43,12 +45,30 @@ const MapController = ({ selectedCity }) => {
     return null;
 };
 
-// Marker colors
-const getColor = (risk) => {
-    if (risk === "HIGH") return "#ef4444";
-    if (risk === "MODERATE") return "#f59e0b";
-    if (risk === "LOW") return "#10b981";
-    return "#6b7280";
+// Marker colours = the zone's rule-based risk level (same colours as the legend)
+const getColor = riskColour;
+
+// Base maps. Satellite: NASA GIBS VIIRS SNPP true colour of yesterday (UTC; today's tiles may be
+// incomplete), no key. Terrain: OSM + our Copernicus DEM hillshade through the team backend's /ml proxy.
+const OSM_URL = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+const OSM_ATTR = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
+const gibsDate = () => new Date(Date.now() - 86400e3).toISOString().slice(0, 10);
+const gibsUrl = (date) => 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/VIIRS_SNPP_CorrectedReflectance_TrueColor'
+    + `/default/${date}/GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpg`;
+const gibsAttr = (date) => 'Imagery: <a href="https://nasa-gibs.github.io/gibs-api-docs/">NASA GIBS</a> '
+    + `(ESDIS), VIIRS SNPP corrected reflectance, ${date}`;
+
+let terrainIndex = null;
+const useNationalHillshade = (on) => {
+    const [idx, setIdx] = useState(terrainIndex);
+    useEffect(() => {
+        if (!on || terrainIndex) return undefined;
+        let live = true;
+        getTerrain().then((t) => { terrainIndex = t; if (live) setIdx(t); }).catch(() => {});
+        return () => { live = false; };
+    }, [on]);
+    const lay = on && idx?.available ? idx.layers.national : null;
+    return lay ? { url: terrainUrl('national'), bounds: lay.bounds, credit: idx.attribution, notice: idx.attribution_full } : null;
 };
 
 // Custom Icon for Stations
@@ -76,36 +96,48 @@ const createSelectedIcon = (color) => {
     });
 };
 
-const MapSection = ({ 
-    allCities = [], 
+const MapSection = ({
+    allCities = [],
     locations: locationsProp = [],
     selectedCity = null,
-    selectedCityData = null, 
+    selectedCityData = null,
     onSelectCity,
-    onCitySelect, 
+    onCitySelect,
     activeLayers = { thunderstorm: true, cloudburst: true, flood: true },
+    baseLayer = 'map',
 }) => {
-    const locations = allCities.length > 0 ? allCities : (locationsProp || []);
+    // Event-layer toggles filter markers by their primary threat; zones with none (low risk) always show
+    const locations = (allCities.length > 0 ? allCities : (locationsProp || [])).filter((loc) => {
+        const t = primaryThreat(loc);
+        return t == null || activeLayers[t] !== false;
+    });
+    const hill = useNationalHillshade(baseLayer === 'terrain');
+    const date = gibsDate();
     const activeCity = selectedCity || selectedCityData;
     const handleCitySelect = onSelectCity || onCitySelect;
 
     console.log("Rendering clustered points:", locations.length);
 
     return (
-        <MapContainer 
-            key={locations.length}
-            center={[22.5, 79.5]} 
-            zoom={5} 
+        <MapContainer
+            key={allCities.length || locationsProp.length}
+            center={[22.5, 79.5]}
+            zoom={5}
             className="w-full h-full z-0"
             zoomControl={false}
         >
-            <TileLayer
-                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-            />
-            
+            {baseLayer === 'satellite' ? (
+                <TileLayer key={`gibs-${date}`} url={gibsUrl(date)} attribution={gibsAttr(date)} maxNativeZoom={9} maxZoom={18} />
+            ) : (
+                <TileLayer key="osm" url={OSM_URL} attribution={OSM_ATTR} />
+            )}
+            {baseLayer === 'terrain' && hill && (
+                <ImageOverlay url={hill.url} bounds={hill.bounds} opacity={0.6} className="dashboard-hillshade"
+                    attribution={`Terrain: <span title="${hill.notice}">${hill.credit}</span> hillshade`} />
+            )}
+
             <MapController selectedCity={activeCity} />
-            
+
             {/* Clustered Station Markers */}
             <MarkerClusterGroup
                 chunkedLoading={true}
@@ -118,7 +150,7 @@ const MapSection = ({
                 {locations.length > 0 && locations.map((loc, idx) => {
                     if (!loc.lat || !loc.lon) return null;
                     const color = getColor(loc.risk);
-                    
+
                     return (
                         <Marker
                             key={loc.city ? `marker-${loc.city}` : `marker-${loc.id ?? idx}`}
@@ -139,8 +171,8 @@ const MapSection = ({
                                 <div className="p-1 font-sans">
                                     <div className="flex items-center justify-between gap-3 border-b border-slate-200 pb-1 mb-1.5">
                                         <h4 className="text-sm font-black text-slate-900">{loc.city}</h4>
-                                        <span 
-                                            className="text-[10px] font-bold px-1.5 py-0.5 rounded text-white" 
+                                        <span
+                                            className="text-[10px] font-bold px-1.5 py-0.5 rounded text-white"
                                             style={{ backgroundColor: color }}
                                         >
                                             {loc.risk || "LOW"}
@@ -163,7 +195,7 @@ const MapSection = ({
                                             {loc.reason}
                                         </div>
                                     )}
-                                    <button 
+                                    <button
                                         onClick={() => handleCitySelect && handleCitySelect(loc)}
                                         className="w-full text-[11px] font-bold bg-blue-600 hover:bg-blue-700 text-white py-1 rounded transition-colors"
                                     >

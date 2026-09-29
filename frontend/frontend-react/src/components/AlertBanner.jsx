@@ -16,7 +16,7 @@ const AlertBanner = ({ locations = [], summary = null }) => {
     // ELSE IF modCount > 0:
     //    show "Moderate Risk present"
     // ELSE:
-    //    show "All Clear"
+    //    show "No high-risk zones in this data"
     if (highCount > 0) {
         return (
             <div className="w-full bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-900/50 rounded-xl p-3.5 flex items-center justify-between shadow-sm transition-all duration-300">
@@ -54,12 +54,9 @@ const AlertBanner = ({ locations = [], summary = null }) => {
             <div className="flex items-center gap-3">
                 <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 font-black text-sm">
                     <ShieldCheck size={18} />
-                    <span>All Clear</span>
+                    <span>No high-risk zones in this data</span>
                 </div>
             </div>
-            <span className="text-[11px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-950/60 px-2.5 py-1 rounded-md border border-emerald-200 dark:border-emerald-800">
-                Safe
-            </span>
         </div>
     );
 };

@@ -280,12 +280,11 @@ def compute_hybrid_risk(
     state_str = (state or ml_prediction.get("state") or "").strip()
     city_l = city_str.lower()
 
-    # 1. Controlled Randomness (Deterministic ±25% variation using hash)
-    seed_str = f"{city_str}_{state_str}"
-    h = int(hashlib.md5(seed_str.encode("utf-8")).hexdigest()[:8], 16)
-    rand_factor = 0.75 + (h % 500) / 1000.0       # 0.75 to 1.25 (±25%)
-    jitter1 = ((h >> 4) % 200 - 100) / 1000.0     # -0.10 to +0.10
-    jitter2 = ((h >> 8) % 200 - 100) / 1000.0     # -0.10 to +0.10
+    # 1. No name-based randomness: the place name no longer scales or jitters the values
+    #    (the former name-hash "controlled randomness" -- a +/-25% multiplier and +/-0.10 jitter -- is removed).
+    rand_factor = 1.0
+    jitter1 = 0.0
+    jitter2 = 0.0
 
     # 2. Regional Classification
     is_ne = state_str in NORTHEAST_STATES or any(c in city_l for c in [
@@ -296,8 +295,9 @@ def compute_hybrid_risk(
     is_coast = (
         any(c in city_l for c in COASTAL_CITIES)
         or state_str in {"Goa", "Puducherry", "Lakshadweep", "Andaman and Nicobar Islands", "Dadra and Nagar Haveli and Daman and Diu"}
-        or (state_str in {"Kerala", "Odisha"} and (h % 3 != 0))
-        or (state_str in COASTAL_STATES and (h % 2 == 0))
+        or state_str in {"Kerala", "Odisha"}      # was: 2 in 3 places, picked by a hash of the name
+        # (other COASTAL_STATES places were coastal for half of the names, by the same hash: now only
+        #  the listed coastal cities count, so inland places of a coastal state are not coastal)
     )
     is_central = state_str in CENTRAL_STATES
 
@@ -398,13 +398,13 @@ def compute_hybrid_risk(
         if rain >= 20.0:
             explanation = f"Severe precipitation warning: heavy downpour ({rain:.1f}mm)"
         elif is_ne and cloudburst >= 0.55:
-            explanation = f"{reg_tag}: elevated cloudburst ({int(cloudburst*100)}%) & flash flood alert"
+            explanation = f"{reg_tag}: elevated cloudburst & flash flood indicators"
         elif is_coast and flood >= 0.55:
-            explanation = f"{reg_tag}: elevated coastal flood ({int(flood*100)}%) & surge vulnerability"
+            explanation = f"{reg_tag}: elevated coastal flood indicator & surge vulnerability"
         elif thunderstorm >= 0.60:
-            explanation = f"{reg_tag}: severe thunderstorm ({int(thunderstorm*100)}%) threat"
+            explanation = f"{reg_tag}: severe thunderstorm indicator"
         else:
-            explanation = f"{reg_tag}: high atmospheric threat ({int(comp*100)}%)"
+            explanation = f"{reg_tag}: high rule-based threat score"
 
     elif risk_label == 1:
         confidence = round(max(comp, 0.60), 3)
@@ -414,13 +414,13 @@ def compute_hybrid_risk(
         if rain >= 5.0:
             explanation = f"Moderate rainfall detected ({rain:.1f}mm): localized runoff advisory"
         elif thunderstorm >= 0.40:
-            explanation = f"{reg_tag}: moderate convective thunderstorm ({int(thunderstorm*100)}%)"
+            explanation = f"{reg_tag}: moderate convective thunderstorm indicator"
         elif cloudburst >= 0.35:
-            explanation = f"{reg_tag}: moderate cloudburst ({int(cloudburst*100)}%) advisory"
+            explanation = f"{reg_tag}: moderate cloudburst indicator"
         elif flood >= 0.35:
-            explanation = f"{reg_tag}: localized waterlogging / flood ({int(flood*100)}%) advisory"
+            explanation = f"{reg_tag}: localized waterlogging / flood indicator"
         else:
-            explanation = f"{reg_tag}: moderate atmospheric instability ({int(comp*100)}%)"
+            explanation = f"{reg_tag}: moderate rule-based threat score"
 
     else:
         confidence = round(max(0.70, 1.0 - comp), 3)

@@ -35,7 +35,7 @@ load_dotenv()
 
 from utils.api_fetcher import (
     get_coordinates, get_weather_by_coords, get_fallback_mock,
-    fetch_weather, async_fetch_weather, _GEO_CACHE,
+    fetch_weather, async_fetch_weather, _GEO_CACHE, API_KEY, is_valid_api_key,
 )
 from utils.locations_manager import (
     get_india_locations, get_sampled_locations, find_location_by_name,
@@ -338,6 +338,8 @@ def predict_risk(request: PredictionRequest):
     rainfall = float(weather_data.get("rainfall", 0.0))
     wind = float(weather_data.get("wind_speed", 2.0))
     pressure = float(weather_data.get("pressure", 1010.0))
+    w_source = weather_data.get("source", "sample")
+    w_observed = weather_data.get("observed_at")
 
     # 3. ML Inference with Rule-Based Fallback (No hardcoded fake LOW)
     now = datetime.now()
@@ -381,6 +383,8 @@ def predict_risk(request: PredictionRequest):
     if rule_label > final_label:
         final_risk = rule_level
         final_label = rule_label
+        # the rules raised the level above the hybrid one: its explanation (e.g. "stable ...") no longer applies
+        hybrid_pred["explanation"] = None
         hybrid_pred["risk_level"] = final_risk
         hybrid_pred["risk_label"] = final_label
         hybrid_pred["risk_text"] = final_risk
@@ -420,7 +424,10 @@ def predict_risk(request: PredictionRequest):
             "wind_speed": wind,
             "wind": wind,
             "pressure": pressure,
+            "source": w_source,
+            "observed_at": w_observed,
         },
+        "source": w_source,
         "probabilities": {
             "thunderstorm": round(p_thunder, 2),
             "cloudburst": round(p_cloud, 2),
@@ -447,7 +454,8 @@ def predict_risk(request: PredictionRequest):
 # ============================================================
 
 _UNIFIED_ALERTS_CACHE: Dict[int, Tuple[Dict[str, Any], float]] = {}
-UNIFIED_CACHE_TTL = 300.0  # 5 minutes stable cache
+# >= 30 min with a real OpenWeather key (free-tier call limits: 380 zones per refresh), else 5 min
+UNIFIED_CACHE_TTL = 1800.0 if is_valid_api_key(API_KEY) else 300.0
 _UNIFIED_LOCK = asyncio.Lock()
 
 
@@ -532,6 +540,8 @@ async def get_unified_alerts_dataset(limit: int = 380) -> Dict[str, Any]:
             rain = float(w.get("rainfall", 0.0))
             wind = float(w.get("wind_speed", w.get("wind", 2.0)))
             pressure = float(w.get("pressure", 1010.0))
+            w_source = w.get("source", "sample")
+            w_observed = w.get("observed_at")
 
             weather_obj = {
                 "city": city,
@@ -596,7 +606,10 @@ async def get_unified_alerts_dataset(limit: int = 380) -> Dict[str, Any]:
                     "wind_speed": round(wind, 1),
                     "wind": round(wind, 1),
                     "pressure": round(pressure, 1),
+                    "source": w_source,
+                    "observed_at": w_observed,
                 },
+                "source": w_source,
                 "prediction": {
                     "risk_level": risk,
                     "risk_label": 2 if risk == "HIGH" else (1 if risk == "MODERATE" else 0),
@@ -628,6 +641,11 @@ async def get_unified_alerts_dataset(limit: int = 380) -> Dict[str, Any]:
             "moderate": moderate_count,
             "low": low_count,
         }
+        sources = {a["source"] for a in alerts_list}
+        observed = [a["weather"]["observed_at"] for a in alerts_list if a["weather"].get("observed_at")]
+        summary["source"] = sources.pop() if len(sources) == 1 else ("mixed" if sources else "sample")
+        summary["n_sample"] = sum(a["source"] == "sample" for a in alerts_list)
+        summary["latest_observed_at"] = max(observed) if observed else None
 
         dataset = {
             "summary": summary,

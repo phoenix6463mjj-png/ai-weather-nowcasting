@@ -1,42 +1,23 @@
 import React from 'react';
-import { CloudLightning, X, Droplets, Thermometer, Wind, Maximize2, MapPin, AlertTriangle, CloudRain, Sun } from 'lucide-react';
+import { CloudLightning, X, Droplets, Thermometer, Wind, MapPin, AlertTriangle, CloudRain, Sun } from 'lucide-react';
+import { LEVEL_NAMES, RULE_LABEL, explanationText, hazardLevels, primaryThreat, riskText as zoneRisk, sourceBadge } from '../utils/dashboardRisk';
 
-const ProbBar = ({ label, prob = 0, icon }) => {
-    // Safely handle null/undefined and calculate percentage
-    const safeProb = typeof prob === 'number' && !isNaN(prob) ? prob : 0;
-    const percent = Math.round(safeProb * 100);
-    
-    let barColor = "bg-emerald-500";
-    let textColor = "text-emerald-700 dark:text-emerald-400";
-    
-    if (percent >= 70) {
-        barColor = "bg-red-500";
-        textColor = "text-red-700 dark:text-red-400";
-    } else if (percent >= 40) {
-        barColor = "bg-orange-500";
-        textColor = "text-orange-700 dark:text-orange-400";
-    }
+const LEVEL_STYLE = [
+    'bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-300 dark:border-emerald-800',
+    'bg-orange-100 text-orange-800 border-orange-200 dark:bg-orange-900/40 dark:text-orange-300 dark:border-orange-800',
+    'bg-red-100 text-red-800 border-red-200 dark:bg-red-900/40 dark:text-red-300 dark:border-red-800',
+];
 
-    return (
-        <div className="flex flex-col gap-1.5 w-full">
-            <div className="flex items-center justify-between text-xs">
-                <div className="flex items-center gap-2">
-                    <div className="w-5 flex justify-center items-center text-slate-500 dark:text-slate-400">{icon}</div>
-                    <span className="font-bold text-slate-700 dark:text-slate-300">{label}</span>
-                </div>
-                <div className="flex items-center">
-                    <span className={`font-black w-10 text-right ${textColor}`}>{percent}%</span>
-                </div>
-            </div>
-            <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2 overflow-hidden flex">
-                <div 
-                    className={`h-full ${barColor} rounded-full transition-all duration-700 ease-out`} 
-                    style={{ width: `${Math.max(percent, 2)}%` }}
-                ></div>
-            </div>
+// One hazard as a rule-based level (Low / Moderate / High); never a percentage.
+const HazardLevel = ({ label, level, icon, hazard }) => (
+    <div data-testid="hazard-level" data-hazard={hazard} data-level={LEVEL_NAMES[level]} className="flex items-center justify-between text-xs w-full">
+        <div className="flex items-center gap-2">
+            <div className="w-5 flex justify-center items-center text-slate-500 dark:text-slate-400">{icon}</div>
+            <span className="font-bold text-slate-700 dark:text-slate-300">{label}</span>
         </div>
-    );
-};
+        <span className={`px-2 py-0.5 rounded-md border text-[11px] font-black ${LEVEL_STYLE[level]}`}>{LEVEL_NAMES[level]}</span>
+    </div>
+);
 
 const RightPanel = ({ selectedCity, cityData, onClose }) => {
     // Single source of truth: selectedCity prop
@@ -55,11 +36,11 @@ const RightPanel = ({ selectedCity, cityData, onClose }) => {
     const { city, weather, prediction = {}, lat, lon, state } = cityObj;
 
     // Safely extract risk level (LOW/MODERATE/HIGH)
-    const rawRiskText = (cityObj.risk || prediction?.risk_text || prediction?.risk_level || "LOW").toUpperCase();
-    const riskText = ["HIGH", "MODERATE", "LOW"].includes(rawRiskText) ? rawRiskText : "LOW";
+    const riskText = zoneRisk(cityObj);
     const riskLabel = riskText === "HIGH" ? 2 : riskText === "MODERATE" ? 1 : 0;
-    
-    const explanation = prediction?.explanation || cityObj?.explanation || (cityObj.isDataset ? "Historical monitoring location. Search city in top bar to load live weather & ML prediction." : "Stable atmospheric conditions.");
+
+    // never "stable" text on a MODERATE / HIGH zone; zones without one say so
+    const explanation = explanationText(cityObj);
 
     // Extract explainable reason
     const reason = cityObj.reason || prediction?.reason || (riskLabel === 2 ? "Severe convective instability and elevated rainfall thresholds." : (riskLabel === 1 ? "Moderate atmospheric convective indicators." : "Normal atmospheric conditions within baseline limits."));
@@ -67,7 +48,7 @@ const RightPanel = ({ selectedCity, cityData, onClose }) => {
     // Extract & format backend timestamp
     const rawTimestamp = cityObj.timestamp || prediction?.timestamp;
     const formatTimestamp = (ts) => {
-        if (!ts) return new Date().toLocaleTimeString('en-US', { hour12: false });
+        if (!ts) return '—';
         try {
             const d = new Date(ts);
             if (isNaN(d.getTime())) return ts;
@@ -88,25 +69,17 @@ const RightPanel = ({ selectedCity, cityData, onClose }) => {
         badgeText = "MODERATE RISK";
     }
 
-    // Extract probabilities safely
-    const thunder = Number(prediction?.prob_thunderstorm ?? prediction?.thunderstorm ?? 0);
-    const cloud = Number(prediction?.prob_cloudburst ?? prediction?.cloudburst ?? 0);
-    const flood = Number(prediction?.prob_flood ?? prediction?.flood ?? 0);
-
-    // Determine primary threat
-    let primaryThreat = "Clear Conditions";
-    const maxProb = Math.max(thunder, cloud, flood);
-    if (maxProb > 0.15) {
-        if (flood >= thunder && flood >= cloud) primaryThreat = "Flash Flood";
-        else if (cloud >= thunder && cloud >= flood) primaryThreat = "Cloudburst";
-        else primaryThreat = "Thunderstorm";
-    }
+    // Rule-based hazard levels (capped at the zone's risk level) and the primary threat, which exists
+    // only for MODERATE / HIGH zones so that it always agrees with the risk level
+    const levels = hazardLevels(cityObj);
+    const threatKey = primaryThreat(cityObj);
+    const primaryThreat_ = { flood: 'Flash Flood', cloudburst: 'Cloudburst', thunderstorm: 'Thunderstorm' }[threatKey] || 'No primary threat (low risk)';
 
     // Threat Icon matching primary threat
     const getThreatIcon = () => {
-        if (primaryThreat === "Flash Flood") return <Droplets size={26} className="text-teal-400" />;
-        if (primaryThreat === "Cloudburst") return <CloudRain size={26} className="text-blue-400" />;
-        if (primaryThreat === "Thunderstorm") return <CloudLightning size={26} className="text-amber-400" />;
+        if (primaryThreat_ === "Flash Flood") return <Droplets size={26} className="text-teal-400" />;
+        if (primaryThreat_ === "Cloudburst") return <CloudRain size={26} className="text-blue-400" />;
+        if (primaryThreat_ === "Thunderstorm") return <CloudLightning size={26} className="text-amber-400" />;
         return <Sun size={26} className="text-emerald-400" />;
     };
 
@@ -147,7 +120,7 @@ const RightPanel = ({ selectedCity, cityData, onClose }) => {
                         </p>
                     </div>
                     {onClose && (
-                        <button 
+                        <button
                             onClick={onClose}
                             className="text-slate-400 hover:text-slate-700 dark:hover:text-white bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full p-1.5 transition-colors shrink-0"
                             aria-label="Close panel"
@@ -168,7 +141,7 @@ const RightPanel = ({ selectedCity, cityData, onClose }) => {
             </div>
 
             <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-5">
-                
+
                 {/* Primary Threat Banner */}
                 <div className="bg-slate-800 dark:bg-slate-800/90 rounded-xl p-4 text-white shadow-md border border-slate-700 flex flex-col relative overflow-hidden shrink-0">
                     <div className="flex items-center gap-4 mb-2">
@@ -177,7 +150,7 @@ const RightPanel = ({ selectedCity, cityData, onClose }) => {
                         </div>
                         <div className="z-10 min-w-0 flex-1">
                             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Primary Threat</p>
-                            <h3 className="text-lg font-black tracking-wide truncate text-white">{primaryThreat}</h3>
+                            <h3 className="text-lg font-black tracking-wide truncate text-white">{primaryThreat_}</h3>
                         </div>
                     </div>
                     <div className="bg-slate-700/40 rounded-lg p-3 mt-1 border border-slate-600/50 space-y-1.5">
@@ -194,7 +167,7 @@ const RightPanel = ({ selectedCity, cityData, onClose }) => {
                 <div className="bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/50 rounded-xl p-3.5 shadow-xs shrink-0">
                     <div className="flex items-center justify-between mb-1.5">
                         <span className="text-[10px] font-black uppercase tracking-wider text-blue-800 dark:text-blue-300 flex items-center gap-1.5">
-                            AI Decision Transparency
+                            Rule-based explanation
                         </span>
                         <span className="text-[10px] font-mono text-slate-500 dark:text-slate-400">
                             Last Updated: {lastUpdated}
@@ -207,7 +180,10 @@ const RightPanel = ({ selectedCity, cityData, onClose }) => {
 
                 {/* 4 Required Weather Metrics */}
                 <div>
-                    <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider mb-3">Live Conditions</h3>
+                    <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider mb-1">Weather</h3>
+                    <p data-testid="panel-weather-source" className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 mb-3">
+                        {sourceBadge(cityObj.weather?.source || 'sample', cityObj.weather?.observed_at)}
+                    </p>
                     <div className="grid grid-cols-2 gap-3">
                         {/* 1. Temperature */}
                         <div className="bg-slate-50 dark:bg-slate-800/60 rounded-xl p-3 border border-slate-200 dark:border-slate-700/70 flex items-center gap-3 shadow-sm hover:shadow-md transition-shadow">
@@ -263,27 +239,19 @@ const RightPanel = ({ selectedCity, cityData, onClose }) => {
                     </div>
                 </div>
 
-                {/* Event Probabilities */}
-                <div>
-                    <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider mb-3">
-                        Risk Probabilities
+                {/* Hazard indicators: levels only, rule-based (no percentages on this page) */}
+                <div data-testid="hazard-levels">
+                    <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider mb-1">
+                        Hazard indicators
                     </h3>
-                    <div className="space-y-4 bg-slate-50 dark:bg-slate-800/60 p-4 rounded-xl border border-slate-200 dark:border-slate-700/70 shadow-sm">
-                        <ProbBar 
-                            label="Thunderstorm" 
-                            prob={thunder} 
-                            icon={<CloudLightning size={16} className="text-amber-500" />} 
-                        />
-                        <ProbBar 
-                            label="Cloudburst" 
-                            prob={cloud} 
-                            icon={<CloudRain size={16} className="text-blue-500" />} 
-                        />
-                        <ProbBar 
-                            label="Flash Flood" 
-                            prob={flood} 
-                            icon={<Droplets size={16} className="text-teal-500" />} 
-                        />
+                    <p data-testid="rule-label" className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 mb-3">{RULE_LABEL}</p>
+                    <div className="space-y-3 bg-slate-50 dark:bg-slate-800/60 p-4 rounded-xl border border-slate-200 dark:border-slate-700/70 shadow-sm">
+                        <HazardLevel hazard="thunderstorm" label="Thunderstorm" level={levels.thunderstorm}
+                            icon={<CloudLightning size={16} className="text-amber-500" />} />
+                        <HazardLevel hazard="cloudburst" label="Cloudburst" level={levels.cloudburst}
+                            icon={<CloudRain size={16} className="text-blue-500" />} />
+                        <HazardLevel hazard="flood" label="Flash Flood" level={levels.flood}
+                            icon={<Droplets size={16} className="text-teal-500" />} />
                     </div>
                 </div>
 

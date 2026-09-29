@@ -80,13 +80,14 @@ front, call `Invoke-RestMethod -Method Post http://127.0.0.1:8000/ml/replay/warm
 | variable | where | default | meaning |
 |---|---|---|---|
 | `VITE_ML_API_BASE` | frontend (build/dev time) | `http://127.0.0.1:8000/ml` | ML API base URL as seen by the browser |
+| `VITE_API_BASE` | frontend (build/dev time) | `http://127.0.0.1:8000` | team backend base URL as seen by the browser (Dashboard `/alerts`, `/predict`; `services/api.js`) |
 | `ML_API_URL` | team backend | `http://127.0.0.1:8001/api` | upstream for the `/ml/*` proxy |
 | `ML_PROXY_TIMEOUT_S` / `ML_PROXY_REPLAY_TIMEOUT_S` | team backend | `10` / `30` | proxy timeouts (replay gets longer) |
 | `NOWCAST_DATA_ROOT` | ML serve | the `nowcast_data` repo root | where `docs/` and `catalog/` are read from |
 | `ML_CORS_ORIGINS` | ML serve | `http://localhost:5173,http://127.0.0.1:5173` | browser origins allowed to call `:8001` directly |
 | `NOWCAST_REPLAY_INPUTS` | ML serve | `<root>/raw`, else `<root>/demo_inputs` | archived inputs for on-demand replay |
 | `NOWCAST_REPLAY_TIMEOUT_S` | ML serve | `25` | replay request timeout (the run itself completes and is cached) |
-| `OPENWEATHER_API_KEY` | team backend | none | existing pages only; never in code |
+| `OPENWEATHER_API_KEY` | team backend | none | existing pages only; never in code. Without it, weather is **sample data** and the Dashboard says so. With it, the zone list is cached 30 min (free-tier limits) |
 
 `VITE_ML_API_BASE` and `ML_API_URL` are the only service URLs; nothing else is hard-coded for the
 ML integration.
@@ -414,6 +415,39 @@ The e2e tests assert on the DOM:
 
 **Known issue:** one 502 from the `/ml` proxy was seen once, right after a server restart (I2b
 screenshots). It did not recur in later page loads or in the e2e runs.
+
+**Dashboard ("/"), option A (honest labels, no redesign)**
+- **Weather source:** the backend returns `source` (`openweather` | `sample`) and, for OpenWeather,
+  its own observation time (`observed_at`, from `dt`).
+  - `/alerts` also returns `summary.source` and `summary.latest_observed_at`.
+  - The map badge says "Sample data — no live weather feed" or "OpenWeather, observed HH:MM UTC".
+  - OpenWeather calls use https.
+  - The "LIVE" badge on the Alerts sidebar item shows only when the source is OpenWeather.
+- **Risk:** the name-hash "controlled randomness" (±25 % multiplier, ±0.10 jitter, and the hash-picked
+  "coastal" places) is removed from `compute_hybrid_risk`. Identical weather now gives identical risk
+  (`tests/test_dashboard_backend.py`).
+- **Risk panel:**
+  - Low / Moderate / High per hazard, "rule-based indicator (not the ML model)"; no % anywhere on the page.
+  - The primary threat exists only for MODERATE / HIGH zones.
+  - A MODERATE / HIGH zone never shows "stable" text; a zone without an explanation says
+    "No explanation available".
+  - "Rule-based explanation" replaces "AI Decision Transparency".
+  - A line under the panel links to the ML Nowcast.
+- **Map:**
+  - Map = OSM (`https://tile.openstreetmap.org/...`).
+  - Satellite = NASA GIBS `VIIRS_SNPP_CorrectedReflectance_TrueColor`, yesterday UTC, no key.
+  - Terrain = OSM + our Copernicus DEM hillshade (`/ml/terrain/national.png`), with its credit.
+  - The legend shows the three rule-based risk colours, with no % thresholds.
+  - The event-layer toggles filter markers by primary threat; low-risk zones always show.
+- **Other:** the timeline is replaced by a card "Per-lead forecasts (…) → ML Nowcast" (the leads are read
+  from `/ml/india/meta`); "View Details" → `/alerts`; "All Clear" / "Safe" → "No high-risk zones in this
+  data"; the hero card has no fixed city, temperature or sky.
+- **Known issues (not changed):** the sidebar "Live Map" and "Locations" items only reload the zone
+  list; "Settings" opens Analytics; the avatar does nothing. The sklearn pickle
+  (`rainfall_model_v2.pkl`) is unchanged: its inputs are month, day, state and district, not weather.
+- **Tests:**
+  - `D:\.venv\Scripts\python.exe -m pytest tests -q` (team backend);
+  - `e2e/dashboard.spec.js`: tiles are intercepted, so no network is needed.
 
 ## 7. Troubleshooting
 

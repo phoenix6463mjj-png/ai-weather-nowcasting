@@ -1,6 +1,7 @@
 import axios from 'axios';
+import { API_BASE } from '../config';
 
-const API_BASE_URL = 'http://127.0.0.1:8000';
+const API_BASE_URL = API_BASE;
 
 export const fetchPrediction = async (city) => {
     try {
@@ -11,7 +12,7 @@ export const fetchPrediction = async (city) => {
             throw new Error(error.response.data.detail);
         }
         if (error.code === 'ECONNABORTED' || error.message?.includes('Network Error')) {
-            throw new Error("Unable to connect to backend server at http://127.0.0.1:8000. Please ensure it is running.");
+            throw new Error(`Unable to connect to backend server at ${API_BASE_URL}. Please ensure it is running.`);
         }
         throw new Error(error.message || "Failed to fetch prediction");
     }
@@ -26,7 +27,7 @@ export const fetchAllPredictions = async (limit = 150) => {
             throw new Error(error.response.data.detail);
         }
         if (error.code === 'ECONNABORTED' || error.message?.includes('Network Error')) {
-            throw new Error("Unable to connect to backend server at http://127.0.0.1:8000. Please ensure it is running.");
+            throw new Error(`Unable to connect to backend server at ${API_BASE_URL}. Please ensure it is running.`);
         }
         throw new Error(error.message || "Failed to fetch all predictions");
     }

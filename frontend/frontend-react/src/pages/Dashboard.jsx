@@ -1,4 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { Link } from 'react-router-dom';
+import { API_BASE } from '../config';
+import { RISK_COLOURS, sourceBadge } from '../utils/dashboardRisk';
 import Sidebar from '../components/Sidebar';
 import TopHeader from '../components/TopHeader';
 import HeroBanner from '../components/HeroBanner';
@@ -22,6 +25,10 @@ const Dashboard = () => {
         flood: true
     });
 
+    // weather source of the zone list ("sample" | "openweather" | "mixed") and its latest observation time
+    const [source, setSource] = useState({ source: null, observedAt: null });
+    const [baseLayer, setBaseLayer] = useState('map');      // 'map' | 'satellite' | 'terrain'
+
     const isFetchingRef = useRef(false);
 
     const loadAllData = async () => {
@@ -33,7 +40,7 @@ const Dashboard = () => {
         setError(null);
         try {
             // Fetch ONLY from /alerts — SINGLE SOURCE OF TRUTH (380 ZONES)
-            const response = await fetch("http://127.0.0.1:8000/alerts?limit=380");
+            const response = await fetch(`${API_BASE}/alerts?limit=380`);
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}`);
             }
@@ -41,6 +48,7 @@ const Dashboard = () => {
             const data = await response.json();
             const summaryData = data.summary || { total: 0, high: 0, moderate: 0, low: 0 };
             setSummary(summaryData);
+            setSource({ source: summaryData.source || 'sample', observedAt: summaryData.latest_observed_at || null });
 
             const alertsData = data.alerts || (Array.isArray(data) ? data : []);
             console.log("ALERTS API RESPONSE:", summaryData, "Total alerts:", alertsData.length);
@@ -72,7 +80,7 @@ const Dashboard = () => {
             // Maintain user selection across background refreshes
             setSelectedCity(prev => {
                 if (prev) {
-                    const match = formatted.find(c => 
+                    const match = formatted.find(c =>
                         (c.city && prev.city && c.city.toLowerCase() === prev.city.toLowerCase()) ||
                         (c.fullName && prev.fullName && c.fullName.toLowerCase() === prev.fullName.toLowerCase())
                     );
@@ -134,7 +142,7 @@ const Dashboard = () => {
             // Fetch coordinates (Nominatim)
             const geoRes = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(trimmed)}&format=json&limit=1`);
             const geoData = await geoRes.json();
-            
+
             if (!geoData || geoData.length === 0) {
                 throw new Error("Location not found.");
             }
@@ -150,10 +158,10 @@ const Dashboard = () => {
             const display_name = location.display_name;
             const shortName = display_name.split(",")[0].trim();
 
-            // Call backend: POST http://127.0.0.1:8000/predict
+            // Call backend: POST {API_BASE}/predict
             let data = {};
             try {
-                const response = await fetch("http://127.0.0.1:8000/predict", {
+                const response = await fetch(`${API_BASE}/predict`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
@@ -162,7 +170,7 @@ const Dashboard = () => {
                         location: cityName
                     })
                 });
-                
+
                 if (response.ok) {
                     data = await response.json();
                 } else {
@@ -186,11 +194,12 @@ const Dashboard = () => {
                 weather: data.weather || null,
                 prediction: data.prediction || null,
                 reason: data.reason || data.prediction?.reason || null,
+                explanation: data.explanation || null,
                 timestamp: data.timestamp || null
             };
 
             console.log("Final Location Object:", newLocation);
-            
+
             let resolvedCity = newLocation;
             setAllCities(prev => {
                 const existingIndex = prev.findIndex(
@@ -237,30 +246,37 @@ const Dashboard = () => {
         }
     };
 
+    const selSource = selectedCity?.weather?.source;
+    const badgeSource = selSource || source.source;
+    const badgeText = badgeSource
+        ? sourceBadge(badgeSource, (selSource && selectedCity.weather.observed_at) || source.observedAt)
+        : 'Loading weather source…';
+
     return (
         <div className="flex flex-col h-screen bg-slate-50 dark:bg-[#0b0f19] text-slate-900 dark:text-slate-100 font-sans overflow-hidden transition-colors duration-300">
             {/* Top Navigation Bar */}
-            <TopHeader 
-                onSearch={handleSearch} 
-                searchLoading={searchLoading} 
-                selectedCity={selectedCity?.city} 
+            <TopHeader
+                onSearch={handleSearch}
+                searchLoading={searchLoading}
+                selectedCity={selectedCity?.city}
                 alertCount={summary?.high}
             />
-            
+
             <div className="flex flex-1 overflow-hidden">
                 {/* Left Sidebar with Toggles & Monitor India */}
-                <Sidebar 
-                    activeLayers={activeLayers} 
-                    setActiveLayers={setActiveLayers} 
-                    onMonitorIndia={loadAllData} 
+                <Sidebar
+                    live={source.source === 'openweather'}
+                    activeLayers={activeLayers}
+                    setActiveLayers={setActiveLayers}
+                    onMonitorIndia={loadAllData}
                     onRegionSelect={handleRegionSelect}
                     loading={loading}
                 />
-                
+
                 <div className="flex-1 flex flex-col overflow-hidden relative">
                     {/* Scrollable Content Area */}
                     <div className="flex-1 overflow-y-auto pb-4 flex flex-col">
-                        
+
                         {/* Error Handling Banner */}
                         {error && (
                             <div className="bg-red-600 text-white px-6 py-3 font-semibold text-sm shadow-md flex justify-between items-center z-50 shrink-0 animate-in fade-in duration-200">
@@ -269,14 +285,14 @@ const Dashboard = () => {
                                     <span>{error}</span>
                                 </div>
                                 <div className="flex items-center gap-3">
-                                    <button 
-                                        onClick={() => { setError(null); loadAllData(); }} 
+                                    <button
+                                        onClick={() => { setError(null); loadAllData(); }}
                                         className="bg-red-700 hover:bg-red-800 rounded px-2.5 py-1 text-xs font-bold transition-colors"
                                     >
                                         Retry
                                     </button>
-                                    <button 
-                                        onClick={() => setError(null)} 
+                                    <button
+                                        onClick={() => setError(null)}
                                         className="hover:bg-red-700 rounded px-2 py-1 text-xs font-bold transition-colors"
                                     >
                                         Dismiss
@@ -284,15 +300,15 @@ const Dashboard = () => {
                                 </div>
                             </div>
                         )}
-                        
+
                         {/* Top Hero Banner */}
-                        <HeroBanner cityData={selectedCity} />
-                        
+                        <HeroBanner cityData={selectedCity} sample={source.source !== 'openweather'} />
+
                         {/* Alert Banner: Pure component using backend single source of truth summary */}
                         <div className="px-6 pt-4">
                             <AlertBanner locations={allCities} summary={summary} />
                         </div>
-                        
+
                         {/* Interactive Main Map & Right Panel */}
                         <div className="flex-1 flex px-6 py-4 gap-6 min-h-[500px]">
                             {/* Map Container */}
@@ -300,57 +316,72 @@ const Dashboard = () => {
                                 {/* Map Controls Header */}
                                 <div className="absolute top-4 left-4 z-[400] flex gap-2">
                                     <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur shadow-sm rounded-lg p-1 flex border border-slate-200 dark:border-slate-700">
-                                        <button className="px-4 py-1.5 bg-blue-600 text-white rounded-md text-sm font-medium shadow-sm">Map</button>
-                                        <button className="px-4 py-1.5 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-md text-sm font-medium transition-colors">Satellite</button>
-                                        <button className="px-4 py-1.5 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-md text-sm font-medium transition-colors">Terrain</button>
+                                        {[['map', 'Map'], ['satellite', 'Satellite'], ['terrain', 'Terrain']].map(([id, label]) => (
+                                            <button key={id} type="button" data-testid={`basemap-${id}`} aria-pressed={baseLayer === id}
+                                                onClick={() => setBaseLayer(id)}
+                                                className={baseLayer === id
+                                                    ? 'px-4 py-1.5 bg-blue-600 text-white rounded-md text-sm font-medium shadow-sm'
+                                                    : 'px-4 py-1.5 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-md text-sm font-medium transition-colors'}>
+                                                {label}
+                                            </button>
+                                        ))}
                                     </div>
                                 </div>
-                                
+
                                 <div className="absolute top-4 right-4 z-[400]">
                                     <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur shadow-sm rounded-lg px-4 py-2 border border-slate-200 dark:border-slate-700 flex items-center gap-2">
-                                        <span className={`w-2.5 h-2.5 rounded-full ${loading ? "bg-blue-500 animate-spin" : "bg-emerald-500 animate-pulse"}`}></span>
-                                        <span className="text-sm font-bold text-slate-800 dark:text-slate-100">
-                                            {loading && allCities.length > 0 ? "Updating Feeds..." : "Live AI Nowcasting"}
+                                        <span className={`w-2.5 h-2.5 rounded-full ${loading ? "bg-blue-500 animate-spin" : badgeSource === 'openweather' ? "bg-emerald-500" : "bg-amber-500"}`}></span>
+                                        <span data-testid="dashboard-source-badge" data-source={badgeSource || ''} className="text-sm font-bold text-slate-800 dark:text-slate-100">
+                                            {loading && allCities.length > 0 ? "Updating…" : badgeText}
                                         </span>
                                     </div>
                                 </div>
-                                
+
                                 {loading && allCities.length === 0 ? (
                                     <div className="flex-1 flex flex-col items-center justify-center bg-slate-100 dark:bg-slate-900 z-50">
                                         <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
                                         <div className="mt-4 text-slate-600 dark:text-slate-300 font-bold">Loading map data...</div>
                                     </div>
                                 ) : (
-                                    <MapSection 
+                                    <MapSection
                                         key={allCities.length}
                                         allCities={allCities}
-                                        selectedCity={selectedCity} 
-                                        onSelectCity={handleSelectCity} 
+                                        selectedCity={selectedCity}
+                                        onSelectCity={handleSelectCity}
                                         activeLayers={activeLayers}
+                                        baseLayer={baseLayer}
                                     />
                                 )}
-                                
-                                {/* Rain Intensity Legend */}
-                                <div className="absolute bottom-6 left-6 z-[400] bg-white/90 dark:bg-slate-800/90 backdrop-blur-md rounded-xl p-4 shadow-lg border border-slate-200 dark:border-slate-700 w-64">
-                                    <p className="text-xs font-bold mb-2 uppercase text-slate-500 dark:text-slate-400">Risk Severity</p>
-                                    <div className="h-3 w-full rounded-full bg-gradient-to-r from-emerald-400 via-amber-400 to-red-600 mb-1"></div>
-                                    <div className="flex justify-between text-[10px] font-semibold text-slate-600 dark:text-slate-400">
-                                        <span>Low (&lt;40%)</span>
-                                        <span>Moderate</span>
-                                        <span>High (&ge;70%)</span>
+
+                                {/* Legend: markers are coloured by the zone's rule-based risk level (no percentages) */}
+                                <div data-testid="dashboard-legend" className="absolute bottom-6 left-6 z-[400] bg-white/90 dark:bg-slate-800/90 backdrop-blur-md rounded-xl p-4 shadow-lg border border-slate-200 dark:border-slate-700 w-64">
+                                    <p className="text-xs font-bold mb-2 uppercase text-slate-500 dark:text-slate-400">Risk level (rule-based)</p>
+                                    <div className="flex justify-between text-[11px] font-semibold text-slate-600 dark:text-slate-300">
+                                        {[['LOW', 'Low'], ['MODERATE', 'Moderate'], ['HIGH', 'High']].map(([k, label]) => (
+                                            <span key={k} className="flex items-center gap-1.5">
+                                                <span className="w-3 h-3 rounded-full border-2 border-white shadow" style={{ background: RISK_COLOURS[k] }} />{label}
+                                            </span>
+                                        ))}
                                     </div>
+                                    <p className="mt-1.5 text-[10px] text-slate-500 dark:text-slate-400 leading-snug">Marker colour = the zone&apos;s rule-based risk level (not the ML model).</p>
                                 </div>
                             </div>
-                            
+
                             {/* Right Panel: Pure component using central selectedCity */}
-                            <div className="w-[360px] flex-shrink-0">
-                                <RightPanel 
-                                    selectedCity={selectedCity} 
-                                    onClose={() => setSelectedCity(null)}
-                                />
+                            <div className="w-[360px] flex-shrink-0 flex flex-col gap-2 min-h-0">
+                                <div className="flex-1 min-h-0">
+                                    <RightPanel
+                                        selectedCity={selectedCity}
+                                        onClose={() => setSelectedCity(null)}
+                                    />
+                                </div>
+                                <Link to="/nowcast" data-testid="dashboard-ml-link"
+                                    className="shrink-0 text-[11px] font-bold text-blue-700 dark:text-blue-400 hover:underline px-1">
+                                    Calibrated 1–6 h nowcasts: ML Nowcast →
+                                </Link>
                             </div>
                         </div>
-                        
+
                         {/* Timeline and Risk Distribution */}
                         <div className="h-28 px-6 pb-2 flex gap-6 shrink-0">
                             <div className="flex-1">

@@ -4,6 +4,7 @@ import requests
 import httpx
 import time
 import hashlib
+from datetime import datetime, timezone
 from typing import Tuple, Optional, Dict, Any
 
 load_dotenv()
@@ -16,6 +17,14 @@ if os.path.exists(_root_env):
     load_dotenv(_root_env)
 
 API_KEY = os.getenv("OPENWEATHER_API_KEY")
+
+def observed_at(data: Dict[str, Any]) -> Optional[str]:
+    """OpenWeather's own observation time (`dt`, unix UTC) as ISO 8601, or None."""
+    try:
+        return datetime.fromtimestamp(int(data["dt"]), tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    except (KeyError, TypeError, ValueError):
+        return None
+
 
 def is_valid_api_key(key: Optional[str]) -> bool:
     if not key or not isinstance(key, str):
@@ -90,6 +99,9 @@ def get_fallback_mock(city: str, lat: float, lon: float) -> Dict[str, Any]:
         "wind_speed": max(0.5, wind_speed),
         "wind": max(0.5, wind_speed),
         "pressure": pressure,
+        # deterministic sample values, NOT a weather observation (no API key or the API failed)
+        "source": "sample",
+        "observed_at": None,
     }
 
 
@@ -119,7 +131,7 @@ def fetch_weather(lat: Any = 22.0, lon: Any = 79.0, city: Optional[str] = None) 
         print("[WARNING] No API key found, using fallback data")
         weather_res = get_fallback_mock(c_name, lat_f, lon_f)
     else:
-        url = f"http://api.openweathermap.org/data/2.5/weather?lat={lat_f}&lon={lon_f}&appid={API_KEY}&units=metric"
+        url = f"https://api.openweathermap.org/data/2.5/weather?lat={lat_f}&lon={lon_f}&appid={API_KEY}&units=metric"
         try:
             response = requests.get(url, timeout=3.5)
             if response.status_code == 200:
@@ -144,6 +156,8 @@ def fetch_weather(lat: Any = 22.0, lon: Any = 79.0, city: Optional[str] = None) 
                     "wind_speed": round(wind_speed, 1),
                     "wind": round(wind_speed, 1),
                     "pressure": round(pressure, 1),
+                    "source": "openweather",
+                    "observed_at": observed_at(data),
                 }
         except Exception:
             weather_res = None
@@ -200,7 +214,7 @@ async def async_fetch_weather(
         print("[WARNING] No API key found, using fallback data")
         weather_res = get_fallback_mock(actual_city, actual_lat, actual_lon)
     else:
-        url = f"http://api.openweathermap.org/data/2.5/weather?lat={actual_lat}&lon={actual_lon}&appid={API_KEY}&units=metric"
+        url = f"https://api.openweathermap.org/data/2.5/weather?lat={actual_lat}&lon={actual_lon}&appid={API_KEY}&units=metric"
         try:
             if actual_client is not None:
                 response = await actual_client.get(url, timeout=2.5)
@@ -230,6 +244,8 @@ async def async_fetch_weather(
                     "wind_speed": round(wind_speed, 1),
                     "wind": round(wind_speed, 1),
                     "pressure": round(pressure, 1),
+                    "source": "openweather",
+                    "observed_at": observed_at(data),
                 }
         except Exception:
             weather_res = None
@@ -254,7 +270,7 @@ def get_coordinates(city: str) -> Tuple[Optional[float], Optional[float]]:
     Dynamically resolves latitude and longitude for any city or place using OpenWeather Geo API.
     
     Endpoint:
-    http://api.openweathermap.org/geo/1.0/direct?q={city},IN&limit=1&appid={API_KEY}
+    https://api.openweathermap.org/geo/1.0/direct?q={city},IN&limit=1&appid={API_KEY}
     
     Returns:
         (lat, lon) as floats if found, otherwise (None, None).
@@ -275,7 +291,7 @@ def get_coordinates(city: str) -> Tuple[Optional[float], Optional[float]]:
         
     try:
         # 1. Primary lookup: query with ',IN' for India location coverage
-        geo_url = f"http://api.openweathermap.org/geo/1.0/direct?q={cleaned_city},IN&limit=1&appid={API_KEY}"
+        geo_url = f"https://api.openweathermap.org/geo/1.0/direct?q={cleaned_city},IN&limit=1&appid={API_KEY}"
         response = requests.get(geo_url, timeout=4)
         
         if response.status_code == 200:
@@ -287,7 +303,7 @@ def get_coordinates(city: str) -> Tuple[Optional[float], Optional[float]]:
                 return lat, lon
                 
         # 2. Fallback lookup: query without ',IN' in case of regional differences
-        geo_url_fb = f"http://api.openweathermap.org/geo/1.0/direct?q={cleaned_city}&limit=1&appid={API_KEY}"
+        geo_url_fb = f"https://api.openweathermap.org/geo/1.0/direct?q={cleaned_city}&limit=1&appid={API_KEY}"
         response_fb = requests.get(geo_url_fb, timeout=4)
         if response_fb.status_code == 200:
             data_fb = response_fb.json()
@@ -327,7 +343,7 @@ async def async_get_weather_by_coords(
         if now - timestamp < WEATHER_CACHE_TTL:
             return cached_data
             
-    url = f"http://api.openweathermap.org/data/2.5/weather?lat={lat}&lon={lon}&appid={API_KEY}&units=metric"
+    url = f"https://api.openweathermap.org/data/2.5/weather?lat={lat}&lon={lon}&appid={API_KEY}&units=metric"
     try:
         response = await client.get(url, timeout=2.5)
         if response.status_code == 200:
@@ -378,7 +394,7 @@ def get_weather_by_coords(lat: float, lon: float, city_name: Optional[str] = Non
         if now - timestamp < WEATHER_CACHE_TTL:
             return cached_data
             
-    url = f"http://api.openweathermap.org/data/2.5/weather?lat={lat}&lon={lon}&appid={API_KEY}&units=metric"
+    url = f"https://api.openweathermap.org/data/2.5/weather?lat={lat}&lon={lon}&appid={API_KEY}&units=metric"
     try:
         response = requests.get(url, timeout=4)
         if response.status_code == 200:
@@ -435,7 +451,7 @@ def get_weather_data(city_name: str) -> Optional[Dict[str, Any]]:
             return weather
             
     # 2. Fallback to direct query by city name
-    url = f"http://api.openweathermap.org/data/2.5/weather?q={cleaned_name}&appid={API_KEY}&units=metric"
+    url = f"https://api.openweathermap.org/data/2.5/weather?q={cleaned_name}&appid={API_KEY}&units=metric"
     try:
         response = requests.get(url, timeout=4)
         if response.status_code == 200:

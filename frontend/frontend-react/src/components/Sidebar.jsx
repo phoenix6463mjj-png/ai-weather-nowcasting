@@ -2,9 +2,10 @@ import React from 'react';
 import { NavLink, Link } from 'react-router-dom';
 import { Home, Map, CloudRain, Bell, BarChart2, MapPin, FileText, Settings, Play } from 'lucide-react';
 
-const Sidebar = ({ 
-    activeLayers = { thunderstorm: true, cloudburst: true, flood: true }, 
-    setActiveLayers, 
+const Sidebar = ({
+    live = false,
+    activeLayers = { thunderstorm: true, cloudburst: true, flood: true },
+    setActiveLayers,
     onMonitorIndia,
     onRegionSelect,
     loading = false
@@ -28,8 +29,8 @@ const Sidebar = ({
                         <Home size={18} />
                         <span className="text-sm">Home</span>
                     </NavLink>
-                    <button 
-                        onClick={onMonitorIndia} 
+                    <button
+                        onClick={onMonitorIndia}
                         className="w-full flex items-center justify-between px-4 py-3 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl font-semibold transition-colors text-left cursor-pointer"
                     >
                         <div className="flex items-center gap-3">
@@ -42,7 +43,7 @@ const Sidebar = ({
                         <CloudRain size={18} />
                         <span className="text-sm">Forecast</span>
                     </NavLink>
-                    <NavLink to="/alerts" className={({ isActive }) => 
+                    <NavLink to="/alerts" className={({ isActive }) =>
                         isActive
                             ? "flex items-center justify-between px-4 py-3 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 rounded-xl font-bold transition-colors"
                             : "flex items-center justify-between px-4 py-3 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl font-semibold transition-colors"
@@ -51,14 +52,14 @@ const Sidebar = ({
                             <Bell size={18} />
                             <span className="text-sm">Alerts</span>
                         </div>
-                        <span className="bg-red-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full">LIVE</span>
+                        {live && <span data-testid="sidebar-live" className="bg-red-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full">LIVE</span>}
                     </NavLink>
                     <NavLink to="/analytics" className={navLinkClass}>
                         <BarChart2 size={18} />
                         <span className="text-sm">Analytics</span>
                     </NavLink>
-                    <button 
-                        onClick={onMonitorIndia} 
+                    <button
+                        onClick={onMonitorIndia}
                         className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl font-semibold transition-colors text-left cursor-pointer"
                     >
                         <MapPin size={18} />
@@ -68,8 +69,8 @@ const Sidebar = ({
                         <FileText size={18} />
                         <span className="text-sm">Reports</span>
                     </NavLink>
-                    <Link 
-                        to="/analytics" 
+                    <Link
+                        to="/analytics"
                         className="flex items-center gap-3 px-4 py-3 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl font-semibold transition-colors"
                     >
                         <Settings size={18} />
@@ -81,62 +82,62 @@ const Sidebar = ({
                     <h3 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-4 px-4">Event Layers</h3>
                     <div className="space-y-3 px-4">
                         {/* Thunderstorm Layer */}
-                        <div 
-                            onClick={() => toggleLayer('thunderstorm')} 
+                        <div
+                            onClick={() => toggleLayer('thunderstorm')}
                             className="flex items-center justify-between p-1.5 -mx-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800/60 cursor-pointer transition-colors"
                         >
                             <div className="flex items-center gap-3 text-slate-700 dark:text-slate-300">
                                 <CloudRain size={16} className="text-amber-500" />
                                 <span className="text-sm font-bold select-none">Thunderstorm</span>
                             </div>
-                            <button 
+                            <button
                                 type="button"
                                 role="switch"
                                 aria-checked={Boolean(activeLayers.thunderstorm)}
                                 aria-label="Toggle Thunderstorm Filter"
-                                onClick={(e) => { e.stopPropagation(); toggleLayer('thunderstorm'); }} 
+                                onClick={(e) => { e.stopPropagation(); toggleLayer('thunderstorm'); }}
                                 className={`w-9 h-5 rounded-full relative cursor-pointer shadow-inner transition-colors duration-200 focus:outline-none ${activeLayers.thunderstorm ? 'bg-blue-600' : 'bg-slate-200 dark:bg-slate-700'}`}
                             >
                                 <span className={`absolute top-0.5 w-4 h-4 rounded-full shadow-sm transition-all duration-200 ${activeLayers.thunderstorm ? 'right-0.5 bg-white' : 'left-0.5 bg-white dark:bg-slate-400'}`}></span>
                             </button>
                         </div>
-                        
+
                         {/* Cloudburst Layer */}
-                        <div 
-                            onClick={() => toggleLayer('cloudburst')} 
+                        <div
+                            onClick={() => toggleLayer('cloudburst')}
                             className="flex items-center justify-between p-1.5 -mx-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800/60 cursor-pointer transition-colors"
                         >
                             <div className="flex items-center gap-3 text-slate-700 dark:text-slate-300">
                                 <CloudRain size={16} className="text-blue-500" />
                                 <span className="text-sm font-bold select-none">Cloudburst</span>
                             </div>
-                            <button 
+                            <button
                                 type="button"
                                 role="switch"
                                 aria-checked={Boolean(activeLayers.cloudburst)}
                                 aria-label="Toggle Cloudburst Filter"
-                                onClick={(e) => { e.stopPropagation(); toggleLayer('cloudburst'); }} 
+                                onClick={(e) => { e.stopPropagation(); toggleLayer('cloudburst'); }}
                                 className={`w-9 h-5 rounded-full relative cursor-pointer shadow-inner transition-colors duration-200 focus:outline-none ${activeLayers.cloudburst ? 'bg-blue-600' : 'bg-slate-200 dark:bg-slate-700'}`}
                             >
                                 <span className={`absolute top-0.5 w-4 h-4 rounded-full shadow-sm transition-all duration-200 ${activeLayers.cloudburst ? 'right-0.5 bg-white' : 'left-0.5 bg-white dark:bg-slate-400'}`}></span>
                             </button>
                         </div>
-                        
+
                         {/* Flash Flood Layer */}
-                        <div 
-                            onClick={() => toggleLayer('flood')} 
+                        <div
+                            onClick={() => toggleLayer('flood')}
                             className="flex items-center justify-between p-1.5 -mx-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800/60 cursor-pointer transition-colors"
                         >
                             <div className="flex items-center gap-3 text-slate-700 dark:text-slate-300">
                                 <CloudRain size={16} className="text-teal-500" />
                                 <span className="text-sm font-bold select-none">Flash Flood</span>
                             </div>
-                            <button 
+                            <button
                                 type="button"
                                 role="switch"
                                 aria-checked={Boolean(activeLayers.flood)}
                                 aria-label="Toggle Flash Flood Filter"
-                                onClick={(e) => { e.stopPropagation(); toggleLayer('flood'); }} 
+                                onClick={(e) => { e.stopPropagation(); toggleLayer('flood'); }}
                                 className={`w-9 h-5 rounded-full relative cursor-pointer shadow-inner transition-colors duration-200 focus:outline-none ${activeLayers.flood ? 'bg-blue-600' : 'bg-slate-200 dark:bg-slate-700'}`}
                             >
                                 <span className={`absolute top-0.5 w-4 h-4 rounded-full shadow-sm transition-all duration-200 ${activeLayers.flood ? 'right-0.5 bg-white' : 'left-0.5 bg-white dark:bg-slate-400'}`}></span>
@@ -147,7 +148,7 @@ const Sidebar = ({
 
                 <div className="mt-8 px-4">
                     <h3 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">Region</h3>
-                    <select 
+                    <select
                         onChange={(e) => onRegionSelect && onRegionSelect(e.target.value)}
                         className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5 font-bold outline-none"
                     >
@@ -161,8 +162,8 @@ const Sidebar = ({
                 </div>
 
                 <div className="mt-6 px-4">
-                    <button 
-                        onClick={onMonitorIndia} 
+                    <button
+                        onClick={onMonitorIndia}
                         disabled={loading}
                         className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 transition-colors shadow-lg shadow-blue-500/25 cursor-pointer"
                     >

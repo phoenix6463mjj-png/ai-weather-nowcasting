@@ -1361,3 +1361,22 @@ test('Approach page: only the cloud-top temperature row changed (INSAT observati
     await expect(page.getByTestId('approach-status-note')).toHaveCount(1);
     await shot(page, 'approach_ctt_row_1920x1080');
 });
+
+test('Event check: "Observed (case study)" paragraph on both events = the API text (every value built from data)', async ({ page }) => {
+    for (const [ep, ts] of [['REF045', '20230813T1500Z'], ['REF051', '20240731T1800Z']]) {
+        const { tl } = await openTimeline(page, ep, ts);
+        const cs = tl.insat.case_study;
+        const box = page.getByTestId('insat-case-study');
+        await expect(page.getByTestId('insat-case-study-title')).toHaveText('Observed (case study)');
+        await expect(page.getByTestId('insat-case-study-text')).toHaveText(cs.text);
+        await expect(page.getByTestId('insat-case-study-footer')).toHaveText('Two case studies, not a general lead-time result.');
+        await expect(box).toContainText(`from the ${cs.facts.run_first.slice(11, 16)}Z to the ${cs.facts.run_last.slice(11, 16)}Z scan`);
+        await expect(box).toContainText(`first qualifying alert was issued at ${cs.facts.first_alert.slice(11, 16)}Z`);
+        for (const bad of ['early signal', 'validat', 'precursor', '%']) await expect(box).not.toContainText(bad);
+        await page.screenshot({ path: `e2e/screenshots/case_study_${ep}_1920x1080.png` });
+    }
+    await page.setViewportSize({ width: 1366, height: 768 });
+    await page.getByTestId('insat-case-study').scrollIntoViewIfNeeded();
+    await page.screenshot({ path: 'e2e/screenshots/case_study_REF051_1366x768.png' });
+});
+
