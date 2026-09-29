@@ -277,6 +277,12 @@ test('replay button re-runs the model and matches the precomputed files', async 
     test.setTimeout(120_000);
     const alerts = await openIssue(page, 'REF045', '20230813T2100Z');
     await showAlertList(page);                                            // the replay button heads the Alert section
+    const st = await (await page.request.get('http://127.0.0.1:8000/ml/replay/status')).json();
+    if (st.enabled === false) {                                           // hosted mode (ML_REPLAY_ENABLED=0)
+        await expect(page.getByTestId('replay-disabled-note')).toHaveText(st.note);
+        await expect(page.getByTestId('replay-button')).toHaveCount(0);
+        return;
+    }
     const resp = page.waitForResponse((r) => r.url().endsWith('/replay') && r.request().method() === 'POST', { timeout: 90_000 });
     await page.getByTestId('replay-button').click();
     await expect(page.getByTestId('replay-button')).toContainText('Running');
@@ -1384,3 +1390,14 @@ test('Event check: "Observed (case study)" paragraph on both events = the API te
     await page.screenshot({ path: 'e2e/screenshots/case_study_REF051_1366x768.png' });
 });
 
+test('replay disabled on the host: the note replaces the button; precomputed replay still loads', async ({ page }) => {
+    const note = 'On-demand replay is disabled in the hosted demo; precomputed case studies are shown.';
+    await page.route((u) => u.port === '8000' && u.pathname === '/ml/replay/status', (r) => r.fulfill({
+        json: { enabled: false, note, loaded: false, busy: false, cached: 0 } }));
+    const alerts = await openIssue(page, 'REF045', '20230813T1500Z');
+    expect(alerts.length).toBeGreaterThan(0);
+    await showAlertList(page);
+    await expect(page.getByTestId('replay-disabled-note')).toHaveText(note);
+    await expect(page.getByTestId('replay-button')).toHaveCount(0);
+    await expect(page.locator('path.nowcast-alert-poly').first()).toBeVisible();
+});

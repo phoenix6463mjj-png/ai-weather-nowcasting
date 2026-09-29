@@ -10,3 +10,6 @@ dist/
 e2e/screenshots/
 test-results/
 playwright-report/
+
+# assembled Hugging Face Space folder (hosting/build_space.py)
+hosting/space/

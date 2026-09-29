@@ -48,11 +48,16 @@ from backend.ml_proxy import router as ml_router
 
 app = FastAPI(title="Real-Time Weather AI System API", version="7.0.0")
 app.include_router(ml_router)
+# Browser origins allowed to call this backend (comma-separated). The local default is the Vite dev
+# server; on the host set CORS_ORIGINS to the deployed frontend's URL. No cookies or auth headers are
+# used by the frontend, so credentials are off.
+CORS_ORIGINS = [o.strip() for o in os.environ.get(
+    "CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
+    allow_origins=CORS_ORIGINS,
+    allow_credentials=False,
+    allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
 

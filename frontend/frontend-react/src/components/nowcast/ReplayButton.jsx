@@ -1,11 +1,21 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Play, CheckCircle2, XCircle } from 'lucide-react';
-import { runReplay } from '../../services/nowcastApi';
+import { getReplayStatus, runReplay } from '../../services/nowcastApi';
 
 // Re-runs the frozen model (Nowcaster.predict) for this issue and compares the output
 // byte-for-byte with the precomputed files that the map is showing.
+// The API reports whether on-demand replay is enabled (ML_REPLAY_ENABLED=0 on the hosted demo).
+let replayStatusCache = null;
+
 const ReplayButton = ({ episode, issueTime }) => {
     const [state, setState] = useState({ status: 'idle' });
+    const [avail, setAvail] = useState(replayStatusCache);
+    useEffect(() => {
+        if (replayStatusCache) return undefined;
+        let live = true;
+        getReplayStatus().then((r) => { replayStatusCache = r; if (live) setAvail(r); }).catch(() => {});
+        return () => { live = false; };
+    }, []);
 
     const run = async () => {
         setState({ status: 'running' });
@@ -19,6 +29,13 @@ const ReplayButton = ({ episode, issueTime }) => {
     };
 
     const { status, r } = state;
+    if (avail && avail.enabled === false) {
+        return (
+            <div data-testid="replay-box" className="px-4 py-3 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40">
+                <p data-testid="replay-disabled-note" className="text-[11px] text-slate-600 dark:text-slate-300">{avail.note}</p>
+            </div>
+        );
+    }
     return (
         <div data-testid="replay-box" className="px-4 py-3 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40">
             <button onClick={run} disabled={status === 'running'} data-testid="replay-button"

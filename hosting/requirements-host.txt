@@ -1,0 +1,27 @@
+# Runtime only, for the hosted one-process app (backend/host_app.py). Pinned to the dev venv versions
+# (29 Sep 2026). Not included: test tools (pytest, xmlschema, elementpath), pypdf, h5py/pyproj (offline
+# INSAT builder), and the model runtime (lightgbm etc.): with ML_REPLAY_ENABLED=0 no endpoint imports it.
+
+# web
+fastapi==0.141.1
+starlette==1.7.0
+pydantic==2.13.5
+pydantic_core==2.46.5
+anyio==4.15.1
+uvicorn==0.54.0
+httpx==0.28.1
+
+# ML API (serve/): PNG overlays, rasters, event check, timeline
+numpy==2.2.6
+rasterio==1.4.4
+affine==3.0.1
+pillow==12.3.0
+shapely==2.1.2
+pandas==2.3.3
+
+# team backend: weather fetch, locations, rainfall_model_v2.pkl (sklearn)
+requests==2.34.2
+python-dotenv==1.2.3
+joblib==1.6.0
+scikit-learn==1.7.2
+scipy==1.15.3

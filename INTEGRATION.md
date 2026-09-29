@@ -83,6 +83,8 @@ front, call `Invoke-RestMethod -Method Post http://127.0.0.1:8000/ml/replay/warm
 |---|---|---|---|
 | `VITE_ML_API_BASE` | frontend (build/dev time) | `http://127.0.0.1:8000/ml` | ML API base URL as seen by the browser |
 | `VITE_API_BASE` | frontend (build/dev time) | `http://127.0.0.1:8000` | team backend base URL as seen by the browser (Dashboard `/alerts`, `/predict`; `services/api.js`) |
+| `CORS_ORIGINS` | team backend | `http://localhost:5173,http://127.0.0.1:5173` | browser origins allowed to call the backend (comma-separated); set to the Vercel URL on the host. Credentials are off. |
+| `ML_REPLAY_ENABLED` | ML serve | `1` | `0` disables on-demand replay (POST `/replay`, `/replay/warm` → 403 with a note; the UI shows "On-demand replay is disabled in the hosted demo; precomputed case studies are shown."). Hosted: `0`. |
 | `ML_API_URL` | team backend | `http://127.0.0.1:8001/api` | upstream for the `/ml/*` proxy |
 | `ML_PROXY_TIMEOUT_S` / `ML_PROXY_REPLAY_TIMEOUT_S` | team backend | `10` / `30` | proxy timeouts (replay gets longer) |
 | `NOWCAST_DATA_ROOT` | ML serve | the `nowcast_data` repo root | where `docs/` and `catalog/` are read from |
@@ -551,8 +553,8 @@ screenshots). It did not recur in later page loads or in the e2e runs.
   levels are a rule-based indicator, not the ML model.
 - /alerts: "Live Feed" and "Live • …" appear only when the source is OpenWeather; otherwise it shows
   "Sample data — no live weather feed".
-- `backend/main.py` allows any CORS origin with credentials (`allow_origins=["*"]`). Restrict it
-  for hosting.
+- CORS (fixed in Batch 2): `backend/main.py` reads `CORS_ORIGINS` (default: the Vite dev origins),
+  with credentials off.
 - `nowcast_data/scripts/build_state_mask.py` (offline, not shipped) has a hard-coded local input
   path.
 - One 502 from the `/ml` proxy was seen once, right after a restart.
@@ -560,6 +562,13 @@ screenshots). It did not recur in later page loads or in the e2e runs.
   `api.js` error causes.
 
 ## 10. Hosting checklist (checked 29 Sep 2026)
+
+**Batch 2:**
+- Step-by-step hosting (HF Space + Vercel) is in `HOSTING.md`.
+- The hosted backend is ONE process: `backend/host_app.py` mounts the ML API in-process at `/ml`.
+- It is packaged by `hosting/build_space.py` (148 MB, see its `MANIFEST.txt`) with `hosting/Dockerfile`
+  and `hosting/requirements-host.txt`.
+- `frontend/frontend-react/vercel.json` adds the SPA fallback.
 
 - **Service URLs:** only `VITE_ML_API_BASE`, `VITE_API_BASE` (frontend, build time) and `ML_API_URL`
   (team backend). Every page reads its backend URL from `src/config.js`. There are no local drive
