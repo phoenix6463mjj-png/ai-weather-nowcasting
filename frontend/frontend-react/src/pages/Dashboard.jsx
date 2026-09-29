@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { API_BASE } from '../config';
-import { RISK_COLOURS, sourceBadge } from '../utils/dashboardRisk';
+import { RISK_COLOURS, isLiveSource, sourceBadge } from '../utils/dashboardRisk';
+import OpenMeteoCredit from '../components/OpenMeteoCredit';
 import Sidebar from '../components/Sidebar';
 import TopHeader from '../components/TopHeader';
 import HeroBanner from '../components/HeroBanner';
@@ -26,7 +27,7 @@ const Dashboard = () => {
     });
 
     // weather source of the zone list ("sample" | "openweather" | "mixed") and its latest observation time
-    const [source, setSource] = useState({ source: null, observedAt: null });
+    const [source, setSource] = useState({ source: null, observedAt: null, dataTime: null });
     const [baseLayer, setBaseLayer] = useState('map');      // 'map' | 'satellite' | 'terrain'
 
     const isFetchingRef = useRef(false);
@@ -48,7 +49,7 @@ const Dashboard = () => {
             const data = await response.json();
             const summaryData = data.summary || { total: 0, high: 0, moderate: 0, low: 0 };
             setSummary(summaryData);
-            setSource({ source: summaryData.source || 'sample', observedAt: summaryData.latest_observed_at || null });
+            setSource({ source: summaryData.source || 'sample', observedAt: summaryData.latest_observed_at || null, dataTime: summaryData.data_time || null });
 
             const alertsData = data.alerts || (Array.isArray(data) ? data : []);
             console.log("ALERTS API RESPONSE:", summaryData, "Total alerts:", alertsData.length);
@@ -249,7 +250,8 @@ const Dashboard = () => {
     const selSource = selectedCity?.weather?.source;
     const badgeSource = selSource || source.source;
     const badgeText = badgeSource
-        ? sourceBadge(badgeSource, (selSource && selectedCity.weather.observed_at) || source.observedAt)
+        ? sourceBadge(badgeSource, (selSource && selectedCity.weather.observed_at) || source.observedAt,
+            (selSource && selectedCity.weather.data_time) || source.dataTime)
         : 'Loading weather source…';
 
     return (
@@ -265,7 +267,7 @@ const Dashboard = () => {
             <div className="flex flex-1 overflow-hidden">
                 {/* Left Sidebar with Toggles & Monitor India */}
                 <Sidebar
-                    live={source.source === 'openweather'}
+                    live={isLiveSource(source.source)}
                     activeLayers={activeLayers}
                     setActiveLayers={setActiveLayers}
                     onMonitorIndia={loadAllData}
@@ -302,12 +304,12 @@ const Dashboard = () => {
                         )}
 
                         {/* Top Hero Banner */}
-                        <HeroBanner cityData={selectedCity} sample={source.source !== 'openweather'} />
+                        <HeroBanner cityData={selectedCity} sample={!isLiveSource(source.source)} />
 
                         {/* Alert Banner: Pure component using backend single source of truth summary */}
                         <div className="px-6 pt-4">
                             {/* only for zone data that actually loaded (never a "no high-risk" banner on an error) */}
-                            {source.source && <AlertBanner locations={allCities} summary={summary} sample={source.source !== 'openweather'} />}
+                            {source.source && <AlertBanner locations={allCities} summary={summary} sample={!isLiveSource(source.source)} />}
                         </div>
 
                         {/* Interactive Main Map & Right Panel */}
@@ -331,9 +333,12 @@ const Dashboard = () => {
 
                                 <div className="absolute top-4 right-4 z-[400]">
                                     <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur shadow-sm rounded-lg px-4 py-2 border border-slate-200 dark:border-slate-700 flex items-center gap-2">
-                                        <span className={`w-2.5 h-2.5 rounded-full ${loading ? "bg-blue-500 animate-spin" : badgeSource === 'openweather' ? "bg-emerald-500" : "bg-amber-500"}`}></span>
-                                        <span data-testid="dashboard-source-badge" data-source={badgeSource || ''} className="text-sm font-bold text-slate-800 dark:text-slate-100">
-                                            {loading && allCities.length > 0 ? "Updating…" : badgeText}
+                                        <span className={`w-2.5 h-2.5 rounded-full ${loading ? "bg-blue-500 animate-spin" : isLiveSource(badgeSource) ? "bg-emerald-500" : "bg-amber-500"}`}></span>
+                                        <span className="flex flex-col max-w-[330px]">
+                                            <span data-testid="dashboard-source-badge" data-source={badgeSource || ''} className="text-sm font-bold text-slate-800 dark:text-slate-100">
+                                                {loading && allCities.length > 0 ? "Updating…" : badgeText}
+                                            </span>
+                                            {badgeSource === 'open-meteo' && <OpenMeteoCredit />}
                                         </span>
                                     </div>
                                 </div>

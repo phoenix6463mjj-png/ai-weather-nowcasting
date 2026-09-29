@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { API_BASE } from '../config';
-import { sourceBadge } from '../utils/dashboardRisk';
+import { isLiveSource, sourceBadge } from '../utils/dashboardRisk';
+import OpenMeteoCredit from '../components/OpenMeteoCredit';
 import {
     ArrowLeft,
     RefreshCw,
@@ -127,7 +128,8 @@ const Alerts = () => {
     const [alerts, setAlerts] = useState([]);
     // weather source of the zone list ("sample" | "openweather" | "mixed"); "Live" only for OpenWeather
     const [weatherSource, setWeatherSource] = useState(null);
-    const live = weatherSource === 'openweather';
+    const [dataTime, setDataTime] = useState(null);
+    const live = isLiveSource(weatherSource);
     const [summary, setSummary] = useState({ total: 0, high: 0, moderate: 0, low: 0 });
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -160,6 +162,7 @@ const Alerts = () => {
             setAlerts(fetchedAlerts);
             setSummary(fetchedSummary);
             setWeatherSource(fetchedSummary.source || 'sample');
+            setDataTime(fetchedSummary.data_time || fetchedSummary.latest_observed_at || null);
             setLastSyncTime(data.last_updated ? new Date(data.last_updated) : new Date());
         } catch (err) {
             console.error("Alerts fetch error:", err);
@@ -269,9 +272,12 @@ const Alerts = () => {
                     <div className="flex items-center gap-3 self-start sm:self-center">
                         <div className="flex items-center gap-2">
                             {live ? (
-                                <span data-testid="alerts-source-badge" data-source="openweather" className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
-                                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                                    Live Feed
+                                <span className="inline-flex flex-col items-end">
+                                    <span data-testid="alerts-source-badge" data-source={weatherSource} className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                                        {weatherSource === 'open-meteo' ? `Live Feed · ${sourceBadge(weatherSource, null, dataTime)}` : 'Live Feed'}
+                                    </span>
+                                    {weatherSource === 'open-meteo' && <OpenMeteoCredit className="mt-0.5" />}
                                 </span>
                             ) : (
                                 <span data-testid="alerts-source-badge" data-source={weatherSource || ''} className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200 dark:border-amber-800">

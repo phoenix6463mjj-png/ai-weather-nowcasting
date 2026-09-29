@@ -36,6 +36,7 @@ load_dotenv()
 from utils.api_fetcher import (
     get_coordinates, get_weather_by_coords, get_fallback_mock,
     fetch_weather, async_fetch_weather, _GEO_CACHE, API_KEY, is_valid_api_key,
+    async_fetch_open_meteo, fetch_open_meteo_point, OPEN_METEO_STATS,
 )
 from utils.locations_manager import (
     get_india_locations, get_sampled_locations, find_location_by_name,
@@ -86,6 +87,13 @@ def health_check():
         "total_india_locations": len(get_india_locations()),
         "cached_geo_points": len(_GEO_CACHE),
     }
+
+
+@app.get("/weather_source")
+def weather_source():
+    """Which weather source the backend uses and Open-Meteo request counters (no secrets)."""
+    return {"order": ["openweather (OPENWEATHER_API_KEY set)", "open-meteo", "sample"],
+            "openweather_key_set": is_valid_api_key(API_KEY), "open_meteo": dict(OPEN_METEO_STATS)}
 
 
 @app.get("/locations")
@@ -262,7 +270,7 @@ def generate_alerts(cities_data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     for item in cities_data:
         city = item.get("city", "Unknown")
         risk_level = str(item.get("risk_level") or item.get("risk") or "LOW").upper()
-        
+
         # Weather can be top-level or nested in weather dict
         weather = item.get("weather") or {}
         rain = float(item.get("rainfall") if item.get("rainfall") is not None else weather.get("rainfall", 0.0))
@@ -301,7 +309,7 @@ def generate_alerts(cities_data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
                 "timestamp": now_iso,
                 "message": f"Thunderstorm Alert in {city} (Wind Speed: {wind:.1f} m/s)"
             })
-            
+
     return alerts
 
 
@@ -340,6 +348,7 @@ def predict_risk(request: PredictionRequest):
     pressure = float(weather_data.get("pressure", 1010.0))
     w_source = weather_data.get("source", "sample")
     w_observed = weather_data.get("observed_at")
+    w_time = weather_data.get("data_time") or w_observed
 
     # 3. ML Inference with Rule-Based Fallback (No hardcoded fake LOW)
     now = datetime.now()
@@ -426,6 +435,8 @@ def predict_risk(request: PredictionRequest):
             "pressure": pressure,
             "source": w_source,
             "observed_at": w_observed,
+            "data_time": w_time,
+            "conditions": weather_data.get("conditions"),
         },
         "source": w_source,
         "probabilities": {
@@ -514,8 +525,12 @@ async def get_unified_alerts_dataset(limit: int = 380) -> Dict[str, Any]:
 
         weather_list = []
         chunk_size = 50
+        if not is_valid_api_key(API_KEY):
+            om = await async_fetch_open_meteo([(l["lat"], l["lon"]) for l in locations])
+            weather_list = [w if w else get_fallback_mock(l["city"], l["lat"], l["lon"])
+                            for w, l in zip(om, locations)]
         async with httpx.AsyncClient(timeout=3.5) as client:
-            for chunk_start in range(0, len(locations), chunk_size):
+            for chunk_start in (range(0, len(locations), chunk_size) if is_valid_api_key(API_KEY) else ()):
                 chunk = locations[chunk_start:chunk_start + chunk_size]
                 chunk_results = await asyncio.gather(*[fetch_one(client, loc) for loc in chunk])
                 weather_list.extend(chunk_results)
@@ -542,6 +557,7 @@ async def get_unified_alerts_dataset(limit: int = 380) -> Dict[str, Any]:
             pressure = float(w.get("pressure", 1010.0))
             w_source = w.get("source", "sample")
             w_observed = w.get("observed_at")
+            w_time = w.get("data_time") or w_observed
 
             weather_obj = {
                 "city": city,
@@ -608,6 +624,8 @@ async def get_unified_alerts_dataset(limit: int = 380) -> Dict[str, Any]:
                     "pressure": round(pressure, 1),
                     "source": w_source,
                     "observed_at": w_observed,
+                    "data_time": w_time,
+                    "conditions": w.get("conditions"),
                 },
                 "source": w_source,
                 "prediction": {
@@ -646,6 +664,8 @@ async def get_unified_alerts_dataset(limit: int = 380) -> Dict[str, Any]:
         summary["source"] = sources.pop() if len(sources) == 1 else ("mixed" if sources else "sample")
         summary["n_sample"] = sum(a["source"] == "sample" for a in alerts_list)
         summary["latest_observed_at"] = max(observed) if observed else None
+        times = [a["weather"]["data_time"] for a in alerts_list if a["weather"].get("data_time")]
+        summary["data_time"] = max(times) if times else None
 
         dataset = {
             "summary": summary,
@@ -742,6 +762,12 @@ def get_nowcast(city: str):
         # Fetch real weather data by coordinates
         weather = get_weather_by_coords(lat, lon, city_name=cleaned_city)
         source = "realtime_api"
+        data_time = None
+        if not weather and not is_valid_api_key(API_KEY):
+            weather = fetch_open_meteo_point(lat, lon)
+            if weather:
+                source = "open-meteo"
+                data_time = weather.get("data_time")
 
         if not weather:
             # Fallback if API fails, rate limited, or key missing
@@ -793,6 +819,7 @@ def get_nowcast(city: str):
             "prediction": prediction,
             "alert": alert,
             "source": source,
+            "data_time": data_time,
         }
 
     except Exception as e:

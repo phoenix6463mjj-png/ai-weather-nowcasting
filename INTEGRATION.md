@@ -89,7 +89,8 @@ front, call `Invoke-RestMethod -Method Post http://127.0.0.1:8000/ml/replay/warm
 | `ML_CORS_ORIGINS` | ML serve | `http://localhost:5173,http://127.0.0.1:5173` | browser origins allowed to call `:8001` directly |
 | `NOWCAST_REPLAY_INPUTS` | ML serve | `<root>/raw`, else `<root>/demo_inputs` | archived inputs for on-demand replay |
 | `NOWCAST_REPLAY_TIMEOUT_S` | ML serve | `25` | replay request timeout (the run itself completes and is cached) |
-| `OPENWEATHER_API_KEY` | team backend | none | existing pages only; never in code. Without it, weather is **sample data** and the Dashboard says so. With it, the zone list is cached 30 min (free-tier limits) |
+| `OPENWEATHER_API_KEY` | team backend | none | team pages only; never in code. Weather source order: OpenWeather if this key is set, else **Open-Meteo** (no key, model data), else **sample data**. With a key, the zone list is cached 30 min (free-tier limits) |
+| `OPEN_METEO_DISABLED` | team backend | unset | set to `1` to skip Open-Meteo (then: sample data without a key) |
 
 `VITE_ML_API_BASE`, `VITE_API_BASE` and `ML_API_URL` are the only service URLs. The defaults are the
 local addresses above; nothing else is hard-coded. The only external URLs are the map tiles (OSM, NASA
@@ -469,6 +470,7 @@ screenshots). It did not recur in later page loads or in the e2e runs.
 |---|---|---|
 | Copernicus DEM GLO-90 | terrain hillshade (ML Nowcast, Dashboard "Terrain") | "produced using Copernicus WorldDEM-90 © DLR e.V. 2010-2014 and © Airbus Defence and Space GmbH 2014-2018 provided under COPERNICUS by the European Union and ESA; all rights reserved", verbatim in the Data credits footer + licence and DOI links (`serve/assets/terrain/ATTRIBUTION.md`) |
 | INSAT-3DR via MOSDAC | INSAT layer + Event-check rows (REF045, REF051) | "Data Source MOSDAC/SAC/ISRO. https://mosdac.gov.in" + DOI https://doi.org/10.19038/SAC/10/3RIMG_L1C_ASIA_MER in the footer (`serve/assets/insat/ATTRIBUTION.md`). Only value-added derivatives are shipped, never raw files |
+| Open-Meteo (CC BY 4.0) | team pages' weather when no OpenWeather key is set: "/", Forecast, Alerts, Analytics | "Weather data by Open-Meteo.com" (link) + CC BY 4.0 link + "model data, used as input to rule-based indicators", next to every place its data appear (`OpenMeteoCredit.jsx`). Terms, limits and quotes: `backend/assets/open_meteo_terms.json` |
 | NASA GIBS | Dashboard "Satellite" (VIIRS SNPP corrected reflectance, yesterday UTC) | map attribution "Imagery: NASA GIBS (ESDIS), VIIRS SNPP corrected reflectance, <date>" |
 | OpenStreetMap | all base maps | "© OpenStreetMap contributors" (map attribution); tiles from `https://tile.openstreetmap.org` under the OSM tile usage policy (light use) |
 | IMERG (NASA GPM), ERA5 / GFS | model inputs | named on the pages where they are used (replay banner, Live banner, Approach) |
@@ -486,9 +488,23 @@ screenshots). It did not recur in later page loads or in the e2e runs.
 - INSAT is an observation layer only, not a model input. Using it needs INSAT history + retraining.
   Position uncertainty is ≈ 5–10 km. The product's lookup table stops at 179.9 K, so the coldest tops
   are shown as "≤180 K" and no cooling rate is computed there.
-- The Dashboard's risk is a rule-based indicator on sample weather unless `OPENWEATHER_API_KEY` is
-  set. Its risk distribution (380 zones) is therefore fixed by the city names while sample data is in
-  use.
+- **Weather on the team pages:**
+  - Order: OpenWeather (key set) → **Open-Meteo** (no key) → sample data.
+  - Open-Meteo gives **model data, not observations**. Its "current" values are 15-minutely model data,
+    and rain is the hourly precipitation sum of the preceding hour. The badge says "Open-Meteo (model
+    data), updated HH:MM UTC" and never "observed".
+  - Source-driven "Live" / "Real-Time" wording treats Open-Meteo as live. Risk stays "rule-based
+    indicator (not the ML model)".
+  - The zone list is fetched in batches of 100 (Open-Meteo allows up to 1000 per request) and cached
+    60 min server-side; each request has a 10 s timeout.
+  - Any error means those zones use sample data (labelled as such).
+  - Measured on 29 Sep 2026: 380 zones = 4 requests in ≈ 2.0 s; a repeat within the cache = 0 requests
+    (0.06 s); the Forecast/Analytics list of 100 = 1 request (27 new points, 73 cached).
+  - `GET /weather_source` shows the order and the Open-Meteo counters (no secrets).
+  - Free-tier limits: < 10,000 calls/day, 5,000/hour, 600/min. The 60-min cache keeps one busy site
+    under 10,000/day even if every location counted as one call.
+  - The risk distribution and counts now change with the weather; with sample data they were fixed by
+    the city names. Example: at 13:45Z many humid zones are MODERATE by the humidity > 70 % rule.
 - CAP output is a demo: status Exercise / Test, never Actual. Nothing is sent anywhere, and there is
   no integration with Sachet, IMD or NDMA.
 
@@ -519,10 +535,15 @@ screenshots). It did not recur in later page loads or in the e2e runs.
     - the banner adds "(sample data, rule-based)" on sample data;
     - with the backend down: "Zone data unavailable — backend not reachable", and no risk banner.
 - **Still on the team pages (not changed yet):**
-  - Forecast: "Short-Range (24h NWP)", "Extended Outlook (7 Days)", "Continuous data ingest from
-    backend ML inference", and "Flash flood & waterlogging safeguards recommended" in its alert text;
-  - Analytics: its insight texts mention "Thunderstorm convective probability"; the page still falls
-    back to built-in example nodes when the backend is down, now labelled as such;
+  - Batch 1b resolved the Forecast leftovers:
+    - "Continuous data ingest from backend ML inference" is removed;
+    - "Short-Range (24h NWP)" and "Extended Outlook (7 Days)" are **removed**, not wired: an hourly/daily
+      Open-Meteo endpoint plus remapping the two cards was more than ~15 min;
+    - "safeguards recommended" became "Follow official IMD and state advisories.";
+    - the live-path wording about "observation sensors / ground telemetry / hybrid ML" now names the
+      actual source;
+    - Analytics' "Thunderstorm convective probability" became "Rule-based thunderstorm indicator".
+  - Analytics still falls back to built-in example nodes when the backend is down, now labelled as such;
   - Reports: the fixed example figures (dates, sector counts, river-basin text) are unchanged but labelled
     as examples.
 - Forecast: its source line follows the backend's weather source, with the same text as "/" ("Sample

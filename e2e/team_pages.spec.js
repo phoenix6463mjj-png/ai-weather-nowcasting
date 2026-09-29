@@ -47,6 +47,9 @@ test('Forecast: source line follows the backend; rule-based Score banner; no "Li
         expect(text).not.toMatch(/\blive\b/i);
     } else if (src === 'openweather') {
         await expect(badge).toContainText('OpenWeather');
+    } else if (src === 'open-meteo') {
+        await expect(badge).toContainText('Open-Meteo (model data)');
+        await expect(page.getByTestId('open-meteo-credit').first()).toBeVisible();
     }
 });
 
@@ -56,8 +59,8 @@ test('/alerts: "Live" only for OpenWeather; sample badge otherwise', async ({ pa
     await page.goto('/alerts');
     const badge = page.getByTestId('alerts-source-badge');
     await expect(badge).not.toHaveText('Loading…');
-    if (src === 'openweather') {
-        await expect(badge).toHaveText('Live Feed');
+    if (src === 'openweather' || src === 'open-meteo') {
+        await expect(badge).toContainText('Live Feed');
         return;
     }
     await expect(badge).toHaveText(SAMPLE);

@@ -2,10 +2,11 @@ from dotenv import load_dotenv
 import os
 import requests
 import httpx
+import asyncio
 import time
 import hashlib
 from datetime import datetime, timezone
-from typing import Tuple, Optional, Dict, Any
+from typing import Tuple, Optional, Dict, Any, List
 
 load_dotenv()
 # Also check backend/.env or root .env if not found in current working directory
@@ -128,8 +129,8 @@ def fetch_weather(lat: Any = 22.0, lon: Any = 79.0, city: Optional[str] = None) 
 
     weather_res = None
     if not is_valid_api_key(API_KEY):
-        print("[WARNING] No API key found, using fallback data")
-        weather_res = get_fallback_mock(c_name, lat_f, lon_f)
+        # no OpenWeather key: Open-Meteo model data, else sample data
+        weather_res = fetch_open_meteo_point(lat_f, lon_f) or get_fallback_mock(c_name, lat_f, lon_f)
     else:
         url = f"https://api.openweathermap.org/data/2.5/weather?lat={lat_f}&lon={lon_f}&appid={API_KEY}&units=metric"
         try:
@@ -178,9 +179,9 @@ def fetch_weather(lat: Any = 22.0, lon: Any = 79.0, city: Optional[str] = None) 
 
 
 async def async_fetch_weather(
-    city: Any = "Location", 
-    lat: Optional[float] = 22.0, 
-    lon: Optional[float] = 79.0, 
+    city: Any = "Location",
+    lat: Optional[float] = 22.0,
+    lon: Optional[float] = 79.0,
     client: Optional[httpx.AsyncClient] = None
 ) -> Dict[str, Any]:
     """
@@ -268,32 +269,32 @@ async def async_fetch_weather(
 def get_coordinates(city: str) -> Tuple[Optional[float], Optional[float]]:
     """
     Dynamically resolves latitude and longitude for any city or place using OpenWeather Geo API.
-    
+
     Endpoint:
     https://api.openweathermap.org/geo/1.0/direct?q={city},IN&limit=1&appid={API_KEY}
-    
+
     Returns:
         (lat, lon) as floats if found, otherwise (None, None).
     """
     if not city or not isinstance(city, str):
         return None, None
-        
+
     cleaned_city = city.strip()
     if not cleaned_city:
         return None, None
-        
+
     cache_key = cleaned_city.lower()
     if cache_key in _GEO_CACHE:
         return _GEO_CACHE[cache_key]
 
     if not is_valid_api_key(API_KEY):
         return None, None
-        
+
     try:
         # 1. Primary lookup: query with ',IN' for India location coverage
         geo_url = f"https://api.openweathermap.org/geo/1.0/direct?q={cleaned_city},IN&limit=1&appid={API_KEY}"
         response = requests.get(geo_url, timeout=4)
-        
+
         if response.status_code == 200:
             data = response.json()
             if data and len(data) > 0 and "lat" in data[0] and "lon" in data[0]:
@@ -301,7 +302,7 @@ def get_coordinates(city: str) -> Tuple[Optional[float], Optional[float]]:
                 lon = float(data[0]["lon"])
                 _GEO_CACHE[cache_key] = (lat, lon)
                 return lat, lon
-                
+
         # 2. Fallback lookup: query without ',IN' in case of regional differences
         geo_url_fb = f"https://api.openweathermap.org/geo/1.0/direct?q={cleaned_city}&limit=1&appid={API_KEY}"
         response_fb = requests.get(geo_url_fb, timeout=4)
@@ -312,19 +313,19 @@ def get_coordinates(city: str) -> Tuple[Optional[float], Optional[float]]:
                 lon = float(data_fb[0]["lon"])
                 _GEO_CACHE[cache_key] = (lat, lon)
                 return lat, lon
-                
+
     except Exception as e:
         print(f"[Geo API Error] Failed to resolve coordinates for '{cleaned_city}': {e}")
-        
+
     # Not found or error occurred
     _GEO_CACHE[cache_key] = (None, None)
     return None, None
 
 
 async def async_get_weather_by_coords(
-    client: httpx.AsyncClient, 
-    lat: float, 
-    lon: float, 
+    client: httpx.AsyncClient,
+    lat: float,
+    lon: float,
     city_name: Optional[str] = None
 ) -> Optional[Dict[str, Any]]:
     """
@@ -333,16 +334,16 @@ async def async_get_weather_by_coords(
     """
     if lat is None or lon is None or not is_valid_api_key(API_KEY):
         return None
-        
+
     cache_key = f"{round(lat, 2)},{round(lon, 2)}"
     now = time.time()
-    
+
     # Check cache
     if cache_key in _WEATHER_CACHE:
         cached_data, timestamp = _WEATHER_CACHE[cache_key]
         if now - timestamp < WEATHER_CACHE_TTL:
             return cached_data
-            
+
     url = f"https://api.openweathermap.org/data/2.5/weather?lat={lat}&lon={lon}&appid={API_KEY}&units=metric"
     try:
         response = await client.get(url, timeout=2.5)
@@ -352,16 +353,16 @@ async def async_get_weather_by_coords(
             humidity = float(data["main"]["humidity"])
             wind_speed = float(data["wind"]["speed"])
             pressure = float(data["main"].get("pressure", 1010))
-            
+
             rainfall = 0.0
             if "rain" in data and isinstance(data["rain"], dict) and "1h" in data["rain"]:
                 rainfall = float(data["rain"]["1h"])
-                
+
             coord = data.get("coord", {})
             res_lat = float(coord.get("lat", lat))
             res_lon = float(coord.get("lon", lon))
             res_name = data.get("name") or city_name or "Unknown"
-            
+
             weather_dict = {
                 "temperature": temperature,
                 "humidity": humidity,
@@ -376,7 +377,7 @@ async def async_get_weather_by_coords(
             return weather_dict
     except Exception:
         pass
-        
+
     return None
 
 
@@ -386,14 +387,14 @@ def get_weather_by_coords(lat: float, lon: float, city_name: Optional[str] = Non
     """
     if lat is None or lon is None or not is_valid_api_key(API_KEY):
         return None
-        
+
     cache_key = f"{round(lat, 2)},{round(lon, 2)}"
     now = time.time()
     if cache_key in _WEATHER_CACHE:
         cached_data, timestamp = _WEATHER_CACHE[cache_key]
         if now - timestamp < WEATHER_CACHE_TTL:
             return cached_data
-            
+
     url = f"https://api.openweathermap.org/data/2.5/weather?lat={lat}&lon={lon}&appid={API_KEY}&units=metric"
     try:
         response = requests.get(url, timeout=4)
@@ -403,16 +404,16 @@ def get_weather_by_coords(lat: float, lon: float, city_name: Optional[str] = Non
             humidity = float(data["main"]["humidity"])
             wind_speed = float(data["wind"]["speed"])
             pressure = float(data["main"].get("pressure", 1010))
-            
+
             rainfall = 0.0
             if "rain" in data and isinstance(data["rain"], dict) and "1h" in data["rain"]:
                 rainfall = float(data["rain"]["1h"])
-                
+
             coord = data.get("coord", {})
             res_lat = float(coord.get("lat", lat))
             res_lon = float(coord.get("lon", lon))
             res_name = data.get("name") or city_name or "Unknown"
-            
+
             weather_dict = {
                 "temperature": temperature,
                 "humidity": humidity,
@@ -427,7 +428,7 @@ def get_weather_by_coords(lat: float, lon: float, city_name: Optional[str] = Non
             return weather_dict
     except Exception as e:
         print(f"[Weather API Coords Error] lat={lat}, lon={lon}: {e}")
-        
+
     return None
 
 
@@ -440,16 +441,16 @@ def get_weather_data(city_name: str) -> Optional[Dict[str, Any]]:
     """
     if not city_name or not city_name.strip() or not is_valid_api_key(API_KEY):
         return None
-        
+
     cleaned_name = city_name.strip()
-    
+
     # 1. Dynamic Geolocation
     lat, lon = get_coordinates(cleaned_name)
     if lat is not None and lon is not None:
         weather = get_weather_by_coords(lat, lon, city_name=cleaned_name)
         if weather:
             return weather
-            
+
     # 2. Fallback to direct query by city name
     url = f"https://api.openweathermap.org/data/2.5/weather?q={cleaned_name}&appid={API_KEY}&units=metric"
     try:
@@ -460,16 +461,16 @@ def get_weather_data(city_name: str) -> Optional[Dict[str, Any]]:
             humidity = float(data["main"]["humidity"])
             wind_speed = float(data["wind"]["speed"])
             pressure = float(data["main"].get("pressure", 1010))
-            
+
             rainfall = 0.0
             if "rain" in data and isinstance(data["rain"], dict) and "1h" in data["rain"]:
                 rainfall = float(data["rain"]["1h"])
-                
+
             coord = data.get("coord", {})
             res_lat = float(coord.get("lat")) if coord.get("lat") is not None else lat
             res_lon = float(coord.get("lon")) if coord.get("lon") is not None else lon
             res_name = data.get("name", cleaned_name)
-            
+
             return {
                 "temperature": temperature,
                 "humidity": humidity,
@@ -482,5 +483,128 @@ def get_weather_data(city_name: str) -> Optional[Dict[str, Any]]:
             }
     except Exception as e:
         print(f"[Weather API Name Error] Failed to fetch weather for '{cleaned_name}': {e}")
-        
+
     return None
+
+
+# ============================================================
+# Open-Meteo (no key): weather MODEL data, used when OPENWEATHER_API_KEY is not set.
+# Terms, limits and attribution: backend/assets/open_meteo_terms.json (CC BY 4.0,
+# "Weather data by Open-Meteo.com"). Current values are 15-minutely model data, not
+# observations; rain = the hourly precipitation sum of the preceding hour.
+# ============================================================
+OPEN_METEO_URL = "https://api.open-meteo.com/v1/forecast"
+OPEN_METEO_ENABLED = os.getenv("OPEN_METEO_DISABLED", "") != "1"
+OPEN_METEO_BATCH = 100          # locations per request (Open-Meteo accepts up to 1000)
+OPEN_METEO_TTL = 3600.0         # s; >= 30 min keeps 380 zones within the free 10,000 calls/day
+OPEN_METEO_TIMEOUT = 10.0       # s per request
+OPEN_METEO_CURRENT = "temperature_2m,relative_humidity_2m,wind_speed_10m,weather_code,pressure_msl"
+_OM_CACHE: Dict[Tuple[float, float], Tuple[Dict[str, Any], float]] = {}
+OPEN_METEO_STATS = {"requests": 0, "locations_requested": 0, "cache_hits": 0, "errors": 0}
+
+# WMO weather interpretation codes (Open-Meteo docs) -> short text
+WMO_TEXT = {
+    0: "Clear sky", 1: "Mainly clear", 2: "Partly cloudy", 3: "Overcast", 45: "Fog", 48: "Depositing rime fog",
+    51: "Light drizzle", 53: "Moderate drizzle", 55: "Dense drizzle", 56: "Light freezing drizzle",
+    57: "Dense freezing drizzle", 61: "Slight rain", 63: "Moderate rain", 65: "Heavy rain",
+    66: "Light freezing rain", 67: "Heavy freezing rain", 71: "Slight snow fall", 73: "Moderate snow fall",
+    75: "Heavy snow fall", 77: "Snow grains", 80: "Slight rain showers", 81: "Moderate rain showers",
+    82: "Violent rain showers", 85: "Slight snow showers", 86: "Heavy snow showers", 95: "Thunderstorm",
+    96: "Thunderstorm with slight hail", 99: "Thunderstorm with heavy hail",
+}
+
+
+def _om_key(lat: float, lon: float) -> Tuple[float, float]:
+    return (round(float(lat), 2), round(float(lon), 2))
+
+
+def open_meteo_params(points: List[Tuple[float, float]]) -> Dict[str, Any]:
+    return {
+        "latitude": ",".join(f"{float(la):.4f}" for la, _ in points),
+        "longitude": ",".join(f"{float(lo):.4f}" for _, lo in points),
+        "current": OPEN_METEO_CURRENT, "hourly": "precipitation",
+        "past_hours": 1, "forecast_hours": 1, "wind_speed_unit": "ms", "timezone": "GMT",
+    }
+
+
+def parse_open_meteo(item: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """One location of an Open-Meteo response -> the inputs the rules use; None if incomplete."""
+    try:
+        cur = item["current"]
+        t = cur["time"]
+        temp, hum, ws = cur["temperature_2m"], cur["relative_humidity_2m"], cur["wind_speed_10m"]
+        if temp is None or hum is None or ws is None:
+            return None
+        # rain: the hourly precipitation sum of the preceding hour, at the latest hour not after "current"
+        rain = None
+        hourly = item.get("hourly", {})
+        for ht, v in zip(hourly.get("time", []), hourly.get("precipitation", [])):
+            if ht <= t and v is not None:
+                rain = float(v)
+        if rain is None:
+            return None
+        code = cur.get("weather_code")
+        out = {
+            "temperature": round(float(temp), 1), "humidity": round(float(hum), 1),
+            "rainfall": round(rain, 1), "wind_speed": round(float(ws), 1), "wind": round(float(ws), 1),
+            "conditions": WMO_TEXT.get(code) if code is not None else None, "weather_code": code,
+            "source": "open-meteo", "data_time": f"{t}Z" if not t.endswith("Z") else t, "observed_at": None,
+        }
+        if cur.get("pressure_msl") is not None:
+            out["pressure"] = round(float(cur["pressure_msl"]), 1)
+        return out
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
+async def async_fetch_open_meteo(points: List[Tuple[float, float]], client: Optional[httpx.AsyncClient] = None,
+                                 now: Optional[float] = None) -> List[Optional[Dict[str, Any]]]:
+    """Weather for many points: cached (OPEN_METEO_TTL), else batched requests of <= OPEN_METEO_BATCH
+    locations. Any failure leaves those points as None (the caller falls back to sample data)."""
+    now = time.time() if now is None else now
+    out: List[Optional[Dict[str, Any]]] = [None] * len(points)
+    todo = []
+    for i, (la, lo) in enumerate(points):
+        hit = _OM_CACHE.get(_om_key(la, lo))
+        if hit and now - hit[1] < OPEN_METEO_TTL:
+            out[i] = dict(hit[0])
+            OPEN_METEO_STATS["cache_hits"] += 1
+        else:
+            todo.append(i)
+    if not todo or not OPEN_METEO_ENABLED:
+        return out
+    own = client is None
+    cl = client or httpx.AsyncClient(timeout=OPEN_METEO_TIMEOUT)
+    try:
+        for s in range(0, len(todo), OPEN_METEO_BATCH):
+            idx = todo[s:s + OPEN_METEO_BATCH]
+            pts = [points[i] for i in idx]
+            OPEN_METEO_STATS["requests"] += 1
+            OPEN_METEO_STATS["locations_requested"] += len(idx)
+            try:
+                r = await cl.get(OPEN_METEO_URL, params=open_meteo_params(pts), timeout=OPEN_METEO_TIMEOUT)
+                r.raise_for_status()
+                data = r.json()
+                items = data if isinstance(data, list) else [data]
+                if len(items) != len(idx):
+                    raise ValueError(f"{len(items)} results for {len(idx)} locations")
+                for i, it in zip(idx, items):
+                    w = parse_open_meteo(it)
+                    if w:
+                        out[i] = w
+                        _OM_CACHE[_om_key(*points[i])] = (w, now)
+            except Exception as e:  # noqa: BLE001 -- any failure -> sample data for this batch
+                OPEN_METEO_STATS["errors"] += 1
+                print(f"[OPEN-METEO] batch of {len(idx)} failed: {type(e).__name__}")
+    finally:
+        if own:
+            await cl.aclose()
+    return out
+
+
+def fetch_open_meteo_point(lat: float, lon: float) -> Optional[Dict[str, Any]]:
+    """One point (sync endpoints): same cache and fallback rules."""
+    try:
+        return asyncio.run(async_fetch_open_meteo([(lat, lon)]))[0]
+    except RuntimeError:          # called inside a running loop: skip rather than block it
+        return None

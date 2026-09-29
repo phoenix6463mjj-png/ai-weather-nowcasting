@@ -49,6 +49,7 @@ def test_named_region_cities_are_a_rule_not_randomness():
 
 def test_weather_source_is_labelled_and_https_only(monkeypatch):
     monkeypatch.setattr(api_fetcher, "API_KEY", None)
+    monkeypatch.setattr(api_fetcher, "fetch_open_meteo_point", lambda la, lo: None)   # no network; Open-Meteo "down"
     api_fetcher.weather_cache.clear()
     w = api_fetcher.fetch_weather(25.5, 91.3, "Anywhere")
     assert w["source"] == "sample" and w["observed_at"] is None

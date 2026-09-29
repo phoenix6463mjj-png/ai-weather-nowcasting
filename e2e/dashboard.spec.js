@@ -23,7 +23,7 @@ async function openDashboard(page, tiles = []) {
 test('Dashboard: source badge follows the backend weather source; no LIVE badge on sample data', async ({ page }) => {
     const data = await openDashboard(page);
     const src = data.summary.source;
-    expect(['sample', 'openweather', 'mixed']).toContain(src);
+    expect(['sample', 'openweather', 'open-meteo', 'mixed']).toContain(src);
     const badge = page.getByTestId('dashboard-source-badge');
     if (src === 'sample') {
         await expect(badge).toHaveText('Sample data — no live weather feed');
@@ -33,6 +33,11 @@ test('Dashboard: source badge follows the backend weather source; no LIVE badge 
     } else if (src === 'openweather') {
         await expect(badge).toContainText('OpenWeather, observed');
         await expect(page.getByTestId('sidebar-live')).toHaveText('LIVE');
+    } else if (src === 'open-meteo') {
+        await expect(badge).toContainText('Open-Meteo (model data), updated');
+        await expect(badge).not.toContainText('observed');
+        await expect(page.getByTestId('sidebar-live')).toHaveText('LIVE');
+        await expect(page.getByTestId('open-meteo-credit').first()).toBeVisible();
     }
     await expect(page.getByText('Live AI Nowcasting')).toHaveCount(0);
     await expect(page.getByText('AI Decision Transparency')).toHaveCount(0);

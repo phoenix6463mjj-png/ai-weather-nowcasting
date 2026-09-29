@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { API_BASE } from '../config';
-import { sourceBadge } from '../utils/dashboardRisk';
+import { isLiveSource, sourceBadge } from '../utils/dashboardRisk';
+import OpenMeteoCredit from '../components/OpenMeteoCredit';
 import HonestyBanner from '../components/HonestyBanner';
 import {
     CloudRain,
@@ -151,9 +152,11 @@ const Forecast = () => {
     // weather source of what is shown: /nowcast says "realtime_api" | "fallback_mock", the zone list
     // "openweather" | "sample". "Real-Time" wording only when it really is OpenWeather.
     const rawSource = isRealtime && realtimeData ? realtimeData.source : (currentData?.source || currentData?.weather?.source);
-    const weatherSource = rawSource === 'openweather' || rawSource === 'realtime_api' ? 'openweather' : 'sample';
-    const liveWeather = weatherSource === 'openweather';
-    const sourceText = sourceBadge(weatherSource, isRealtime ? null : currentData?.weather?.observed_at);
+    const weatherSource = rawSource === 'openweather' || rawSource === 'realtime_api' ? 'openweather'
+        : rawSource === 'open-meteo' ? 'open-meteo' : 'sample';
+    const liveWeather = isLiveSource(weatherSource);
+    const sourceText = sourceBadge(weatherSource, isRealtime ? null : currentData?.weather?.observed_at,
+        isRealtime ? realtimeData?.data_time : currentData?.weather?.data_time);
 
     // 1. Search input state, dropdown suggestions & smart fallback message
     const [search, setSearch] = useState("");
@@ -495,7 +498,7 @@ const Forecast = () => {
                 icon: AlertTriangle,
                 heading: `High risk expected in +${highRiskInFuture.hour}h`,
                 badge: liveWeather ? "Rule-based alert on OpenWeather data" : "Rule-based alert on sample data",
-                message: `Intense convective activity projected at +${highRiskInFuture.hour}h with ${highRiskInFuture.rainfall} mm/h precipitation and ${highRiskInFuture.wind_speed} m/s wind. Flash flood & waterlogging safeguards recommended.`,
+                message: `Intense convective activity projected at +${highRiskInFuture.hour}h with ${highRiskInFuture.rainfall} mm/h precipitation and ${highRiskInFuture.wind_speed} m/s wind. Follow official IMD and state advisories.`,
                 hour: highRiskInFuture.hour,
                 rainfall: highRiskInFuture.rainfall,
                 bgClass: "bg-red-500/10 dark:bg-red-950/40 border-red-300 dark:border-red-800/80 text-red-900 dark:text-red-100"
@@ -591,7 +594,7 @@ const Forecast = () => {
                 baseline: activeNowcast.rainfall,
                 average: activeNowcast.rainfall,
                 diff: 0,
-                trajectoryText: liveWeather ? "Live real-time observation" : "Single observation (sample data)"
+                trajectoryText: liveWeather ? "Current value (live weather data)" : "Single value (sample data)"
             };
         }
         const rains = activeForecast.map(f => Number(f.rainfall) || 0);
@@ -665,7 +668,7 @@ const Forecast = () => {
             return {
                 text: realtimeData.alert?.action || (risk === "HIGH" ? "Flood risk rising due to intense rainfall" : risk === "MODERATE" ? "Moderate rainfall and moisture persistence" : "Normal atmospheric conditions across nowcast window"),
                 severity: risk,
-                subtext: `Telemetry: ${realtimeData.rainfall} mm/h rain, ${realtimeData.wind_speed} m/s wind, ${realtimeData.humidity}% humidity. Source: ${sourceBadge(realtimeData.source === 'realtime_api' ? 'openweather' : 'sample')}.`,
+                subtext: `Telemetry: ${realtimeData.rainfall} mm/h rain, ${realtimeData.wind_speed} m/s wind, ${realtimeData.humidity}% humidity. Source: ${sourceBadge(realtimeData.source === 'realtime_api' ? 'openweather' : realtimeData.source === 'open-meteo' ? 'open-meteo' : 'sample', null, realtimeData.data_time)}.`,
                 color: risk === "HIGH" ? "rose" : risk === "MODERATE" ? "amber" : "emerald"
             };
         }
@@ -776,6 +779,7 @@ const Forecast = () => {
                             <p data-testid="forecast-source-badge" data-source={weatherSource} className="text-xs font-bold text-amber-700 dark:text-amber-400 mt-0.5">
                                 {sourceText}
                             </p>
+                            {weatherSource === 'open-meteo' && <OpenMeteoCredit />}
                         </div>
                     </div>
                     <Link
@@ -1051,11 +1055,11 @@ const Forecast = () => {
                         )}
                     </div>
                     <p className="text-slate-600 dark:text-slate-400 text-sm mb-6">
-                        {liveWeather ? 'Real-time localized convective extrapolation using telemetry feeds and hybrid ML probability vectors.'
+                        {liveWeather ? `Localized extrapolation by fixed rules from ${sourceText} (not the ML model).`
                             : 'Localized convective extrapolation from sample weather and fixed rules (not the ML model).'}
                     </p>
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                    <div className="grid grid-cols-1 gap-5">
                         {/* LIVE NOWCAST PANEL with Timeline Slider */}
                         <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 flex flex-col justify-between transition-all duration-300 hover:border-blue-400 dark:hover:border-blue-500/50 hover:shadow-md">
                             <div>
@@ -1115,7 +1119,7 @@ const Forecast = () => {
                                             <span>{liveWeather ? 'Live Nowcast' : 'Nowcast'} (No historical projection available)</span>
                                         </div>
                                         <p className="text-[11px] opacity-90 mt-1">
-                                            Displaying live ground telemetry observations for {activeNodeName}.
+                                            Current values for {activeNodeName} from {sourceText}.
                                         </p>
                                     </div>
                                 )}
@@ -1161,56 +1165,6 @@ const Forecast = () => {
                                 </div>
                             </div>
                         </div>
-
-                        {/* Short-Range (24h) Numerical Output Card */}
-                        <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 flex flex-col justify-between transition-all duration-300 hover:border-slate-300 dark:hover:border-slate-600 hover:shadow-md">
-                            <div>
-                                <h3 className="font-bold text-sm mb-1">Short-Range (24h NWP)</h3>
-                                <p className="text-xs text-slate-500 dark:text-slate-400">
-                                    High-resolution atmospheric mesh boundary conditions.
-                                </p>
-                            </div>
-                            <div className="mt-4 pt-3 border-t border-slate-200 dark:border-slate-700/60">
-                                <div className="flex items-center justify-between text-xs mb-2">
-                                    <span className="text-slate-500 dark:text-slate-400">Nowcast Rain Delta:</span>
-                                    <span className="font-bold text-blue-600 dark:text-blue-400">{comparisonStats.rainDiff} mm</span>
-                                </div>
-                                <div className="flex items-center justify-between text-xs mb-2">
-                                    <span className="text-slate-500 dark:text-slate-400">Atmospheric Humidity:</span>
-                                    <span className="font-bold text-slate-800 dark:text-slate-200">{activeNowcast.humidity}%</span>
-                                </div>
-                                <div className="flex items-center justify-between text-xs">
-                                    <span className="text-slate-500 dark:text-slate-400">Wind Velocity:</span>
-                                    <span className="font-bold text-slate-800 dark:text-slate-200">{activeNowcast.wind_speed} m/s</span>
-                                </div>
-                                <div className="mt-3 p-2 bg-white dark:bg-slate-900/90 rounded-lg border border-slate-200/80 dark:border-slate-700/60 text-[11px] text-slate-500 dark:text-slate-400">
-                                    Continuous data ingest from backend ML inference model.
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Extended Outlook (7 Days) Synoptic Card */}
-                        <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 flex flex-col justify-between transition-all duration-300 hover:border-slate-300 dark:hover:border-slate-600 hover:shadow-md">
-                            <div>
-                                <h3 className="font-bold text-sm mb-1">Extended Outlook (7 Days)</h3>
-                                <p className="text-xs text-slate-500 dark:text-slate-400">
-                                    Rule-based risk evolution over the next hours.
-                                </p>
-                            </div>
-                            <div className="mt-4 pt-3 border-t border-slate-200 dark:border-slate-700/60">
-                                <div className="flex items-center justify-between text-xs mb-2">
-                                    <span className="text-slate-500 dark:text-slate-400">Synoptic Trajectory:</span>
-                                    <span className={`font-bold ${
-                                        activeData?.risk_level === "HIGH" ? "text-red-500" : activeData?.risk_level === "MODERATE" ? "text-amber-500" : "text-emerald-500"
-                                    }`}>
-                                        {activeData?.risk_level === "HIGH" ? "Active Storm Cell" : activeData?.risk_level === "MODERATE" ? "Moisture Influx" : "Steady Normal"}
-                                    </span>
-                                </div>
-                                <div className="mt-3 p-2 bg-white dark:bg-slate-900/90 rounded-lg border border-slate-200/80 dark:border-slate-700/60 text-[11px] text-slate-500 dark:text-slate-400">
-                                    {liveWeather ? 'Ensemble divergence remains aligned with real-time ground stations.' : 'Rule-based indicator on sample weather data.'}
-                                </div>
-                            </div>
-                        </div>
                     </div>
                 </div>
 
@@ -1225,14 +1179,14 @@ const Forecast = () => {
                                 <h2 className="text-lg font-bold">Rainfall Trend Chart (0–4h Projection)</h2>
                             </div>
                             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                                {liveWeather ? 'Real-time dynamic precipitation curve derived from backend forecast telemetry' : 'Precipitation curve extrapolated by fixed rules from sample data'}
+                                {liveWeather ? 'Precipitation curve extrapolated by fixed rules from live weather data' : 'Precipitation curve extrapolated by fixed rules from sample data'}
                             </p>
                         </div>
 
                         {/* Interactive active point badge */}
                         <div className="flex items-center gap-3">
                             <div className="text-right">
-                                <span className="text-[11px] text-slate-400 font-medium block">Active Observation</span>
+                                <span className="text-[11px] text-slate-400 font-medium block">Selected value</span>
                                 <span className="text-sm font-black text-blue-600 dark:text-blue-400">
                                     {activePointData.val} mm ({activePointData.timeLabel})
                                 </span>
@@ -1252,7 +1206,7 @@ const Forecast = () => {
                             </h3>
                             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-md">
                                 {liveWeather
-                                    ? <>Showing instantaneous live telemetry for <strong>{activeNodeName}</strong> directly from real-time atmospheric observation sensors.</>
+                                    ? <>Showing current weather for <strong>{activeNodeName}</strong> from {sourceText}.</>
                                     : <>Showing sample weather values for <strong>{activeNodeName}</strong> (no live weather feed).</>}
                             </p>
                             <div className="mt-4 flex flex-wrap items-center justify-center gap-3 text-xs font-semibold">
@@ -1464,7 +1418,7 @@ const Forecast = () => {
                                         {liveWeather ? 'Live Risk Classification' : 'Rule-based Risk Classification'}: {activeNowcast.risk}
                                     </h3>
                                     <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-sm mx-auto">
-                                        {liveWeather ? 'Live Nowcast (No historical projection available). Telemetry derived from real-time atmospheric observations.'
+                                        {liveWeather ? `Live Nowcast (No historical projection available). Values from ${sourceText}.`
                                             : 'No projection available for a single searched location (sample data).'}
                                     </p>
                                 </div>
@@ -1540,7 +1494,7 @@ const Forecast = () => {
                                         Source: <strong className="text-purple-600 dark:text-purple-400 font-bold">{sourceText}</strong>
                                     </div>
                                     <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 max-w-sm mx-auto">
-                                        {liveWeather ? `Live Nowcast (No historical projection available). Real-time ground sensor telemetry is currently active for ${activeNodeName}.`
+                                        {liveWeather ? `Live Nowcast (No historical projection available). Current values for ${activeNodeName} from ${sourceText}.`
                                             : `No projection available for ${activeNodeName} (sample data).`}
                                     </p>
                                 </div>

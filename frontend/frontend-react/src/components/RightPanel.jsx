@@ -1,6 +1,7 @@
 import React from 'react';
 import { CloudLightning, X, Droplets, Thermometer, Wind, MapPin, AlertTriangle, CloudRain, Sun } from 'lucide-react';
 import { LEVEL_NAMES, RULE_LABEL, explanationText, hazardLevels, primaryThreat, riskText as zoneRisk, sourceBadge } from '../utils/dashboardRisk';
+import OpenMeteoCredit from './OpenMeteoCredit';
 
 const LEVEL_STYLE = [
     'bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-300 dark:border-emerald-800',
@@ -182,8 +183,10 @@ const RightPanel = ({ selectedCity, cityData, onClose }) => {
                 <div>
                     <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider mb-1">Weather</h3>
                     <p data-testid="panel-weather-source" className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 mb-3">
-                        {sourceBadge(cityObj.weather?.source || 'sample', cityObj.weather?.observed_at)}
+                        {sourceBadge(cityObj.weather?.source || 'sample', cityObj.weather?.observed_at, cityObj.weather?.data_time)}
+                        {cityObj.weather?.conditions ? ` · ${cityObj.weather.conditions}` : ''}
                     </p>
+                    {cityObj.weather?.source === 'open-meteo' && <p className="-mt-2 mb-3"><OpenMeteoCredit /></p>}
                     <div className="grid grid-cols-2 gap-3">
                         {/* 1. Temperature */}
                         <div className="bg-slate-50 dark:bg-slate-800/60 rounded-xl p-3 border border-slate-200 dark:border-slate-700/70 flex items-center gap-3 shadow-sm hover:shadow-md transition-shadow">

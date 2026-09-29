@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { API_BASE } from '../config';
 import HonestyBanner from '../components/HonestyBanner';
 import DonutChart from '../components/DonutChart';
+import OpenMeteoCredit from '../components/OpenMeteoCredit';
 import {
     BarChart2,
     ArrowLeft,
@@ -70,9 +71,11 @@ const Analytics = () => {
     const [loading, setLoading] = useState(true);
     const [, setError] = useState(null);
     const isFetchingRef = useRef(false);
-    const liveWeather = dataOrigin === "backend" && data.length > 0 && data.every((d) => (d.source || d.weather?.source) === "openweather");
+    const srcOf = (d) => d.source || d.weather?.source;
+    const liveWeather = dataOrigin === "backend" && data.length > 0 && data.every((d) => ["openweather", "open-meteo"].includes(srcOf(d)));
+    const openMeteo = liveWeather && data.every((d) => srcOf(d) === "open-meteo");
     const dataLabel = dataOrigin === "fallback" ? "built-in example data (backend not reachable)"
-        : liveWeather ? "OpenWeather data" : "sample data";
+        : openMeteo ? "Open-Meteo data (model data)" : liveWeather ? "OpenWeather data" : "sample data";
 
     // 1. FILTER BAR STATE
     const [timeRange, setTimeRange] = useState("Today"); // "Today" | "7 Days" | "30 Days"
@@ -300,7 +303,7 @@ const Analytics = () => {
 
         insights.push({
             type: "warning",
-            text: `Thunderstorm convective probability rising across Southern and Western sectors; active wind shear averages ${avgWind} m/s.`
+            text: `Rule-based thunderstorm indicator elevated across Southern and Western sectors; average wind ${avgWind} m/s.`
         });
 
         insights.push({
@@ -638,6 +641,7 @@ const Analytics = () => {
 
                             <p className="text-xs text-slate-500 dark:text-slate-400 mb-3.5">
                                 <span data-testid="analytics-summary-source">Rule-based summary of {dataLabel}</span> for {selectedRegion}:
+                                {openMeteo && <><br /><OpenMeteoCredit /></>}
                             </p>
 
                             <div className="space-y-2.5">

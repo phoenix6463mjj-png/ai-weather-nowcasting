@@ -1,0 +1,68 @@
+{
+ "checked": "2026-09-29",
+ "provider": "Open-Meteo (https://open-meteo.com)",
+ "fit_for_this_demo": "yes: free non-commercial use covers non-profit websites without subscriptions or advertising; the demo has neither",
+ "facts": [
+  {
+   "topic": "free non-commercial use",
+   "quote": "private or non-profit websites or apps that do not have subscriptions or advertising",
+   "url": "https://open-meteo.com/en/terms"
+  },
+  {
+   "topic": "what counts as commercial",
+   "quote": "Operating websites or apps that have subscriptions or display advertisements",
+   "url": "https://open-meteo.com/en/terms"
+  },
+  {
+   "topic": "rate limits (free)",
+   "quote": "Less than 10'000 API calls per day, 5'000 per hour and 600 per minute.",
+   "url": "https://open-meteo.com/en/terms",
+   "values": {"per_day": 10000, "per_hour": 5000, "per_minute": 600}
+  },
+  {
+   "topic": "call weighting",
+   "quote": "weight = nLocations * (nDays / 14) * (nVariables / 10)",
+   "url": "https://openmeteo.substack.com/p/weather-data-for-multiple-locations",
+   "note": "Per refresh of 380 zones with 1 day and 6 variables: about 380 * 1/14 * 0.6 = 16 calls; at most 380 if every location counts as one call. With the 60-min cache that is at most 24 refreshes (9,120 calls) per day, under the 10,000/day limit."
+  },
+  {
+   "topic": "licence",
+   "quote": "Attribution 4.0 International (CC BY 4.0)",
+   "url": "https://open-meteo.com/en/licence"
+  },
+  {
+   "topic": "attribution requirement",
+   "quote": "You must give appropriate credit, provide a link to the licence, and indicate if changes were made.",
+   "url": "https://open-meteo.com/en/licence"
+  },
+  {
+   "topic": "where the credit goes",
+   "quote": "You must include a link next to any location Open-Meteo data are displayed",
+   "url": "https://open-meteo.com/en/licence",
+   "attribution_text": "Weather data by Open-Meteo.com",
+   "attribution_link": "https://open-meteo.com/",
+   "licence_link": "https://creativecommons.org/licenses/by/4.0/"
+  },
+  {
+   "topic": "many coordinates in one request",
+   "quote": "Multiple coordinates can be comma separated.",
+   "url": "https://open-meteo.com/en/docs"
+  },
+  {
+   "topic": "maximum locations per request",
+   "quote": "you can fetch data for up to 1000 locations in a single go!",
+   "url": "https://openmeteo.substack.com/p/weather-data-for-multiple-locations",
+   "values": {"max_locations": 1000, "used_batch_size": 100}
+  },
+  {
+   "topic": "what 'current' is (model data, not observations)",
+   "quote": "Current conditions are based on 15-minutely weather model data.",
+   "url": "https://open-meteo.com/en/docs"
+  },
+  {
+   "topic": "hourly precipitation used as the 1-hour rain input",
+   "quote": "Total precipitation (rain, showers, snow) sum of the preceding hour",
+   "url": "https://open-meteo.com/en/docs"
+  }
+ ]
+}

@@ -60,9 +60,14 @@ export function explanationText(loc) {
 
 const hhmmUtc = (iso) => `${iso.slice(11, 16)} UTC`;
 
-// Weather source badge text for the page ("sample" = deterministic sample values, not observations).
-export function sourceBadge(source, observedAt) {
+// Live weather sources: OpenWeather (observations, needs a key) and Open-Meteo (model data, no key).
+export const LIVE_SOURCES = ['openweather', 'open-meteo'];
+export const isLiveSource = (source) => LIVE_SOURCES.includes(source);
+
+// Weather source badge text ("sample" = deterministic sample values; Open-Meteo = model data, never "observed").
+export function sourceBadge(source, observedAt, dataTime) {
     if (source === 'openweather') return observedAt ? `OpenWeather, observed ${hhmmUtc(observedAt)}` : 'OpenWeather';
+    if (source === 'open-meteo') return dataTime ? `Open-Meteo (model data), updated ${hhmmUtc(dataTime)}` : 'Open-Meteo (model data)';
     if (source === 'mixed') return 'Mixed: some zones use sample data (no live weather feed)';
     return 'Sample data — no live weather feed';
 }

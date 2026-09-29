@@ -33,7 +33,7 @@ const HeroBanner = ({ cityData, sample = true }) => {
                         {temp != null && (
                             <div data-testid="hero-temp" className="flex flex-col items-center justify-center border-l border-white/20 pl-6">
                                 <span className="text-2xl font-black">{temp}°C</span>
-                                <span className="text-[9px] font-bold text-slate-300 uppercase tracking-wide mt-0.5">{sample ? 'sample data' : 'OpenWeather'}</span>
+                                <span className="text-[9px] font-bold text-slate-300 uppercase tracking-wide mt-0.5">{sample ? 'sample data' : cityData?.weather?.source === 'open-meteo' ? 'Open-Meteo (model data)' : 'OpenWeather'}</span>
                             </div>
                         )}
                     </div>

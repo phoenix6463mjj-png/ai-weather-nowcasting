@@ -32,9 +32,10 @@ test('Analytics: rule-based labels, no validation/XGBoost/94.6%, donut draws wit
     const src = await zoneSource(page);
     await page.goto('/analytics');
     await expect(page.getByTestId('analytics-model-label')).toHaveText('Rule-based indicator (not the ML model)');
-    await expect(page.getByTestId('analytics-summary-source')).toHaveText(`Rule-based summary of ${src === 'openweather' ? 'OpenWeather data' : 'sample data'}`);
+    const label = { openweather: 'OpenWeather data', 'open-meteo': 'Open-Meteo data (model data)' }[src] || 'sample data';
+    await expect(page.getByTestId('analytics-summary-source')).toHaveText(`Rule-based summary of ${label}`);
     await expect(page.getByText('Rule-based summary', { exact: true })).toBeVisible();
-    if (src !== 'openweather') await expect(page.locator('body')).not.toContainText('Real-Time');
+    if (src === 'sample') await expect(page.locator('body')).not.toContainText('Real-Time');
     await expect(page.locator('body')).not.toContainText('94.6');
     await expect(page.locator('body')).not.toContainText('live sensor');
     await expectNoBanned(page);
