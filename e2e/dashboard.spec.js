@@ -48,7 +48,7 @@ test('Dashboard: source badge follows the backend weather source; no LIVE badge 
 test('Dashboard: no % for any hazard, rule-based levels, primary threat agrees with the risk level, no Safe / All Clear', async ({ page }) => {
     const data = await openDashboard(page);
     await expect(page.getByTestId('hazard-level')).toHaveCount(3);
-    await expect(page.getByTestId('rule-label')).toHaveText('rule-based indicator (not the ML model)');
+    await expect(page.getByTestId('rule-label')).toHaveText('(rule-based, not the ML model)');
     for (const lv of await page.getByTestId('hazard-level').all()) {
         expect(['Low', 'Moderate', 'High']).toContain(await lv.getAttribute('data-level'));
     }
@@ -60,16 +60,18 @@ test('Dashboard: no % for any hazard, rule-based levels, primary threat agrees w
         expect(body).not.toMatch(re);
     }
     await expect(page.getByTestId('dashboard-legend')).not.toContainText('%');
-    // the default zone is the first alert (HIGH first): primary threat + no "stable" text
+    // the default zone is the first alert (HIGH first): primary-threat card only for HIGH, no "stable" text,
+    // the rule reason once (never together with "No explanation available")
     const first = data.alerts[0];
     const panel = page.locator('h2', { hasText: first.city }).locator('xpath=ancestor::div[contains(@class,"rounded-2xl")][1]');
     await expect(panel).toContainText(`${first.risk_level} RISK`);
-    if (first.risk_level === 'LOW') await expect(panel).toContainText('No primary threat (low risk)');
-    else {
-        await expect(panel).not.toContainText('No primary threat');
-        await expect(panel).not.toContainText(/stable/i);
-    }
-    await expect(panel).toContainText(first.explanation ? first.explanation : 'No explanation available');
+    await expect(panel.getByTestId('primary-threat')).toHaveCount(first.risk_level === 'HIGH' ? 1 : 0);
+    if (first.risk_level !== 'LOW') await expect(panel).not.toContainText(/stable/i);
+    const expl = panel.getByTestId('rule-explanation');
+    if (first.reason) {
+        await expect(expl).toContainText(`Reason: ${first.reason}`);
+        await expect(expl).not.toContainText('No explanation available');
+    } else await expect(expl).toHaveText(/Rule-based explanation\s*No explanation available/);
 });
 
 test('Dashboard: tile switch requests OSM (single host), NASA GIBS VIIRS yesterday, and the DEM hillshade', async ({ page }) => {

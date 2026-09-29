@@ -435,8 +435,9 @@ screenshots). It did not recur in later page loads or in the e2e runs.
   "coastal" places) is removed from `compute_hybrid_risk`. Identical weather now gives identical risk
   (`tests/test_dashboard_backend.py`).
 - **Risk panel:**
-  - Low / Moderate / High per hazard, "rule-based indicator (not the ML model)"; no % anywhere on the page.
-  - The primary threat exists only for MODERATE / HIGH zones.
+  - Low / Moderate / High per hazard, "rule-based, not the ML model"; no % anywhere on the page.
+  - The primary threat exists only for MODERATE / HIGH zones; its card is shown only for HIGH zones
+    (calm-down fix below).
   - A MODERATE / HIGH zone never shows "stable" text; a zone without an explanation says
     "No explanation available".
   - "Rule-based explanation" replaces "AI Decision Transparency".
@@ -456,6 +457,52 @@ screenshots). It did not recur in later page loads or in the e2e runs.
 - **Tests:**
   - `D:\.venv\Scripts\python.exe -m pytest tests -q` (team backend);
   - `e2e/dashboard.spec.js`: tiles are intercepted, so no network is needed.
+
+### Calm-down fix (30 Sep 2026)
+
+**Team rule change: flash-flood gate** (`backend/main.py`, `flash_flood_gate`):
+- With 0 mm rain in the last hour (shown as 0.0 mm), the flash-flood indicator cannot be above Low.
+  - Its score is held at the LOW-zone score, 0.08 (the page's Moderate cut is 0.40).
+  - The reason ends "; flash flood Low (no rain in the last hour)", and `prediction.flood_note` =
+    "no rain in the last hour" is shown next to Flash Flood in the panel.
+- It applies to `/alerts` (Dashboard, Alerts, Forecast) and `/predict` (Dashboard search).
+- Why:
+  - `/alerts` gives every MODERATE zone a flat flash-flood score of 0.45 (Moderate). That score is also
+    the largest of the three flat scores (0.45 / 0.40 / 0.35), so "Flash Flood" became the primary
+    threat of every MODERATE zone.
+  - A zone is MODERATE when humidity > 70 % (`predict_nowcast`). So Mumbai at 0.0 mm rain, 84 %
+    humidity and 1.8 m/s wind showed a Moderate flash flood as its primary threat.
+- The zone's risk level, the humidity rule and the thunderstorm / cloudburst scores are unchanged.
+- Test: `tests/test_flash_flood_gate.py`.
+- Humidity rule, not changed, just counted. With Open-Meteo data_time 2026-09-29T18:30Z, all 343 of
+  380 zones were MODERATE only because of humidity > 70 % (rain ≤ 5 mm, wind ≤ 6 m/s). 290 of them had
+  0.0 mm rain.
+
+**Panel (`RightPanel.jsx`):**
+- The "Primary Threat" card is shown only for HIGH zones. Low / Moderate zones open with the weather
+  tiles, then "Hazard indicators (rule-based, not the ML model)", then the explanation.
+- "Rule-based explanation" shows the explanation sentence and the rule reason once each.
+  "No explanation available" appears only when there is neither, and never next to a "Reason:".
+  The invented fallback reasons were removed.
+
+**Banner (`AlertBanner.jsx`):**
+- The warning-style banner (icon + "High Alert" pill) appears only when there are HIGH zones.
+- Otherwise a neutral strip: "Rule-based indicators: N moderate, 0 high zones (Open-Meteo model data).
+  Not an official warning." The source part reads "sample data" / "OpenWeather observations" as
+  applicable.
+
+**Time labels:**
+- "Last Updated HH:MM:SS" (panel) and "Last updated …" / "Reported: …" (Alerts) became
+  "Fetched HH:MM UTC", i.e. when the page fetched the data (browser clock, in UTC).
+- The backend's own timestamps are naive server-local times (no time zone), so they are not used for
+  this label.
+
+**Tests:** `e2e/calm.spec.js`, with mocked zones:
+- primary-threat card hidden for Moderate, shown for HIGH;
+- no warning banner with 0 HIGH zones;
+- never "No explanation available" together with "Reason";
+- "Fetched HH:MM UTC" labels;
+- the flash-flood note.
 
 ## 7. Troubleshooting
 

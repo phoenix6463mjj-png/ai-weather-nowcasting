@@ -1,7 +1,9 @@
 import React from 'react';
-import { AlertTriangle, ShieldCheck } from 'lucide-react';
+import { AlertTriangle, Info } from 'lucide-react';
+import { sourceShort } from '../utils/dashboardRisk';
 
-const AlertBanner = ({ locations = [], summary = null, sample = false }) => {
+// Warning-style banner (icon + pill) only when there are HIGH zones; otherwise a neutral info strip.
+const AlertBanner = ({ locations = [], summary = null, sample = false, source = null }) => {
     const note = sample ? ' (sample data, rule-based)' : '';
     // If backend single source of truth summary is provided, use it directly (NO recalculations)
     const highCount = summary != null ? (summary.high ?? 0) : locations.filter(
@@ -11,13 +13,8 @@ const AlertBanner = ({ locations = [], summary = null, sample = false }) => {
         loc => loc.risk === "MODERATE" || loc.prediction?.risk_label === 1 || loc.prediction?.risk_text === "MODERATE"
     ).length;
 
-    // Exact required logic:
-    // IF highCount > 0:
-    //    show "High Risk in X locations"
-    // ELSE IF modCount > 0:
-    //    show "Moderate Risk present"
-    // ELSE:
-    //    show "No high-risk zones in this data"
+    // HIGH zones: "High Risk in X locations" warning banner. Otherwise (Moderate / Low only): the neutral
+    // strip "Rule-based indicators: N moderate, 0 high zones (<source>). Not an official warning."
     if (highCount > 0) {
         return (
             <div className="w-full bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-900/50 rounded-xl p-3.5 flex items-center justify-between shadow-sm transition-all duration-300">
@@ -34,30 +31,12 @@ const AlertBanner = ({ locations = [], summary = null, sample = false }) => {
         );
     }
 
-    if (modCount > 0) {
-        return (
-            <div className="w-full bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-900/50 rounded-xl p-3.5 flex items-center justify-between shadow-sm transition-all duration-300">
-                <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-2 text-orange-600 dark:text-orange-400 font-black text-sm">
-                        <AlertTriangle size={18} className="fill-orange-100 dark:fill-transparent" />
-                        <span data-testid="alert-banner-text">Moderate Risk present ({modCount} locations){note}</span>
-                    </div>
-                </div>
-                <span className="text-[11px] font-black uppercase tracking-wider text-orange-600 dark:text-orange-400 bg-orange-100 dark:bg-orange-950/60 px-2.5 py-1 rounded-md border border-orange-200 dark:border-orange-800">
-                    Advisory
-                </span>
-            </div>
-        );
-    }
-
     return (
-        <div className="w-full bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900/50 rounded-xl p-3.5 flex items-center justify-between shadow-sm transition-all duration-300">
-            <div className="flex items-center gap-3">
-                <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 font-black text-sm">
-                    <ShieldCheck size={18} />
-                    <span>No high-risk zones in this data</span>
-                </div>
-            </div>
+        <div data-testid="info-strip" className="w-full bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-xl px-3.5 py-2.5 flex items-center gap-2 text-slate-600 dark:text-slate-300 text-sm transition-all duration-300">
+            <Info size={16} className="text-slate-400 shrink-0" />
+            <span data-testid="info-strip-text">
+                Rule-based indicators: {modCount} moderate, {highCount} high zones ({sourceShort(source || (sample ? 'sample' : null))}). Not an official warning.
+            </span>
         </div>
     );
 };

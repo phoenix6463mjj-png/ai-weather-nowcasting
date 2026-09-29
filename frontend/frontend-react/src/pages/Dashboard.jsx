@@ -54,6 +54,7 @@ const Dashboard = () => {
             setSource({ source: summaryData.source || 'sample', observedAt: summaryData.latest_observed_at || null, dataTime: summaryData.data_time || null });
 
             const alertsData = data.alerts || (Array.isArray(data) ? data : []);
+            const fetchedAt = new Date().toISOString();      // when this page fetched the zones ("Fetched HH:MM UTC")
             console.log("ALERTS API RESPONSE:", summaryData, "Total alerts:", alertsData.length);
 
             const formatted = alertsData.map((item, index) => ({
@@ -74,7 +75,8 @@ const Dashboard = () => {
                 probabilities: item.probabilities || null,
                 prediction: item.prediction || null,
                 reason: item.reason || item.prediction?.reason || null,
-                timestamp: item.timestamp || null
+                timestamp: item.timestamp || null,
+                fetched_at: fetchedAt
             }));
 
             console.log("Loaded cities:", formatted.length);
@@ -198,6 +200,7 @@ const Dashboard = () => {
                 reason: data.reason || data.prediction?.reason || null,
                 explanation: data.explanation || null,
                 timestamp: data.timestamp || null,
+                fetched_at: new Date().toISOString(),
                 geocoder: 'nominatim'
             };
 
@@ -313,7 +316,7 @@ const Dashboard = () => {
                         {/* Alert Banner: Pure component using backend single source of truth summary */}
                         <div className="px-6 pt-4">
                             {/* only for zone data that actually loaded (never a "no high-risk" banner on an error) */}
-                            {source.source && <AlertBanner locations={allCities} summary={summary} sample={!isLiveSource(source.source)} />}
+                            {source.source && <AlertBanner locations={allCities} summary={summary} sample={!isLiveSource(source.source)} source={source.source} />}
                         </div>
 
                         {/* Interactive Main Map & Right Panel */}

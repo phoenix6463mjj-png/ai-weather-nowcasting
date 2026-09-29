@@ -54,7 +54,7 @@ for (const src of ['sample', 'openweather', 'open-meteo']) {
         await expect(page.getByTestId('sidebar-live')).toHaveCount(e.live ? 1 : 0);
         if (src === 'open-meteo') await expect(page.getByTestId('open-meteo-credit').first()).toBeVisible();
         else await expect(page.getByTestId('open-meteo-credit')).toHaveCount(0);
-        await expect(page.getByTestId('rule-label')).toHaveText('rule-based indicator (not the ML model)');
+        await expect(page.getByTestId('rule-label')).toHaveText('(rule-based, not the ML model)');
         if (src !== 'openweather') await expect(page.locator('body')).not.toContainText('observed');
         // Alerts
         await page.goto('/alerts');

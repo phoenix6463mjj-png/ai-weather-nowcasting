@@ -156,6 +156,21 @@ def generate_explainable_reason(rainfall: float, humidity: float, wind_speed: fl
         return "Normal atmospheric conditions"
 
 
+# Team rule change (2026-09-30, "calm-down fix"; INTEGRATION.md): with no rain in the last hour
+# (rainfall shown as 0.0 mm), the flash-flood indicator cannot be above Low. Its score is held at the
+# score a LOW zone gets (0.08, below the page's Moderate cut of 0.40), and the explanation says why.
+# The zone's overall risk level (including the humidity rule) is unchanged.
+NO_RAIN_NOTE = "no rain in the last hour"
+FLOOD_SCORE_LOW = 0.08
+
+
+def flash_flood_gate(rainfall: float, p_flood: float, reason: str) -> Tuple[float, str, Optional[str]]:
+    """Returns (flash-flood score, reason, note); note is NO_RAIN_NOTE when the gate applied."""
+    if round(float(rainfall or 0.0), 1) > 0.0:
+        return p_flood, reason, None
+    return min(p_flood, FLOOD_SCORE_LOW), f"{reason}; flash flood Low ({NO_RAIN_NOTE})", NO_RAIN_NOTE
+
+
 def engineer_features(data: Dict[str, Any]) -> Dict[str, Any]:
     """
     Feature Engineering for Real-Time Nowcasting:
@@ -407,8 +422,10 @@ def predict_risk(request: PredictionRequest):
     p_cloud = float(hybrid_pred.get("cloudburst", hybrid_pred.get("probabilities", {}).get("HIGH", 0.05)))
     p_flood = float(hybrid_pred.get("flood", hybrid_pred.get("probabilities", {}).get("HIGH", 0.05)))
 
-    alerts = get_alert(hybrid_pred)
     reason = generate_explainable_reason(rainfall, hum, wind, final_risk)
+    p_flood, reason, flood_note = flash_flood_gate(rainfall, p_flood, reason)
+    hybrid_pred["flood"] = hybrid_pred["prob_flood"] = round(p_flood, 2)
+    alerts = get_alert(hybrid_pred)
     actionable_alert = generate_actionable_alert(
         final_risk,
         rainfall,
@@ -460,6 +477,7 @@ def predict_risk(request: PredictionRequest):
             "risk_level": final_risk,
             "risk_label": final_label,
             "reason": reason,
+            "flood_note": flood_note,
         },
         "alerts": alerts,
     }
@@ -599,6 +617,7 @@ async def get_unified_alerts_dataset(limit: int = 380) -> Dict[str, Any]:
             p_cloud = round(0.75 if risk == "HIGH" else (0.35 if risk == "MODERATE" else 0.05), 2)
 
             reason = generate_explainable_reason(rain, hum, wind, risk)
+            p_flood, reason, flood_note = flash_flood_gate(rain, p_flood, reason)
 
             alert_item = {
                 "id": i,
@@ -642,6 +661,7 @@ async def get_unified_alerts_dataset(limit: int = 380) -> Dict[str, Any]:
                     "prob_thunderstorm": p_thunder,
                     "prob_cloudburst": p_cloud,
                     "reason": reason,
+                    "flood_note": flood_note,
                 },
                 "probabilities": {
                     "flash_flood": p_flood,

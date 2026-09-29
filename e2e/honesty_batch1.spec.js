@@ -115,8 +115,10 @@ test('Dashboard banner: "(sample data, rule-based)" on sample data; backend down
     await stubImages(page);
     const src = await zoneSource(page);
     await page.goto('/');
-    const banner = page.getByTestId('alert-banner-text');
-    if (src === 'sample') await expect(banner).toContainText('(sample data, rule-based)');
+    // HIGH zones: warning banner; none: the neutral info strip (calm-down fix)
+    const summary = (await (await page.request.get(`${API}/alerts?limit=380`)).json()).summary;
+    const banner = page.getByTestId(summary.high > 0 ? 'alert-banner-text' : 'info-strip-text');
+    if (src === 'sample') await expect(banner).toContainText(summary.high > 0 ? '(sample data, rule-based)' : '(sample data)');
     else await expect(banner).not.toContainText('sample data');
     const p2 = await page.context().newPage();
     await stubImages(p2);
@@ -124,6 +126,7 @@ test('Dashboard banner: "(sample data, rule-based)" on sample data; backend down
     await p2.goto('/');
     await expect(p2.getByText('Zone data unavailable — backend not reachable')).toBeVisible();
     await expect(p2.getByTestId('alert-banner-text')).toHaveCount(0);
+    await expect(p2.getByTestId('info-strip')).toHaveCount(0);
     await expect(p2.locator('body')).not.toContainText('No high-risk zones');
 });
 

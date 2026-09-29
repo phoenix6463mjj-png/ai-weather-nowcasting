@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { API_BASE } from '../config';
-import { isLiveSource, sourceBadge } from '../utils/dashboardRisk';
+import { fetchedLabel, isLiveSource, sourceBadge } from '../utils/dashboardRisk';
 import OpenMeteoCredit from '../components/OpenMeteoCredit';
 import {
     ArrowLeft,
@@ -78,13 +78,7 @@ const getTimeAgo = (ts, fallbackDate) => {
     return `${diffHr} hrs ago`;
 };
 
-// Format exact time for "Last updated" header (e.g. "12:19 PM, 23 Sep 2026")
-const formatHeaderTime = (date) => {
-    if (!date) return "--:--";
-    const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
-    const dateStr = date.toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' });
-    return `${timeStr}, ${dateStr}`;
-};
+// "Fetched HH:MM UTC" (when this page fetched the alerts), as the source badge
 
 // Normalize severity to standard categories: HIGH, MODERATE, LOW
 const normalizeSeverity = (sev) => {
@@ -163,7 +157,7 @@ const Alerts = () => {
             setSummary(fetchedSummary);
             setWeatherSource(fetchedSummary.source || 'sample');
             setDataTime(fetchedSummary.data_time || fetchedSummary.latest_observed_at || null);
-            setLastSyncTime(data.last_updated ? new Date(data.last_updated) : new Date());
+            setLastSyncTime(new Date());      // fetch time (the backend's last_updated has no time zone)
         } catch (err) {
             console.error("Alerts fetch error:", err);
             setError("Alerts unavailable — backend not reachable");
@@ -286,7 +280,7 @@ const Alerts = () => {
                                 </span>
                             )}
                             <span className="text-xs text-gray-500 dark:text-gray-400 hidden sm:inline">
-                                Last updated: {formatHeaderTime(lastSyncTime)}
+                                {fetchedLabel(lastSyncTime)}
                             </span>
                         </div>
 
@@ -601,7 +595,7 @@ const Alerts = () => {
 
                                                 {alert.timestamp && (
                                                     <div className="text-[10px] text-gray-400 pt-1">
-                                                        Reported: {new Date(alert.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                        {fetchedLabel(lastSyncTime)}
                                                     </div>
                                                 )}
                                             </div>

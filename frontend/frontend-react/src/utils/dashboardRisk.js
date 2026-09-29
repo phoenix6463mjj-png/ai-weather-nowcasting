@@ -5,7 +5,7 @@
 export const RISK_COLOURS = { HIGH: '#ef4444', MODERATE: '#f59e0b', LOW: '#10b981' };
 export const RISK_ORDER = { LOW: 0, MODERATE: 1, HIGH: 2 };
 export const LEVEL_NAMES = ['Low', 'Moderate', 'High'];
-export const RULE_LABEL = 'rule-based indicator (not the ML model)';
+export const RULE_LABEL = 'rule-based, not the ML model';
 export const NO_EXPLANATION = 'No explanation available';
 
 export const HAZARDS = [
@@ -59,6 +59,22 @@ export function explanationText(loc) {
 }
 
 const hhmmUtc = (iso) => `${iso.slice(11, 16)} UTC`;
+
+// "Fetched HH:MM UTC": when this page fetched the data (browser clock, UTC). The backend's own
+// timestamps carry no time zone, so they are not used for this label.
+export function fetchedLabel(fetchedAt) {
+    if (!fetchedAt) return 'Fetched —';
+    const d = new Date(fetchedAt);
+    return Number.isNaN(d.getTime()) ? 'Fetched —' : `Fetched ${hhmmUtc(d.toISOString())}`;
+}
+
+// Neutral wording of the zone-list weather source, for the info strip
+export function sourceShort(source) {
+    if (source === 'open-meteo') return 'Open-Meteo model data';
+    if (source === 'openweather') return 'OpenWeather observations';
+    if (source === 'mixed') return 'mixed: some zones use sample data';
+    return 'sample data';
+}
 
 // Live weather sources: OpenWeather (observations, needs a key) and Open-Meteo (model data, no key).
 export const LIVE_SOURCES = ['openweather', 'open-meteo'];

@@ -1,6 +1,6 @@
 import React from 'react';
 import { CloudLightning, X, Droplets, Thermometer, Wind, MapPin, AlertTriangle, CloudRain, Sun } from 'lucide-react';
-import { LEVEL_NAMES, RULE_LABEL, explanationText, hazardLevels, primaryThreat, riskText as zoneRisk, sourceBadge } from '../utils/dashboardRisk';
+import { LEVEL_NAMES, NO_EXPLANATION, RULE_LABEL, explanationText, fetchedLabel, hazardLevels, primaryThreat, riskText as zoneRisk, sourceBadge } from '../utils/dashboardRisk';
 import OpenMeteoCredit from './OpenMeteoCredit';
 
 const LEVEL_STYLE = [
@@ -10,11 +10,12 @@ const LEVEL_STYLE = [
 ];
 
 // One hazard as a rule-based level (Low / Moderate / High); never a percentage.
-const HazardLevel = ({ label, level, icon, hazard }) => (
+const HazardLevel = ({ label, level, icon, hazard, note }) => (
     <div data-testid="hazard-level" data-hazard={hazard} data-level={LEVEL_NAMES[level]} className="flex items-center justify-between text-xs w-full">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 min-w-0">
             <div className="w-5 flex justify-center items-center text-slate-500 dark:text-slate-400">{icon}</div>
             <span className="font-bold text-slate-700 dark:text-slate-300">{label}</span>
+            {note && <span data-testid="hazard-note" className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 truncate">({note})</span>}
         </div>
         <span className={`px-2 py-0.5 rounded-md border text-[11px] font-black ${LEVEL_STYLE[level]}`}>{LEVEL_NAMES[level]}</span>
     </div>
@@ -40,25 +41,14 @@ const RightPanel = ({ selectedCity, cityData, onClose }) => {
     const riskText = zoneRisk(cityObj);
     const riskLabel = riskText === "HIGH" ? 2 : riskText === "MODERATE" ? 1 : 0;
 
-    // never "stable" text on a MODERATE / HIGH zone; zones without one say so
+    // never "stable" text on a MODERATE / HIGH zone. The backend's rule reason is shown once, under
+    // "Rule-based explanation"; "No explanation available" only when there is neither (never both).
     const explanation = explanationText(cityObj);
+    const reason = cityObj.reason || prediction?.reason || null;
+    const hasExplanation = explanation !== NO_EXPLANATION;
 
-    // Extract explainable reason
-    const reason = cityObj.reason || prediction?.reason || (riskLabel === 2 ? "Severe convective instability and elevated rainfall thresholds." : (riskLabel === 1 ? "Moderate atmospheric convective indicators." : "Normal atmospheric conditions within baseline limits."));
-
-    // Extract & format backend timestamp
-    const rawTimestamp = cityObj.timestamp || prediction?.timestamp;
-    const formatTimestamp = (ts) => {
-        if (!ts) return '—';
-        try {
-            const d = new Date(ts);
-            if (isNaN(d.getTime())) return ts;
-            return d.toLocaleTimeString('en-US', { hour12: false });
-        } catch {
-            return String(ts);
-        }
-    };
-    const lastUpdated = formatTimestamp(rawTimestamp);
+    // when this page fetched the zone data (UTC), as the source badge
+    const fetched = fetchedLabel(cityObj.fetched_at);
 
     let badgeClass = "bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-400 dark:border-emerald-800";
     let badgeText = "LOW RISK";
@@ -102,6 +92,23 @@ const RightPanel = ({ selectedCity, cityData, onClose }) => {
 
     const cityName = city || "Unknown Location";
 
+    // Rule-based explanation: the explanation sentence (if any) and the rule reason, each once;
+    // "No explanation available" only when there is neither
+    const explanationCard = (
+        <div data-testid="rule-explanation" className="bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/50 rounded-xl p-3.5 shadow-xs shrink-0">
+            <div className="mb-1.5">
+                <span className="text-[10px] font-black uppercase tracking-wider text-blue-800 dark:text-blue-300">
+                    Rule-based explanation
+                </span>
+            </div>
+            <div className="text-xs font-semibold text-slate-800 dark:text-slate-100 leading-snug space-y-1">
+                {hasExplanation && <p>{explanation}</p>}
+                {reason && <p>Reason: {reason}</p>}
+                {!hasExplanation && !reason && <p>{NO_EXPLANATION}</p>}
+            </div>
+        </div>
+    );
+
     return (
         <div className="h-full bg-white dark:bg-[#111827] rounded-2xl shadow-lg border border-slate-200 dark:border-gray-700 flex flex-col overflow-hidden">
             {/* Header Area */}
@@ -135,49 +142,29 @@ const RightPanel = ({ selectedCity, cityData, onClose }) => {
                         <AlertTriangle size={14} className={riskLabel === 2 ? "text-red-600 dark:text-red-400" : (riskLabel === 1 ? "text-orange-600 dark:text-orange-400" : "text-emerald-600 dark:text-emerald-400")} />
                         {badgeText}
                     </div>
-                    <span className="text-[11px] font-mono font-semibold text-slate-500 dark:text-slate-400">
-                        Last Updated: {lastUpdated}
+                    <span data-testid="panel-fetched" className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+                        {fetched}
                     </span>
                 </div>
             </div>
 
             <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-5">
 
-                {/* Primary Threat Banner */}
-                <div className="bg-slate-800 dark:bg-slate-800/90 rounded-xl p-4 text-white shadow-md border border-slate-700 flex flex-col relative overflow-hidden shrink-0">
-                    <div className="flex items-center gap-4 mb-2">
-                        <div className="bg-slate-700/60 p-3 rounded-lg z-10 border border-slate-600 shrink-0">
-                            {getThreatIcon()}
+                {/* Primary threat: only for HIGH zones; Low / Moderate zones open with the weather tiles */}
+                {riskLabel === 2 && (
+                    <div data-testid="primary-threat" className="bg-slate-800 dark:bg-slate-800/90 rounded-xl p-4 text-white shadow-md border border-slate-700 flex flex-col relative overflow-hidden shrink-0">
+                        <div className="flex items-center gap-4">
+                            <div className="bg-slate-700/60 p-3 rounded-lg z-10 border border-slate-600 shrink-0">
+                                {getThreatIcon()}
+                            </div>
+                            <div className="z-10 min-w-0 flex-1">
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Primary Threat</p>
+                                <h3 className="text-lg font-black tracking-wide truncate text-white">{primaryThreat_}</h3>
+                            </div>
                         </div>
-                        <div className="z-10 min-w-0 flex-1">
-                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Primary Threat</p>
-                            <h3 className="text-lg font-black tracking-wide truncate text-white">{primaryThreat_}</h3>
-                        </div>
                     </div>
-                    <div className="bg-slate-700/40 rounded-lg p-3 mt-1 border border-slate-600/50 space-y-1.5">
-                        <p className="text-xs font-medium text-slate-200 leading-relaxed">
-                            {explanation}
-                        </p>
-                        <p className="text-xs font-bold text-amber-300">
-                            Reason: {reason}
-                        </p>
-                    </div>
-                </div>
-
-                {/* Explainable AI Reason Card */}
-                <div className="bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/50 rounded-xl p-3.5 shadow-xs shrink-0">
-                    <div className="flex items-center justify-between mb-1.5">
-                        <span className="text-[10px] font-black uppercase tracking-wider text-blue-800 dark:text-blue-300 flex items-center gap-1.5">
-                            Rule-based explanation
-                        </span>
-                        <span className="text-[10px] font-mono text-slate-500 dark:text-slate-400">
-                            Last Updated: {lastUpdated}
-                        </span>
-                    </div>
-                    <div className="text-xs font-semibold text-slate-800 dark:text-slate-100 leading-snug">
-                        Reason: {reason}
-                    </div>
-                </div>
+                )}
+                {riskLabel === 2 && explanationCard}
 
                 {/* 4 Required Weather Metrics */}
                 <div>
@@ -244,19 +231,21 @@ const RightPanel = ({ selectedCity, cityData, onClose }) => {
 
                 {/* Hazard indicators: levels only, rule-based (no percentages on this page) */}
                 <div data-testid="hazard-levels">
-                    <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider mb-1">
-                        Hazard indicators
+                    <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider mb-3">
+                        Hazard indicators{' '}
+                        <span data-testid="rule-label" className="normal-case tracking-normal text-[10px] font-semibold text-slate-500 dark:text-slate-400">({RULE_LABEL})</span>
                     </h3>
-                    <p data-testid="rule-label" className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 mb-3">{RULE_LABEL}</p>
                     <div className="space-y-3 bg-slate-50 dark:bg-slate-800/60 p-4 rounded-xl border border-slate-200 dark:border-slate-700/70 shadow-sm">
                         <HazardLevel hazard="thunderstorm" label="Thunderstorm" level={levels.thunderstorm}
                             icon={<CloudLightning size={16} className="text-amber-500" />} />
                         <HazardLevel hazard="cloudburst" label="Cloudburst" level={levels.cloudburst}
                             icon={<CloudRain size={16} className="text-blue-500" />} />
-                        <HazardLevel hazard="flood" label="Flash Flood" level={levels.flood}
+                        <HazardLevel hazard="flood" label="Flash Flood" level={levels.flood} note={prediction?.flood_note}
                             icon={<Droplets size={16} className="text-teal-500" />} />
                     </div>
                 </div>
+
+                {riskLabel !== 2 && explanationCard}
 
             </div>
         </div>
