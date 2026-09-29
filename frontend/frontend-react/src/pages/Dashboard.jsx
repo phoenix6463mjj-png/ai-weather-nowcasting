@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom';
 import { API_BASE } from '../config';
 import { RISK_COLOURS, isLiveSource, sourceBadge } from '../utils/dashboardRisk';
 import OpenMeteoCredit from '../components/OpenMeteoCredit';
+import NominatimCredit from '../components/NominatimCredit';
+import { geocode, SupersededError } from '../utils/nominatim';
 import Sidebar from '../components/Sidebar';
 import TopHeader from '../components/TopHeader';
 import HeroBanner from '../components/HeroBanner';
@@ -140,9 +142,8 @@ const Dashboard = () => {
         setSearchLoading(true);
         setError(null);
         try {
-            // Fetch coordinates (Nominatim)
-            const geoRes = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(trimmed)}&format=json&limit=1`);
-            const geoData = await geoRes.json();
+            // Fetch coordinates (Nominatim: throttled, cached, within its usage policy; see utils/nominatim.js)
+            const geoData = await geocode(trimmed);
 
             if (!geoData || geoData.length === 0) {
                 throw new Error("Location not found.");
@@ -196,7 +197,8 @@ const Dashboard = () => {
                 prediction: data.prediction || null,
                 reason: data.reason || data.prediction?.reason || null,
                 explanation: data.explanation || null,
-                timestamp: data.timestamp || null
+                timestamp: data.timestamp || null,
+                geocoder: 'nominatim'
             };
 
             console.log("Final Location Object:", newLocation);
@@ -227,6 +229,7 @@ const Dashboard = () => {
 
             setSelectedCity(resolvedCity);
         } catch (err) {
+            if (err instanceof SupersededError) return;      // a newer search replaced this one before it was sent
             setError(err.message || `City '${trimmed}' could not be retrieved. Please check city name.`);
         } finally {
             setSearchLoading(false);
@@ -258,6 +261,7 @@ const Dashboard = () => {
         <div className="flex flex-col h-screen bg-slate-50 dark:bg-[#0b0f19] text-slate-900 dark:text-slate-100 font-sans overflow-hidden transition-colors duration-300">
             {/* Top Navigation Bar */}
             <TopHeader
+                showCredits
                 onSearch={handleSearch}
                 searchLoading={searchLoading}
                 selectedCity={selectedCity?.city}
@@ -381,6 +385,7 @@ const Dashboard = () => {
                                         onClose={() => setSelectedCity(null)}
                                     />
                                 </div>
+                                {selectedCity?.geocoder === 'nominatim' && <NominatimCredit className="shrink-0 px-1" />}
                                 <Link to="/nowcast" data-testid="dashboard-ml-link"
                                     className="shrink-0 text-[11px] font-bold text-blue-700 dark:text-blue-400 hover:underline px-1">
                                     Calibrated 1–6 h nowcasts: ML Nowcast →

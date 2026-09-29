@@ -718,7 +718,7 @@ const Forecast = () => {
     if (backendStatus !== 'ok' && !isRealtime) {
         return (
             <div className="min-h-screen bg-slate-50 dark:bg-[#0b0f19] text-slate-900 dark:text-slate-100 flex flex-col font-sans transition-colors duration-200">
-                <TopHeader onSearch={handleSearchSubmit} searchLoading={loading} selectedCity="" />
+                <TopHeader showCredits onSearch={handleSearchSubmit} searchLoading={loading} selectedCity="" />
                 <main className="flex-1 p-6 md:p-8 max-w-6xl mx-auto w-full space-y-6">
                     <HonestyBanner kind="rule-score" />
                     <div data-testid="forecast-status" data-status={backendStatus}
@@ -749,6 +749,7 @@ const Forecast = () => {
 
             {/* TopHeader - Linked with active city & internal backend node search */}
             <TopHeader
+                showCredits
                 onSearch={handleSearchSubmit}
                 searchLoading={loading}
                 selectedCity={activeNodeName}

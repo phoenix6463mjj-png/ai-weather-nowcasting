@@ -1,0 +1,17 @@
+{
+ "checked": "2026-09-29",
+ "provider": "Nominatim (OpenStreetMap Foundation), https://nominatim.openstreetmap.org",
+ "used_by": "frontend/frontend-react/src/utils/nominatim.js (Dashboard search and region pick, in the browser; the backend does not call Nominatim)",
+ "facts": [
+  {"topic": "rate limit", "quote": "an absolute maximum of 1 request per second", "url": "https://operations.osmfoundation.org/policies/nominatim/",
+   "applied": "one request at a time, at least MIN_INTERVAL_MS = 1000 ms apart", "values": {"min_interval_ms": 1000}},
+  {"topic": "identification", "quote": "Provide a valid HTTP Referer or User-Agent identifying the application", "url": "https://operations.osmfoundation.org/policies/nominatim/",
+   "applied": "browser requests send the Referer (page origin; referrerPolicy strict-origin-when-cross-origin). A browser cannot set User-Agent."},
+  {"topic": "attribution", "quote": "Clearly display attribution as suitable for your medium.", "url": "https://operations.osmfoundation.org/policies/nominatim/",
+   "applied": "NominatimCredit ('© OpenStreetMap contributors', ODbL) next to the searched place on the Dashboard"},
+  {"topic": "caching", "quote": "Results must be cached on your side.", "url": "https://operations.osmfoundation.org/policies/nominatim/",
+   "applied": "per-query cache in memory and sessionStorage; identical queries in flight share one request"},
+  {"topic": "auto-complete", "quote": "you must not implement such a service on the client side using the API", "url": "https://operations.osmfoundation.org/policies/nominatim/",
+   "applied": "search runs only on Find / Enter / region pick; typing sends nothing; a queued search overtaken by a newer one is dropped before it is sent"}
+ ]
+}

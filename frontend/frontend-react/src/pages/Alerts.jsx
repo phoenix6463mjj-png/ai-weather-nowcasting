@@ -249,7 +249,7 @@ const Alerts = () => {
     return (
         <div className="min-h-screen bg-slate-50 dark:bg-[#0b0f19] text-gray-900 dark:text-gray-100 flex flex-col font-sans transition-colors duration-200">
             {/* Top Navigation Header (matches existing Dashboard/Forecast) */}
-            <TopHeader onSearch={() => {}} searchLoading={false} selectedCity="All India" alertCount={highCount} />
+            <TopHeader showCredits onSearch={() => {}} searchLoading={false} selectedCity="All India" alertCount={highCount} />
 
             <main className="flex-1 p-4 sm:p-6 md:p-8 max-w-7xl mx-auto w-full space-y-6">
 

@@ -96,7 +96,7 @@ front, call `Invoke-RestMethod -Method Post http://127.0.0.1:8000/ml/replay/warm
 
 `VITE_ML_API_BASE`, `VITE_API_BASE` and `ML_API_URL` are the only service URLs. The defaults are the
 local addresses above; nothing else is hard-coded. The only external URLs are the map tiles (OSM, NASA
-GIBS), place search (Nominatim, Dashboard) and the team pages' Unsplash background photos.
+GIBS), place search (Nominatim, Dashboard; throttled, see §8) and the team pages' Unsplash background photos.
 
 ## 3. What was added
 
@@ -131,9 +131,11 @@ assets (≈ 13 MB, see `serve/README.md`).
   bottom of the Nowcast page (the demo is public): "produced using Copernicus WorldDEM-90 © DLR
   e.V. 2010-2014 and © Airbus Defence and Space GmbH 2014-2018 provided under COPERNICUS by the
   European Union and ESA; all rights reserved".
-- **Data credits footer** (`components/nowcast/DataCredits.jsx`): renders `GET credits` in order.
-  To add later credits (OSM/ODbL, Nominatim), add an entry to `nowcast_data/serve/credits.py`;
-  the footer needs no change.
+- **Data credits footer** (`components/nowcast/DataCredits.jsx`): renders the `GET credits` entries
+  with `shown_on` "ml", in order: ERA5, IMERG, GFS, IMD, Copernicus DEM, MOSDAC, NASA GIBS, OSM,
+  Open-Meteo. The data lives in `nowcast_data/serve/assets/credits/SOURCES.json` (Batch 3): each
+  entry has the provider's wording, a ≤ 15-word quote with its URL, and whether it was verified. New
+  sources go there; the footer needs no change.
 - Elevation and slope GeoTIFFs for REF045/REF051 are stored for later refuge-point screening. They
   are not drawn yet.
 
@@ -475,7 +477,23 @@ screenshots). It did not recur in later page loads or in the e2e runs.
 | Open-Meteo (CC BY 4.0) | team pages' weather when no OpenWeather key is set: "/", Forecast, Alerts, Analytics | "Weather data by Open-Meteo.com" (link) + CC BY 4.0 link + "model data, used as input to rule-based indicators", next to every place its data appear (`OpenMeteoCredit.jsx`). Terms, limits and quotes: `backend/assets/open_meteo_terms.json` |
 | NASA GIBS | Dashboard "Satellite" (VIIRS SNPP corrected reflectance, yesterday UTC) | map attribution "Imagery: NASA GIBS (ESDIS), VIIRS SNPP corrected reflectance, <date>" |
 | OpenStreetMap | all base maps | "© OpenStreetMap contributors" (map attribution); tiles from `https://tile.openstreetmap.org` under the OSM tile usage policy (light use) |
-| IMERG (NASA GPM), ERA5 / GFS | model inputs | named on the pages where they are used (replay banner, Live banner, Approach) |
+| IMERG (NASA GPM), ERA5 / GFS | model inputs | named on the pages where they are used (replay banner, Live banner, Approach). Required wording + DOIs in the Data credits footer (Batch 3) |
+| IMD gridded rainfall | cross-check (ML); team model data | Pai et al. 2014 citation, in the footer and the team Credits popover |
+| Nominatim (OSM data, ODbL) | Dashboard place search | "Place search: © OpenStreetMap contributors, ODbL, via Nominatim" next to the searched place (`NominatimCredit.jsx`) and in the team Credits popover |
+| Unsplash | team pages' background photos (HeroBanner, Sidebar) | "Photo: Unsplash" on each photo (the URLs do not name the photographer) and "Photos: Unsplash." in the popover |
+
+**Team pages' Credits (Batch 3):**
+- An info icon (1366) or a "Credits" label (≥ 1536 px) in the top bar of Dashboard, Forecast, Alerts,
+  Analytics and Reports opens a popover (Esc / × / click outside closes it).
+- It lists the `GET credits` entries with `shown_on` "team". ML pages keep their footer instead.
+
+**Nominatim usage policy (Batch 3, `utils/nominatim.js`, quotes in `backend/assets/nominatim_policy.json`):**
+- one request at a time, at least 1 s apart ("an absolute maximum of 1 request per second");
+- per-query cache (memory + sessionStorage), with identical in-flight queries shared;
+- no auto-complete: only Find / Enter / region pick sends a request. A queued search overtaken by a
+  newer one is dropped before it is sent (latest wins);
+- the browser sends the Referer (page origin) as identification; a browser cannot set User-Agent. The
+  backend never calls Nominatim.
 
 ## 9. Known limitations and known issues
 

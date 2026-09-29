@@ -2,8 +2,9 @@ import React, { useState } from 'react';
 import { NavLink, Link, useNavigate } from 'react-router-dom';
 import { Search, Bell, MapPin, CloudLightning } from 'lucide-react';
 import ThemeToggle from './ThemeToggle';
+import TeamCredits from './TeamCredits';
 
-const TopHeader = ({ onSearch, searchLoading, selectedCity, alertCount = null }) => {
+const TopHeader = ({ onSearch, searchLoading, selectedCity, alertCount = null, showCredits = false }) => {
     const [searchInput, setSearchInput] = useState('');
     const navigate = useNavigate();
 
@@ -100,7 +101,7 @@ const TopHeader = ({ onSearch, searchLoading, selectedCity, alertCount = null })
                 </NavLink>
             </nav>
 
-            <div className="flex items-center gap-6">
+            <div className={`flex items-center ${showCredits ? 'gap-4 2xl:gap-6' : 'gap-6'}`}>
                 <form onSubmit={handleSubmit} className="relative hidden md:flex items-center">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                     <input 
@@ -124,6 +125,8 @@ const TopHeader = ({ onSearch, searchLoading, selectedCity, alertCount = null })
                     </button>
                 </form>
                 
+                {showCredits && <TeamCredits />}
+
                 <Link to="/alerts" className="relative cursor-pointer hover:opacity-80 transition-opacity" title="View Weather Alerts">
                     <Bell size={20} className="text-slate-600 dark:text-slate-300" />
                     {alertCount != null && alertCount > 0 && (

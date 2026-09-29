@@ -316,7 +316,7 @@ const Analytics = () => {
 
     return (
         <div className="min-h-screen bg-slate-50 dark:bg-[#0b0f19] text-slate-900 dark:text-slate-100 flex flex-col font-sans transition-colors duration-200">
-            <TopHeader onSearch={() => {}} searchLoading={false} selectedCity="All India" />
+            <TopHeader showCredits onSearch={() => {}} searchLoading={false} selectedCity="All India" />
 
             <main className="flex-1 p-6 md:p-8 max-w-7xl mx-auto w-full">
                 <HonestyBanner kind="illustrative" />

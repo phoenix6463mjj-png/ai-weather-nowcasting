@@ -186,6 +186,7 @@ const Sidebar = ({
                 <div className="relative rounded-xl overflow-hidden shadow-sm h-32 flex flex-col justify-end p-4 border border-slate-200 dark:border-slate-800">
                     <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1542224566-6e85f2e6772f?auto=format&fit=crop&w=600&q=80')] bg-cover bg-center"></div>
                     <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent"></div>
+                    <a data-testid="photo-credit" href="https://unsplash.com/license" target="_blank" rel="noreferrer" className="absolute top-1 right-2 z-20 px-1.5 py-px rounded bg-black/45 text-[9px] font-semibold text-white hover:bg-black/70">Photo: Unsplash</a>
                     <div className="relative z-10 flex items-center justify-between">
                         <div>
                             <p className="text-white font-bold leading-tight text-sm">Monitoring Today<br/>for a Safer Tomorrow</p>

@@ -15,6 +15,8 @@ const HeroBanner = ({ cityData, sample = true }) => {
             {/* Gradient overlay to make text pop and match theme seamlessly */}
             <div className="absolute inset-0 bg-gradient-to-r from-blue-50/95 via-blue-50/80 to-transparent dark:from-slate-900/95 dark:via-slate-900/80 dark:to-transparent"></div>
 
+            {/* the image URL does not identify the photographer, so the generic Unsplash credit */}
+            <a data-testid="photo-credit" href="https://unsplash.com/license" target="_blank" rel="noreferrer" className="absolute bottom-1 right-2 z-20 px-1.5 py-px rounded bg-black/45 text-[9px] font-semibold text-white hover:bg-black/70">Photo: Unsplash</a>
             <div className="relative z-10 h-full flex items-center justify-between px-10">
                 <div>
                     <h2 className="text-4xl font-black text-slate-800 dark:text-white leading-tight tracking-tight">Stronger Forecasts<br/>Safer Communities</h2>
