@@ -99,3 +99,23 @@ test('pre-hosting screenshots of /alerts and /forecast at 1920x1080 and 1366x768
         await page.screenshot({ path: path.join(SHOTS, `prehost_forecast_note_${w}x${h}.png`) });
     }
 });
+
+test('Alerts wording: zones monitored, rule-based subtitle with ML Nowcast link, card captions', async ({ page }) => {
+    const ts = new Date().toISOString();
+    await mock(page, [
+        zone('Mumbai', 'MODERATE', ['Humidity above 70 %'], { ts }),
+        zone('Calmabad', 'LOW', [], { hum: 50, ts }),
+    ], ts);
+    await page.goto('/alerts');
+    const sub = page.getByTestId('alerts-subtitle');
+    await expect(sub).toHaveText('Rule-based indicators from current weather (not the ML model). ML forecasts: ML Nowcast →');
+    await expect(sub.getByRole('link', { name: 'ML Nowcast →' })).toHaveAttribute('href', '/nowcast');
+    await expect(page.getByTestId('alerts-card-total')).toContainText('Zones monitored');
+    await expect(page.getByTestId('alerts-card-total')).toContainText('2');
+    await expect(page.getByTestId('alerts-card-total')).toContainText('rule-based indicators from current weather');
+    await expect(page.getByTestId('alerts-card-moderate')).toContainText('Moderate on rule-based indicators');
+    await expect(page.getByTestId('alerts-card-low')).toContainText('No rule fired');
+    const text = await page.locator('main').innerText();
+    for (const s of ['Total Alerts', 'Active alerts across India', 'Real-time weather threats', 'emergency notifications',
+        'Advisory watch status', 'Controlled baseline']) expect(text, s).not.toContain(s);
+});

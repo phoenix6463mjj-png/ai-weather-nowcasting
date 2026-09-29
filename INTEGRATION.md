@@ -555,6 +555,18 @@ screenshots). It did not recur in later page loads or in the e2e runs.
     - The invented narrative subtexts ("Urban drainage overflow likely", "active convective cell
       development", …) were replaced by that line.
 
+**Alerts wording (30 Sep 2026, Alerts page only):**
+- The summary cards read:
+  - "Zones monitored / rule-based indicators from current weather" (was "Total Alerts / Active alerts
+    across India");
+  - Moderate: "Moderate on rule-based indicators" (was "Advisory watch status");
+  - Low: "No rule fired" (was "Controlled baseline").
+- Subtitle, for every source: "Rule-based indicators from current weather (not the ML model). ML
+  forecasts: ML Nowcast →" (link `/nowcast`). It was "Real-time weather threats and emergency
+  notifications" on live data.
+- The source pill and the "Fetched" label no longer wrap.
+- Test: `e2e/prehosting.spec.js` ("Alerts wording").
+
 **Tests:**
 - `tests/test_utc_timestamps.py`: the same frozen instant, server in UTC and in India time (TZ
   `UTC0` / `IST-5:30` on Windows, `UTC` / `Asia/Kolkata` elsewhere), gives identical "…Z" output.

@@ -235,7 +235,7 @@ const Alerts = () => {
 
                 {/* 1. HEADER (CLEAN & MINIMAL, NO OVERDESIGN) */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-1">
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
                         <div className="p-2.5 rounded-lg bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-400 border border-red-100 dark:border-red-900/40">
                             <Radio size={22} />
                         </div>
@@ -243,8 +243,9 @@ const Alerts = () => {
                             <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-white">
                                 Weather Alerts
                             </h1>
-                            <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-                                {live ? 'Real-time weather threats and emergency notifications' : 'Weather threats and notifications (rule-based)'}
+                            <p data-testid="alerts-subtitle" className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+                                Rule-based indicators from current weather (not the ML model). ML forecasts:{' '}
+                                <Link to="/nowcast" className="font-medium text-blue-600 dark:text-blue-400 hover:underline">ML Nowcast →</Link>
                             </p>
                         </div>
                     </div>
@@ -253,7 +254,7 @@ const Alerts = () => {
                         <div className="flex items-center gap-2">
                             {live ? (
                                 <span className="inline-flex flex-col items-end">
-                                    <span data-testid="alerts-source-badge" data-source={weatherSource} className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                                    <span data-testid="alerts-source-badge" data-source={weatherSource} className="inline-flex items-center gap-1.5 whitespace-nowrap px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
                                         <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
                                         {weatherSource === 'open-meteo' ? `Live Feed · ${sourceBadge(weatherSource, null, dataTime)}` : 'Live Feed'}
                                     </span>
@@ -265,7 +266,7 @@ const Alerts = () => {
                                     {error ? 'Backend not reachable' : weatherSource ? sourceBadge(weatherSource) : 'Loading…'}
                                 </span>
                             )}
-                            <span className="text-xs text-gray-500 dark:text-gray-400 hidden sm:inline">
+                            <span className="text-xs text-gray-500 dark:text-gray-400 hidden sm:inline whitespace-nowrap">
                                 {fetchedLabel(lastSyncTime)}
                             </span>
                         </div>
@@ -292,17 +293,17 @@ const Alerts = () => {
 
                 {/* 2. TOP SUMMARY CARDS (FLAT WHITE CARDS, NO GRADIENTS) */}
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                    {/* Total Alerts */}
-                    <div className="bg-white dark:bg-[#111827] border border-gray-200 dark:border-gray-700 rounded-lg p-4 shadow-sm flex items-center justify-between transition-all duration-200 hover:shadow-md">
+                    {/* Zones monitored */}
+                    <div data-testid="alerts-card-total" className="bg-white dark:bg-[#111827] border border-gray-200 dark:border-gray-700 rounded-lg p-4 shadow-sm flex items-center justify-between transition-all duration-200 hover:shadow-md">
                         <div>
                             <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                                Total Alerts
+                                Zones monitored
                             </span>
                             <div className="text-2xl font-bold text-blue-600 dark:text-blue-400 mt-0.5">
                                 {totalCount}
                             </div>
                             <span className="text-xs text-gray-500 dark:text-gray-400">
-                                Active alerts across India
+                                rule-based indicators from current weather
                             </span>
                         </div>
                         <div className="p-2.5 rounded-lg bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400">
@@ -329,7 +330,7 @@ const Alerts = () => {
                     </div>
 
                     {/* Moderate */}
-                    <div className="bg-white dark:bg-[#111827] border border-gray-200 dark:border-gray-700 rounded-lg p-4 shadow-sm flex items-center justify-between transition-all duration-200 hover:shadow-md">
+                    <div data-testid="alerts-card-moderate" className="bg-white dark:bg-[#111827] border border-gray-200 dark:border-gray-700 rounded-lg p-4 shadow-sm flex items-center justify-between transition-all duration-200 hover:shadow-md">
                         <div>
                             <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
                                 Moderate
@@ -338,7 +339,7 @@ const Alerts = () => {
                                 {modCount}
                             </div>
                             <span className="text-xs text-gray-500 dark:text-gray-400">
-                                Advisory watch status
+                                Moderate on rule-based indicators
                             </span>
                         </div>
                         <div className="p-2.5 rounded-lg bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400">
@@ -347,7 +348,7 @@ const Alerts = () => {
                     </div>
 
                     {/* Low */}
-                    <div className="bg-white dark:bg-[#111827] border border-gray-200 dark:border-gray-700 rounded-lg p-4 shadow-sm flex items-center justify-between transition-all duration-200 hover:shadow-md">
+                    <div data-testid="alerts-card-low" className="bg-white dark:bg-[#111827] border border-gray-200 dark:border-gray-700 rounded-lg p-4 shadow-sm flex items-center justify-between transition-all duration-200 hover:shadow-md">
                         <div>
                             <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
                                 Low
@@ -356,7 +357,7 @@ const Alerts = () => {
                                 {lowCount}
                             </div>
                             <span className="text-xs text-gray-500 dark:text-gray-400">
-                                Controlled baseline
+                                No rule fired
                             </span>
                         </div>
                         <div className="p-2.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400">
