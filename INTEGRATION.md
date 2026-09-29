@@ -495,11 +495,16 @@ screenshots). It did not recur in later page loads or in the e2e runs.
 **Known issues (team pages; not changed):**
 - Dashboard sidebar: "Live Map" and "Locations" only reload the zone list, "Settings" opens Analytics,
   and the avatar does nothing.
-- Analytics / Reports show fixed validation figures ("94.6% accuracy", "Validation 96.2%", …).
-- The Forecast page labels its data "Source: OpenWeather Real-Time API" and shows a "Score: 90%".
-  Both appear regardless of whether a key is set.
-- The Alerts page (`/alerts`) says "Live Feed", "Real-time weather threats" and "Live • Just now"
-  even on sample data.
+- Analytics / Reports still show fixed figures ("94.6% accuracy", "Validation 96.2%", …). A banner at
+  the top of each now says "Illustrative figures — not from the ML model. Measured skill: ML Nowcast →
+  Results". The figures themselves and Analytics' "Real-Time Atmospheric Telemetry" subtitle are
+  unchanged.
+- Forecast: its source line follows the backend's weather source, with the same text as "/" ("Sample
+  data — no live weather feed" / "OpenWeather, observed HH:MM UTC"). With sample data it shows no
+  "Live" / "Real-Time" wording. A banner says "Score" and the risk levels are a rule-based indicator,
+  not the ML model. The fixed "Score" and "Model Confidence" values themselves are unchanged.
+- /alerts: "Live Feed" and "Live • …" appear only when the source is OpenWeather; otherwise it shows
+  "Sample data — no live weather feed".
 - `backend/main.py` allows any CORS origin with credentials (`allow_origins=["*"]`). Restrict it
   for hosting.
 - `nowcast_data/scripts/build_state_mask.py` (offline, not shipped) has a hard-coded local input

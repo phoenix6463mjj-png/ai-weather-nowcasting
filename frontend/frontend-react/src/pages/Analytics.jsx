@@ -1,33 +1,34 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { API_BASE } from '../config';
-import { 
-    BarChart2, 
-    ArrowLeft, 
-    RefreshCw, 
-    Wind, 
-    Droplets, 
-    CloudRain, 
-    Sparkles, 
-    Calendar, 
-    Filter, 
-    MapPin, 
+import HonestyBanner from '../components/HonestyBanner';
+import {
+    BarChart2,
+    ArrowLeft,
+    RefreshCw,
+    Wind,
+    Droplets,
+    CloudRain,
+    Sparkles,
+    Calendar,
+    Filter,
+    MapPin,
     CheckCircle2
 } from 'lucide-react';
-import { 
-    ResponsiveContainer, 
-    LineChart, 
-    Line, 
-    BarChart, 
-    Bar, 
-    PieChart, 
-    Pie, 
-    Cell, 
-    XAxis, 
-    YAxis, 
-    CartesianGrid, 
-    Tooltip, 
-    Legend 
+import {
+    ResponsiveContainer,
+    LineChart,
+    Line,
+    BarChart,
+    Bar,
+    PieChart,
+    Pie,
+    Cell,
+    XAxis,
+    YAxis,
+    CartesianGrid,
+    Tooltip,
+    Legend
 } from 'recharts';
 import TopHeader from '../components/TopHeader';
 
@@ -255,7 +256,7 @@ const Analytics = () => {
     // 5. TOP RISK CITIES (Ranked List)
     const topRiskCities = useMemo(() => {
         const dataset = filteredDataset.length > 0 ? filteredDataset : (data.length > 0 ? data : FALLBACK_NODES);
-        
+
         // Priority sort: HIGH -> MODERATE -> LOW, then rainfall
         const sorted = [...dataset].sort((a, b) => {
             const getRank = (r) => {
@@ -313,8 +314,9 @@ const Analytics = () => {
     return (
         <div className="min-h-screen bg-slate-50 dark:bg-[#0b0f19] text-slate-900 dark:text-slate-100 flex flex-col font-sans transition-colors duration-200">
             <TopHeader onSearch={() => {}} searchLoading={false} selectedCity="All India" />
-            
+
             <main className="flex-1 p-6 md:p-8 max-w-7xl mx-auto w-full">
+                <HonestyBanner kind="illustrative" />
                 {/* Header Title Bar */}
                 <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div className="flex items-center gap-3">
@@ -341,7 +343,7 @@ const Analytics = () => {
                             <RefreshCw size={13} className={loading ? "animate-spin text-blue-500" : ""} />
                             <span>{loading ? "Updating..." : "Refresh"}</span>
                         </button>
-                        <Link 
+                        <Link
                             to="/"
                             className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl transition-colors shadow-xs"
                         >
@@ -496,43 +498,43 @@ const Analytics = () => {
                             <ResponsiveContainer width="100%" height="100%">
                                 <LineChart data={lineChartData} margin={{ top: 10, right: 15, left: -15, bottom: 0 }}>
                                     <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" className="dark:stroke-slate-800" />
-                                    <XAxis 
-                                        dataKey="time" 
-                                        tick={{ fill: '#64748b', fontSize: 11 }} 
+                                    <XAxis
+                                        dataKey="time"
+                                        tick={{ fill: '#64748b', fontSize: 11 }}
                                         stroke="#cbd5e1"
                                         className="dark:stroke-slate-700"
                                     />
-                                    <YAxis 
-                                        tick={{ fill: '#64748b', fontSize: 11 }} 
+                                    <YAxis
+                                        tick={{ fill: '#64748b', fontSize: 11 }}
                                         stroke="#cbd5e1"
                                         className="dark:stroke-slate-700"
                                         unit="mm"
                                     />
-                                    <Tooltip 
-                                        contentStyle={{ 
-                                            backgroundColor: '#0f172a', 
-                                            borderColor: '#334155', 
-                                            borderRadius: '8px', 
+                                    <Tooltip
+                                        contentStyle={{
+                                            backgroundColor: '#0f172a',
+                                            borderColor: '#334155',
+                                            borderRadius: '8px',
                                             color: '#f8fafc',
                                             fontSize: '12px',
                                             fontWeight: 'bold'
                                         }}
                                         formatter={(val) => [`${val} mm`, 'Rainfall']}
                                     />
-                                    <Line 
-                                        type="monotone" 
-                                        dataKey="rainfall" 
-                                        stroke="#3b82f6" 
-                                        strokeWidth={2.5} 
+                                    <Line
+                                        type="monotone"
+                                        dataKey="rainfall"
+                                        stroke="#3b82f6"
+                                        strokeWidth={2.5}
                                         dot={{ fill: '#3b82f6', r: 4 }}
                                         activeDot={{ r: 6, fill: '#2563eb' }}
                                         name="Rainfall"
                                     />
-                                    <Line 
-                                        type="monotone" 
-                                        dataKey="threshold" 
-                                        stroke="#ef4444" 
-                                        strokeWidth={1.5} 
+                                    <Line
+                                        type="monotone"
+                                        dataKey="threshold"
+                                        stroke="#ef4444"
+                                        strokeWidth={1.5}
                                         strokeDasharray="4 4"
                                         dot={false}
                                         name="Warning Threshold"
@@ -562,29 +564,29 @@ const Analytics = () => {
                             <ResponsiveContainer width="100%" height="100%">
                                 <BarChart data={barChartData} margin={{ top: 10, right: 15, left: -15, bottom: 0 }}>
                                     <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" className="dark:stroke-slate-800" />
-                                    <XAxis 
-                                        dataKey="city" 
-                                        tick={{ fill: '#64748b', fontSize: 11 }} 
+                                    <XAxis
+                                        dataKey="city"
+                                        tick={{ fill: '#64748b', fontSize: 11 }}
                                         stroke="#cbd5e1"
                                         className="dark:stroke-slate-700"
                                     />
-                                    <YAxis 
-                                        tick={{ fill: '#64748b', fontSize: 11 }} 
+                                    <YAxis
+                                        tick={{ fill: '#64748b', fontSize: 11 }}
                                         stroke="#cbd5e1"
                                         className="dark:stroke-slate-700"
                                         unit="mm"
                                     />
-                                    <Tooltip 
-                                        contentStyle={{ 
-                                            backgroundColor: '#0f172a', 
-                                            borderColor: '#334155', 
-                                            borderRadius: '8px', 
+                                    <Tooltip
+                                        contentStyle={{
+                                            backgroundColor: '#0f172a',
+                                            borderColor: '#334155',
+                                            borderRadius: '8px',
                                             color: '#f8fafc',
                                             fontSize: '12px',
                                             fontWeight: 'bold'
                                         }}
                                         formatter={(val, name, item) => [
-                                            `${val} mm (${item.payload.risk})`, 
+                                            `${val} mm (${item.payload.risk})`,
                                             'Precipitation'
                                         ]}
                                     />
@@ -628,19 +630,19 @@ const Analytics = () => {
                                             <Cell key={`cell-${index}`} fill={entry.color} />
                                         ))}
                                     </Pie>
-                                    <Tooltip 
-                                        contentStyle={{ 
-                                            backgroundColor: '#0f172a', 
-                                            borderColor: '#334155', 
-                                            borderRadius: '8px', 
+                                    <Tooltip
+                                        contentStyle={{
+                                            backgroundColor: '#0f172a',
+                                            borderColor: '#334155',
+                                            borderRadius: '8px',
                                             color: '#f8fafc',
                                             fontSize: '12px',
                                             fontWeight: 'bold'
                                         }}
                                         formatter={(val, name) => [`${val} nodes`, name]}
                                     />
-                                    <Legend 
-                                        verticalAlign="bottom" 
+                                    <Legend
+                                        verticalAlign="bottom"
                                         iconSize={9}
                                         wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }}
                                     />
@@ -672,7 +674,7 @@ const Analytics = () => {
 
                             <div className="space-y-2.5">
                                 {keyInsights.map((insight, idx) => (
-                                    <div 
+                                    <div
                                         key={idx}
                                         className="flex items-start gap-2.5 p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 text-xs font-medium text-slate-700 dark:text-slate-300"
                                     >
@@ -716,9 +718,9 @@ const Analytics = () => {
                             const isMod = r === "MODERATE" || r === "MEDIUM";
 
                             // Color indicators: Red (High), Yellow (Moderate), Green (Low)
-                            const badgeColor = isHigh 
+                            const badgeColor = isHigh
                                 ? "bg-red-50 text-red-700 border-red-200 dark:bg-red-950/40 dark:text-red-400 dark:border-red-900"
-                                : isMod 
+                                : isMod
                                     ? "bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-900"
                                     : "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-900";
 
@@ -727,7 +729,7 @@ const Analytics = () => {
                             const wind = Number(item.wind_speed ?? item.weather?.wind_speed ?? 0);
 
                             return (
-                                <div 
+                                <div
                                     key={index}
                                     className="p-3.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-800/40 flex items-center justify-between hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
                                 >

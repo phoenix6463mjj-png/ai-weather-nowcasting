@@ -1,18 +1,19 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { API_BASE } from '../config';
-import { 
-    FileText, 
-    ArrowLeft, 
-    Download, 
-    Eye, 
-    ChevronDown, 
-    ChevronUp, 
-    AlertTriangle, 
-    ShieldCheck, 
-    Activity, 
-    Calendar, 
-    MapPin, 
+import HonestyBanner from '../components/HonestyBanner';
+import {
+    FileText,
+    ArrowLeft,
+    Download,
+    Eye,
+    ChevronDown,
+    ChevronUp,
+    AlertTriangle,
+    ShieldCheck,
+    Activity,
+    Calendar,
+    MapPin,
     FileSpreadsheet,
     CheckCircle2
 } from 'lucide-react';
@@ -170,7 +171,7 @@ const Reports = () => {
                 if (report.type === "CSV") {
                     // Generate structured CSV file
                     const headers = "City,State,Hazard_Type,Severity_Level,Threshold_Metric\n";
-                    const rows = report.affectedCities.map(c => 
+                    const rows = report.affectedCities.map(c =>
                         `"${c.city}","${c.state}","${c.hazard}","${c.severity}","${c.metric}"`
                     ).join("\n");
                     const csvContent = `data:text/csv;charset=utf-8,# ${report.title}\n# Generated: ${report.date}\n# Coverage: ${report.regionCoverage}\n\n${headers}${rows}`;
@@ -221,8 +222,9 @@ const Reports = () => {
     return (
         <div className="min-h-screen bg-slate-50 dark:bg-[#0b0f19] text-slate-900 dark:text-slate-100 flex flex-col font-sans transition-colors duration-200">
             <TopHeader onSearch={() => {}} searchLoading={false} selectedCity="All India" />
-            
+
             <main className="flex-1 p-6 md:p-8 max-w-7xl mx-auto w-full">
+                <HonestyBanner kind="illustrative" />
                 {/* Header */}
                 <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div className="flex items-center gap-3">
@@ -238,7 +240,7 @@ const Reports = () => {
                             </p>
                         </div>
                     </div>
-                    <Link 
+                    <Link
                         to="/"
                         className="self-start sm:self-center flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl transition-colors shadow-xs"
                     >
@@ -345,7 +347,7 @@ const Reports = () => {
                         const isDownloading = downloadingId === report.id;
 
                         return (
-                            <div 
+                            <div
                                 key={report.id}
                                 className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 hover:border-slate-300 dark:hover:border-slate-700 hover:shadow-md transition-all flex flex-col justify-between"
                             >
@@ -356,8 +358,8 @@ const Reports = () => {
                                             {report.title}
                                         </h3>
                                         <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider shrink-0 ${
-                                            report.type === 'PDF' 
-                                                ? 'bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-950/50 dark:text-rose-400 dark:border-rose-900' 
+                                            report.type === 'PDF'
+                                                ? 'bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-950/50 dark:text-rose-400 dark:border-rose-900'
                                                 : 'bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-400 dark:border-emerald-900'
                                         }`}>
                                             {report.type}
@@ -424,18 +426,18 @@ const Reports = () => {
                                                 </div>
                                             </div>
                                             <div className="w-full h-2 rounded-full overflow-hidden flex bg-slate-100 dark:bg-slate-800">
-                                                <div 
-                                                    className="h-full bg-red-500" 
+                                                <div
+                                                    className="h-full bg-red-500"
                                                     style={{ width: `${report.riskDistribution.high}%` }}
                                                     title={`High Risk: ${report.riskDistribution.high}%`}
                                                 />
-                                                <div 
-                                                    className="h-full bg-amber-400" 
+                                                <div
+                                                    className="h-full bg-amber-400"
                                                     style={{ width: `${report.riskDistribution.moderate}%` }}
                                                     title={`Moderate: ${report.riskDistribution.moderate}%`}
                                                 />
-                                                <div 
-                                                    className="h-full bg-emerald-500" 
+                                                <div
+                                                    className="h-full bg-emerald-500"
                                                     style={{ width: `${report.riskDistribution.low}%` }}
                                                     title={`Low: ${report.riskDistribution.low}%`}
                                                 />
@@ -449,7 +451,7 @@ const Reports = () => {
                                             </span>
                                             <div className="space-y-1.5">
                                                 {report.affectedCities.map((c, cIdx) => (
-                                                    <div 
+                                                    <div
                                                         key={cIdx}
                                                         className="flex items-center justify-between p-2 rounded-md bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800 text-xs"
                                                     >

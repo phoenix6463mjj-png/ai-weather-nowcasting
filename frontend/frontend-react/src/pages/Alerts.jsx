@@ -1,10 +1,11 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { API_BASE } from '../config';
-import { 
-    ArrowLeft, 
-    RefreshCw, 
-    Search, 
+import { sourceBadge } from '../utils/dashboardRisk';
+import {
+    ArrowLeft,
+    RefreshCw,
+    Search,
     ShieldCheck,
     AlertTriangle,
     Flame,
@@ -151,6 +152,9 @@ const resolveCleanAction = (alert) => {
 
 const Alerts = () => {
     const [alerts, setAlerts] = useState([]);
+    // weather source of the zone list ("sample" | "openweather" | "mixed"); "Live" only for OpenWeather
+    const [weatherSource, setWeatherSource] = useState(null);
+    const live = weatherSource === 'openweather';
     const [summary, setSummary] = useState({ total: 0, high: 0, moderate: 0, low: 0 });
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -182,6 +186,7 @@ const Alerts = () => {
             };
             setAlerts(fetchedAlerts);
             setSummary(fetchedSummary);
+            setWeatherSource(fetchedSummary.source || 'sample');
             setLastSyncTime(data.last_updated ? new Date(data.last_updated) : new Date());
         } catch (err) {
             console.error("Alerts fetch error:", err);
@@ -270,7 +275,7 @@ const Alerts = () => {
             <TopHeader onSearch={() => {}} searchLoading={false} selectedCity="All India" alertCount={highCount} />
 
             <main className="flex-1 p-4 sm:p-6 md:p-8 max-w-7xl mx-auto w-full space-y-6">
-                
+
                 {/* 1. HEADER (CLEAN & MINIMAL, NO OVERDESIGN) */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-1">
                     <div className="flex items-center gap-3">
@@ -282,17 +287,24 @@ const Alerts = () => {
                                 Weather Alerts
                             </h1>
                             <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-                                Real-time weather threats and emergency notifications
+                                {live ? 'Real-time weather threats and emergency notifications' : 'Weather threats and notifications (rule-based)'}
                             </p>
                         </div>
                     </div>
 
                     <div className="flex items-center gap-3 self-start sm:self-center">
                         <div className="flex items-center gap-2">
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
-                                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                                Live Feed
-                            </span>
+                            {live ? (
+                                <span data-testid="alerts-source-badge" data-source="openweather" className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                                    Live Feed
+                                </span>
+                            ) : (
+                                <span data-testid="alerts-source-badge" data-source={weatherSource || ''} className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+                                    <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+                                    {weatherSource ? sourceBadge(weatherSource) : 'Loading…'}
+                                </span>
+                            )}
                             <span className="text-xs text-gray-500 dark:text-gray-400 hidden sm:inline">
                                 Last updated: {formatHeaderTime(lastSyncTime)}
                             </span>
@@ -308,7 +320,7 @@ const Alerts = () => {
                             <span>Refresh</span>
                         </button>
 
-                        <Link 
+                        <Link
                             to="/"
                             className="flex items-center gap-1.5 px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs rounded-lg shadow-sm hover:scale-105 active:scale-95 transition-all duration-150"
                         >
@@ -577,8 +589,8 @@ const Alerts = () => {
                                         <div className="flex items-center justify-between pt-2.5 border-t border-gray-100 dark:border-slate-800 text-xs">
                                             {/* 5. Left: "Live • Just now" with pulsing green dot */}
                                             <span className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 font-medium">
-                                                <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse shrink-0"></div>
-                                                <span>Live • {timeAgo}</span>
+                                                <div className={`w-2 h-2 rounded-full shrink-0 ${live ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`}></div>
+                                                <span data-testid="alert-card-source">{live ? `Live • ${timeAgo}` : sourceBadge('sample')}</span>
                                             </span>
 
                                             {/* 2. Right: "View Details →" (blue link style with hover underline + color shift) */}

@@ -1,27 +1,29 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { API_BASE } from '../config';
-import { 
-    CloudRain, 
-    ArrowLeft, 
-    Sparkles, 
-    AlertTriangle, 
-    ShieldCheck, 
-    Thermometer, 
-    Droplets, 
-    Wind, 
-    TrendingUp, 
-    Activity, 
-    MapPin, 
-    ArrowRight, 
-    ArrowUpRight, 
-    ArrowDownRight, 
-    Zap, 
-    ShieldAlert, 
-    Clock, 
-    Flame, 
-    AlertOctagon, 
-    CheckCircle2, 
+import { sourceBadge } from '../utils/dashboardRisk';
+import HonestyBanner from '../components/HonestyBanner';
+import {
+    CloudRain,
+    ArrowLeft,
+    Sparkles,
+    AlertTriangle,
+    ShieldCheck,
+    Thermometer,
+    Droplets,
+    Wind,
+    TrendingUp,
+    Activity,
+    MapPin,
+    ArrowRight,
+    ArrowUpRight,
+    ArrowDownRight,
+    Zap,
+    ShieldAlert,
+    Clock,
+    Flame,
+    AlertOctagon,
+    CheckCircle2,
     Info,
     Search,
     Loader2
@@ -145,6 +147,12 @@ const Forecast = () => {
 
     // STEP 3: DATA SOURCE SWITCH
     const activeData = isRealtime && realtimeData ? realtimeData : currentData;
+    // weather source of what is shown: /nowcast says "realtime_api" | "fallback_mock", the zone list
+    // "openweather" | "sample". "Real-Time" wording only when it really is OpenWeather.
+    const rawSource = isRealtime && realtimeData ? realtimeData.source : (currentData?.source || currentData?.weather?.source);
+    const weatherSource = rawSource === 'openweather' || rawSource === 'realtime_api' ? 'openweather' : 'sample';
+    const liveWeather = weatherSource === 'openweather';
+    const sourceText = sourceBadge(weatherSource, isRealtime ? null : currentData?.weather?.observed_at);
 
     // 1. Search input state, dropdown suggestions & smart fallback message
     const [search, setSearch] = useState("");
@@ -158,7 +166,7 @@ const Forecast = () => {
         if (!nodeName || !citiesList.length) return;
         setIsRealtime(false);
         setRealtimeData(null);
-        const matchingNode = citiesList.find(c => 
+        const matchingNode = citiesList.find(c =>
             (c.location && c.location.toLowerCase() === nodeName.toLowerCase()) ||
             (c.city && c.city.toLowerCase() === nodeName.toLowerCase()) ||
             (c.name && c.name.toLowerCase() === nodeName.toLowerCase())
@@ -221,7 +229,7 @@ const Forecast = () => {
                     // Active City Logic: Use same selected city as Dashboard or URL
                     const savedCity = cityParam || localStorage.getItem('selectedCity') || localStorage.getItem('selected_city');
                     if (savedCity) {
-                        const match = enrichedCities.find(c => 
+                        const match = enrichedCities.find(c =>
                             c.city?.toLowerCase() === savedCity.toLowerCase() ||
                             c.location?.toLowerCase() === savedCity.toLowerCase() ||
                             c.fullName?.toLowerCase() === savedCity.toLowerCase()
@@ -546,11 +554,11 @@ const Forecast = () => {
             const val = Number(f.rainfall) || 0;
             const x = paddingX + (idx / (activeForecast.length - 1)) * (chartWidth - paddingX * 2);
             const y = chartHeight - paddingY - (val / maxVal) * (chartHeight - paddingY * 2);
-            return { 
-                x, 
-                y, 
-                val, 
-                hour: f.hour, 
+            return {
+                x,
+                y,
+                val,
+                hour: f.hour,
                 timeLabel: TIMELINE_STEPS[idx] || (f.hour === 0 ? "Now" : `+${f.hour}h`),
                 risk: f.risk
             };
@@ -579,7 +587,7 @@ const Forecast = () => {
                 baseline: activeNowcast.rainfall,
                 average: activeNowcast.rainfall,
                 diff: 0,
-                trajectoryText: "Live real-time observation"
+                trajectoryText: liveWeather ? "Live real-time observation" : "Single observation (sample data)"
             };
         }
         const rains = activeForecast.map(f => Number(f.rainfall) || 0);
@@ -598,7 +606,7 @@ const Forecast = () => {
         }
 
         return { peak, baseline, average, diff, trajectoryText };
-    }, [activeForecast, activeNowcast.rainfall]);
+    }, [activeForecast, activeNowcast.rainfall, liveWeather]);
 
     // Dynamic Comparison Card: Now vs +4h Change
     const comparisonStats = useMemo(() => {
@@ -653,7 +661,7 @@ const Forecast = () => {
             return {
                 text: realtimeData.alert?.action || (risk === "HIGH" ? "Flood risk rising due to intense rainfall" : risk === "MODERATE" ? "Moderate rainfall and moisture persistence" : "Normal atmospheric conditions across nowcast window"),
                 severity: risk,
-                subtext: `Telemetry: ${realtimeData.rainfall} mm/h rain, ${realtimeData.wind_speed} m/s wind, ${realtimeData.humidity}% humidity. Source: OpenWeather Real-Time API.`,
+                subtext: `Telemetry: ${realtimeData.rainfall} mm/h rain, ${realtimeData.wind_speed} m/s wind, ${realtimeData.humidity}% humidity. Source: ${sourceBadge(realtimeData.source === 'realtime_api' ? 'openweather' : 'sample')}.`,
                 color: risk === "HIGH" ? "rose" : risk === "MODERATE" ? "amber" : "emerald"
             };
         }
@@ -678,7 +686,7 @@ const Forecast = () => {
             return {
                 text: activeData.reason,
                 severity: activeNowcast.risk,
-                subtext: `Evaluated for ${activeData.city || "active node"} based on real-time nowcasting matrix.`,
+                subtext: `Evaluated for ${activeData.city || "active node"} with fixed rules (${liveWeather ? "OpenWeather" : "sample data"}).`,
                 color: activeNowcast.risk === "HIGH" ? "rose" : activeNowcast.risk === "MODERATE" ? "amber" : "emerald"
             };
         }
@@ -696,7 +704,7 @@ const Forecast = () => {
             subtext: "Stable barometric pressure and balanced moisture indices.",
             color: "emerald"
         };
-    }, [isRealtime, realtimeData, activeNowcast, activeData?.reason, activeData?.city]);
+    }, [isRealtime, realtimeData, activeNowcast, activeData?.reason, activeData?.city, liveWeather]);
 
     const activeNodeName = activeData?.location || activeData?.city || activeData?.name || "Active Node";
 
@@ -716,13 +724,14 @@ const Forecast = () => {
             `}</style>
 
             {/* TopHeader - Linked with active city & internal backend node search */}
-            <TopHeader 
-                onSearch={handleSearchSubmit} 
-                searchLoading={loading} 
-                selectedCity={activeNodeName} 
+            <TopHeader
+                onSearch={handleSearchSubmit}
+                searchLoading={loading}
+                selectedCity={activeNodeName}
             />
 
             <main className="flex-1 p-6 md:p-8 max-w-6xl mx-auto w-full space-y-6">
+                <HonestyBanner kind="rule-score" />
                 {/* Heading Row */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div className="flex items-center gap-3">
@@ -741,11 +750,14 @@ const Forecast = () => {
                                 )}
                             </div>
                             <p className="text-sm text-slate-500 dark:text-slate-400">
-                                Real-Time Convective Extrapolation & Sub-Daily Risk Modeling
+                                {liveWeather ? 'Real-Time Convective Extrapolation & Sub-Daily Risk Modeling' : 'Convective Extrapolation & Sub-Daily Risk Modeling'}
+                            </p>
+                            <p data-testid="forecast-source-badge" data-source={weatherSource} className="text-xs font-bold text-amber-700 dark:text-amber-400 mt-0.5">
+                                {sourceText}
                             </p>
                         </div>
                     </div>
-                    <Link 
+                    <Link
                         to="/"
                         className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm rounded-xl transition-all duration-300 shadow-sm hover:shadow-md hover:-translate-y-0.5 hover:scale-[1.02] shrink-0 self-start sm:self-auto"
                     >
@@ -755,7 +767,7 @@ const Forecast = () => {
                 </div>
 
                 {/* 4. SAFE SEARCH INPUT UI (Uses Real-Time /nowcast with Node Fallback) */}
-                <div 
+                <div
                     ref={searchContainerRef}
                     className="relative bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 md:p-5 shadow-sm transition-all duration-300 hover:shadow-md"
                 >
@@ -764,7 +776,7 @@ const Forecast = () => {
                             <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
                                 <Search size={18} />
                             </div>
-                            <input 
+                            <input
                                 type="text"
                                 value={search}
                                 onChange={(e) => {
@@ -867,7 +879,7 @@ const Forecast = () => {
                                     : "bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 border-blue-200 dark:border-blue-800"
                             }`}>
                                 <span className={`w-2 h-2 rounded-full ${isRealtime ? "bg-purple-500 animate-ping" : "bg-blue-500 animate-pulse"}`} />
-                                <span>{isRealtime ? "Real-Time Location:" : "Selected Node:"}</span>
+                                <span>{isRealtime ? (liveWeather ? "Real-Time Location:" : "Searched Location:") : "Selected Node:"}</span>
                                 <strong className="text-slate-900 dark:text-white font-black">{activeNodeName}</strong>
                             </span>
                             {activeData?.state && (
@@ -903,14 +915,14 @@ const Forecast = () => {
                 <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm transition-all duration-300">
                     <div className="flex items-center gap-3">
                         <span className={`text-xs font-black px-3 py-1.5 rounded-xl border flex items-center gap-2 ${
-                            isRealtime 
+                            isRealtime
                                 ? "bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border-purple-300 dark:border-purple-800 shadow-sm"
                                 : "bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-800 shadow-sm"
                         }`}>
-                            {isRealtime ? "📡 Real-Time Location Data" : "📊 Monitoring Node Data"}
+                            {isRealtime ? (liveWeather ? "📡 Real-Time Location Data" : "📍 Searched Location Data") : "📊 Monitoring Node Data"}
                         </span>
                         <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">
-                            Active Stream: <strong className="text-slate-900 dark:text-white font-bold">{isRealtime ? "OpenWeather Real-Time Ingest" : "National Ground Station Telemetry"}</strong>
+                            Active Stream: <strong data-testid="forecast-stream" className="text-slate-900 dark:text-white font-bold">{sourceText}</strong>
                         </span>
                     </div>
 
@@ -960,8 +972,8 @@ const Forecast = () => {
                 {futureAlertPreview && (
                     <div className={`p-4 md:p-5 rounded-2xl border shadow-sm transition-all duration-300 flex items-start gap-4 ${futureAlertPreview.bgClass}`}>
                         <div className={`p-2.5 rounded-xl shrink-0 ${
-                            futureAlertPreview.severity === "HIGH" 
-                                ? "bg-red-600 text-white animate-pulse" 
+                            futureAlertPreview.severity === "HIGH"
+                                ? "bg-red-600 text-white animate-pulse"
                                 : futureAlertPreview.severity === "MODERATE"
                                     ? "bg-amber-500 text-white"
                                     : "bg-emerald-600 text-white"
@@ -971,10 +983,10 @@ const Forecast = () => {
                         <div className="flex-1 min-w-0">
                             <div className="flex flex-wrap items-center gap-2 mb-1">
                                 <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-md ${
-                                    futureAlertPreview.severity === "HIGH" 
-                                        ? "bg-red-600 text-white" 
-                                        : futureAlertPreview.severity === "MODERATE" 
-                                            ? "bg-amber-500 text-white" 
+                                    futureAlertPreview.severity === "HIGH"
+                                        ? "bg-red-600 text-white"
+                                        : futureAlertPreview.severity === "MODERATE"
+                                            ? "bg-amber-500 text-white"
                                             : "bg-emerald-600 text-white"
                                 }`}>
                                     {futureAlertPreview.badge}
@@ -1016,7 +1028,8 @@ const Forecast = () => {
                         </span>
                     </div>
                     <p className="text-slate-600 dark:text-slate-400 text-sm mb-6">
-                        Real-time localized convective extrapolation using telemetry feeds and hybrid ML probability vectors.
+                        {liveWeather ? 'Real-time localized convective extrapolation using telemetry feeds and hybrid ML probability vectors.'
+                            : 'Localized convective extrapolation from sample weather and fixed rules (not the ML model).'}
                     </p>
 
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
@@ -1024,7 +1037,7 @@ const Forecast = () => {
                         <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 flex flex-col justify-between transition-all duration-300 hover:border-blue-400 dark:hover:border-blue-500/50 hover:shadow-md">
                             <div>
                                 <div className="flex items-center justify-between mb-1">
-                                    <h3 className="font-bold text-sm">Live Nowcast Panel</h3>
+                                    <h3 className="font-bold text-sm">{liveWeather ? 'Live Nowcast Panel' : 'Nowcast Panel (sample data)'}</h3>
                                     <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${currentRiskInfo.badgeClass}`}>
                                         {currentRiskInfo.label}
                                     </span>
@@ -1032,7 +1045,7 @@ const Forecast = () => {
                                 <p className="text-xs text-slate-500 dark:text-slate-400">
                                     {isRealtime ? (
                                         <span className="text-amber-600 dark:text-amber-400 font-semibold flex items-center gap-1">
-                                            <Info size={13} /> Live Nowcast (No historical projection available)
+                                            <Info size={13} /> {liveWeather ? 'Live Nowcast' : 'Nowcast'} (No historical projection available)
                                         </span>
                                     ) : (
                                         <>Readout for: <strong>{timelineHour === 0 ? "Now (Current)" : `+${timelineHour}h Future Projection`}</strong></>
@@ -1053,7 +1066,7 @@ const Forecast = () => {
                                             </span>
                                         </div>
 
-                                        <input 
+                                        <input
                                             type="range"
                                             min="0"
                                             max="4"
@@ -1076,7 +1089,7 @@ const Forecast = () => {
                                     <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 text-amber-800 dark:text-amber-300 text-xs">
                                         <div className="font-bold flex items-center gap-1.5">
                                             <Info size={14} className="shrink-0" />
-                                            <span>Live Nowcast (No historical projection available)</span>
+                                            <span>{liveWeather ? 'Live Nowcast' : 'Nowcast'} (No historical projection available)</span>
                                         </div>
                                         <p className="text-[11px] opacity-90 mt-1">
                                             Displaying live ground telemetry observations for {activeNodeName}.
@@ -1177,7 +1190,7 @@ const Forecast = () => {
                                     </span>
                                 </div>
                                 <div className="mt-3 p-2 bg-white dark:bg-slate-900/90 rounded-lg border border-slate-200/80 dark:border-slate-700/60 text-[11px] text-slate-500 dark:text-slate-400">
-                                    Ensemble divergence remains aligned with real-time ground stations.
+                                    {liveWeather ? 'Ensemble divergence remains aligned with real-time ground stations.' : 'Rule-based indicator on sample weather data.'}
                                 </div>
                             </div>
                         </div>
@@ -1195,7 +1208,7 @@ const Forecast = () => {
                                 <h2 className="text-lg font-bold">Rainfall Trend Chart (0–4h Projection)</h2>
                             </div>
                             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                                Real-time dynamic precipitation curve derived from backend forecast telemetry
+                                {liveWeather ? 'Real-time dynamic precipitation curve derived from backend forecast telemetry' : 'Precipitation curve extrapolated by fixed rules from sample data'}
                             </p>
                         </div>
 
@@ -1218,10 +1231,12 @@ const Forecast = () => {
                         <div className="py-12 flex flex-col items-center justify-center text-center p-6 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-dashed border-slate-200 dark:border-slate-700">
                             <Sparkles className="text-purple-500 mb-2" size={32} />
                             <h3 className="font-bold text-slate-800 dark:text-slate-100 text-sm">
-                                Live Nowcast (No historical projection available)
+                                {liveWeather ? 'Live Nowcast' : 'Nowcast'} (No historical projection available)
                             </h3>
                             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-md">
-                                Showing instantaneous live telemetry for <strong>{activeNodeName}</strong> directly from real-time atmospheric observation sensors.
+                                {liveWeather
+                                    ? <>Showing instantaneous live telemetry for <strong>{activeNodeName}</strong> directly from real-time atmospheric observation sensors.</>
+                                    : <>Showing sample weather values for <strong>{activeNodeName}</strong> (no live weather feed).</>}
                             </p>
                             <div className="mt-4 flex flex-wrap items-center justify-center gap-3 text-xs font-semibold">
                                 <span className="px-3 py-1 rounded-lg bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
@@ -1253,9 +1268,9 @@ const Forecast = () => {
                     ) : (
                         <div className="relative w-full overflow-visible select-none">
                             {/* Floating Tooltip Overlay */}
-                            <div 
+                            <div
                                 className="absolute pointer-events-none z-20 transition-all duration-300 ease-out -translate-x-1/2"
-                                style={{ 
+                                style={{
                                     left: `${(activePointData.x / chartWidth) * 100}%`,
                                     top: `${Math.max(0, (activePointData.y / chartHeight) * 100 - 32)}%`
                                 }}
@@ -1270,8 +1285,8 @@ const Forecast = () => {
                                 </div>
                             </div>
 
-                            <svg 
-                                viewBox={`0 0 ${chartWidth} ${chartHeight}`} 
+                            <svg
+                                viewBox={`0 0 ${chartWidth} ${chartHeight}`}
                                 className="w-full h-48 sm:h-56 overflow-visible"
                             >
                                 <defs>
@@ -1288,20 +1303,20 @@ const Forecast = () => {
                                     const yPos = chartHeight - paddingY - (tickVal / maxVal) * (chartHeight - paddingY * 2);
                                     return (
                                         <g key={ratio} className="text-slate-300 dark:text-slate-700/70">
-                                            <line 
-                                                x1={paddingX} 
-                                                y1={yPos} 
-                                                x2={chartWidth - paddingX} 
-                                                y2={yPos} 
-                                                stroke="currentColor" 
-                                                strokeDasharray="4 4" 
-                                                strokeWidth="1" 
+                                            <line
+                                                x1={paddingX}
+                                                y1={yPos}
+                                                x2={chartWidth - paddingX}
+                                                y2={yPos}
+                                                stroke="currentColor"
+                                                strokeDasharray="4 4"
+                                                strokeWidth="1"
                                                 opacity="0.6"
                                             />
-                                            <text 
-                                                x={paddingX - 8} 
-                                                y={yPos + 3} 
-                                                textAnchor="end" 
+                                            <text
+                                                x={paddingX - 8}
+                                                y={yPos + 3}
+                                                textAnchor="end"
                                                 className="text-[10px] fill-slate-400 dark:fill-slate-500 font-semibold"
                                             >
                                                 {tickVal}mm
@@ -1311,14 +1326,14 @@ const Forecast = () => {
                                 })}
 
                                 {/* Vertical Guide Line at Active Point */}
-                                <line 
-                                    x1={activePointData.x} 
-                                    y1={paddingY} 
-                                    x2={activePointData.x} 
-                                    y2={chartHeight - paddingY} 
-                                    stroke="#3b82f6" 
-                                    strokeDasharray="3 3" 
-                                    strokeWidth="1.5" 
+                                <line
+                                    x1={activePointData.x}
+                                    y1={paddingY}
+                                    x2={activePointData.x}
+                                    y2={chartHeight - paddingY}
+                                    stroke="#3b82f6"
+                                    strokeDasharray="3 3"
+                                    strokeWidth="1.5"
                                     opacity="0.6"
                                     className="transition-all duration-300 ease-out"
                                 />
@@ -1327,13 +1342,13 @@ const Forecast = () => {
                                 <path d={svgAreaD} fill="url(#rainGradientNowcast)" />
 
                                 {/* Trend Line Path */}
-                                <path 
-                                    d={svgPathD} 
-                                    fill="none" 
-                                    stroke="#3b82f6" 
-                                    strokeWidth="3.5" 
-                                    strokeLinecap="round" 
-                                    strokeLinejoin="round" 
+                                <path
+                                    d={svgPathD}
+                                    fill="none"
+                                    stroke="#3b82f6"
+                                    strokeWidth="3.5"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
                                     className="drop-shadow-sm animate-line-draw"
                                 />
 
@@ -1341,7 +1356,7 @@ const Forecast = () => {
                                 {chartPoints.map((pt, idx) => {
                                     const isActive = idx === activeChartIndex;
                                     return (
-                                        <g 
+                                        <g
                                             key={idx}
                                             onMouseEnter={() => setHoveredPoint(idx)}
                                             onMouseLeave={() => setHoveredPoint(null)}
@@ -1351,27 +1366,27 @@ const Forecast = () => {
                                             <circle cx={pt.x} cy={pt.y} r="22" fill="transparent" />
 
                                             {isActive && (
-                                                <circle 
-                                                    cx={pt.x} 
-                                                    cy={pt.y} 
-                                                    r="14" 
-                                                    className="fill-blue-500/20 stroke-blue-500 animate-pulse" 
+                                                <circle
+                                                    cx={pt.x}
+                                                    cy={pt.y}
+                                                    r="14"
+                                                    className="fill-blue-500/20 stroke-blue-500 animate-pulse"
                                                     strokeWidth="2"
                                                 />
                                             )}
 
-                                            <circle 
-                                                cx={pt.x} 
-                                                cy={pt.y} 
-                                                r={isActive ? 7 : 4.5} 
-                                                className={`${isActive ? "fill-blue-600 stroke-white dark:stroke-slate-900" : "fill-white dark:fill-slate-800 stroke-blue-500"} transition-all duration-300`} 
+                                            <circle
+                                                cx={pt.x}
+                                                cy={pt.y}
+                                                r={isActive ? 7 : 4.5}
+                                                className={`${isActive ? "fill-blue-600 stroke-white dark:stroke-slate-900" : "fill-white dark:fill-slate-800 stroke-blue-500"} transition-all duration-300`}
                                                 strokeWidth="2.5"
                                             />
 
-                                            <text 
-                                                x={pt.x} 
-                                                y={chartHeight - 6} 
-                                                textAnchor="middle" 
+                                            <text
+                                                x={pt.x}
+                                                y={chartHeight - 6}
+                                                textAnchor="middle"
                                                 className={`text-[11px] font-bold ${isActive ? "fill-blue-600 dark:fill-blue-400" : "fill-slate-400 dark:fill-slate-500"} transition-all duration-300`}
                                             >
                                                 {pt.timeLabel}
@@ -1429,10 +1444,11 @@ const Forecast = () => {
                                         {currentRiskInfo.label}
                                     </span>
                                     <h3 className="font-bold text-slate-800 dark:text-slate-100 text-sm mt-3">
-                                        Live Risk Classification: {activeNowcast.risk}
+                                        {liveWeather ? 'Live Risk Classification' : 'Rule-based Risk Classification'}: {activeNowcast.risk}
                                     </h3>
                                     <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-sm mx-auto">
-                                        Live Nowcast (No historical projection available). Telemetry derived from real-time atmospheric observations.
+                                        {liveWeather ? 'Live Nowcast (No historical projection available). Telemetry derived from real-time atmospheric observations.'
+                                            : 'No projection available for a single searched location (sample data).'}
                                     </p>
                                 </div>
                             ) : (
@@ -1450,7 +1466,7 @@ const Forecast = () => {
                                                     onClick={() => setTimelineHour(item.hour)}
                                                     className="flex flex-col items-center gap-1.5 focus:outline-none group cursor-pointer"
                                                 >
-                                                    <div 
+                                                    <div
                                                         className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-black text-white shadow-md border-2 border-white dark:border-slate-900 transition-all duration-300 ${item.bgClass} ${
                                                             isSelected ? 'ring-4 ring-blue-500/50 scale-125' : 'group-hover:scale-110'
                                                         }`}
@@ -1504,10 +1520,11 @@ const Forecast = () => {
                             {isRealtime ? (
                                 <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700 text-center py-6">
                                     <div className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-                                        Source: <strong className="text-purple-600 dark:text-purple-400 font-bold">OpenWeather Real-Time Ingest</strong>
+                                        Source: <strong className="text-purple-600 dark:text-purple-400 font-bold">{sourceText}</strong>
                                     </div>
                                     <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 max-w-sm mx-auto">
-                                        Live Nowcast (No historical projection available). Real-time ground sensor telemetry is currently active for {activeNodeName}.
+                                        {liveWeather ? `Live Nowcast (No historical projection available). Real-time ground sensor telemetry is currently active for ${activeNodeName}.`
+                                            : `No projection available for ${activeNodeName} (sample data).`}
                                     </p>
                                 </div>
                             ) : (
@@ -1591,7 +1608,7 @@ const Forecast = () => {
 
                                 <div className="flex items-center gap-2">
                                     <span className={`text-[11px] font-black px-2.5 py-0.5 rounded-full border ${
-                                        aiInsightData.severity === "HIGH" 
+                                        aiInsightData.severity === "HIGH"
                                             ? "bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-400 border-rose-300 dark:border-rose-800"
                                             : aiInsightData.severity === "MODERATE"
                                                 ? "bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 border-amber-300 dark:border-amber-800"
@@ -1668,10 +1685,10 @@ const Forecast = () => {
                                     </div>
 
                                     {/* Animated Position Needle */}
-                                    <div 
+                                    <div
                                         className="absolute top-1 -translate-x-1/2 transition-all duration-500 ease-out"
-                                        style={{ 
-                                            left: `${activeNowcast.risk === "HIGH" ? 90 : activeNowcast.risk === "MODERATE" ? 55 : 20}%` 
+                                        style={{
+                                            left: `${activeNowcast.risk === "HIGH" ? 90 : activeNowcast.risk === "MODERATE" ? 55 : 20}%`
                                         }}
                                     >
                                         <div className={`w-4 h-4 rounded-full border-2 border-white dark:border-slate-900 shadow-md ${currentRiskInfo.bgClass} ring-4 transition-all duration-300`} />
