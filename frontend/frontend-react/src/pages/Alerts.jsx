@@ -115,41 +115,14 @@ const resolveShortMessage = (alert) => {
     if (type.includes('wind')) return "Strong winds with heavy rain expected.";
     if (type.includes('rain')) return "Heavy rainfall expected in next few hours.";
     if (sev === 'HIGH') return "Severe rainfall may cause flooding in low-lying areas.";
-    if (sev === 'MODERATE') return "Coastal flooding risk due to heavy rainfall and high tides.";
-    return "Stable meteorological conditions within safe limits.";
+    if (sev === 'MODERATE') return "Moderate rainfall or wind by the page's rules.";
+    return "No rule-based hazard flagged for this zone.";
 };
 
-// Action text helper (simple text, no icons, no emojis)
-const resolveCleanAction = (alert) => {
-    let raw = alert.action || "";
-    // Clean any emojis/icons
-    raw = raw.replace(/[\u{1F600}-\u{1F6FF}|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/gu, '').trim();
-
-    const type = (alert.type || '').toLowerCase();
-    const sev = normalizeSeverity(alert.severity);
-
-    if (raw && raw.length > 5 && raw.length < 80) {
-        return raw;
-    }
-
-    if (type.includes('flood') || raw.toLowerCase().includes('evacuat')) {
-        return "Evacuate low areas and avoid riverbanks.";
-    }
-    if (type.includes('wind') || raw.toLowerCase().includes('wind')) {
-        return "Secure loose structures and avoid travel.";
-    }
-    if (type.includes('thunder') || type.includes('storm')) {
-        return "Stay indoors and avoid unnecessary travel.";
-    }
-    if (sev === 'HIGH') {
-        return "Evacuate low areas and follow local advisories.";
-    }
-    if (sev === 'MODERATE') {
-        return "Exercise caution and monitor local updates.";
-    }
-    return "Maintain routine monitoring.";
-};
-
+// No action advice from this demo (its alerts are rule-based, usually on sample data): point to the
+// official sources instead. The backend's action text is not shown.
+const OFFICIAL_ADVICE = "Follow official IMD and state advisories.";
+const resolveCleanAction = () => OFFICIAL_ADVICE;
 const Alerts = () => {
     const [alerts, setAlerts] = useState([]);
     // weather source of the zone list ("sample" | "openweather" | "mixed"); "Live" only for OpenWeather
@@ -190,7 +163,8 @@ const Alerts = () => {
             setLastSyncTime(data.last_updated ? new Date(data.last_updated) : new Date());
         } catch (err) {
             console.error("Alerts fetch error:", err);
-            setError(err.message || "Failed to load alerts.");
+            setError("Alerts unavailable — backend not reachable");
+            setAlerts([]);
         } finally {
             setLoading(false);
             isFetchingRef.current = false;
@@ -302,7 +276,7 @@ const Alerts = () => {
                             ) : (
                                 <span data-testid="alerts-source-badge" data-source={weatherSource || ''} className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
                                     <span className="w-2 h-2 rounded-full bg-amber-500"></span>
-                                    {weatherSource ? sourceBadge(weatherSource) : 'Loading…'}
+                                    {error ? 'Backend not reachable' : weatherSource ? sourceBadge(weatherSource) : 'Loading…'}
                                 </span>
                             )}
                             <span className="text-xs text-gray-500 dark:text-gray-400 hidden sm:inline">
@@ -360,7 +334,7 @@ const Alerts = () => {
                                 {highCount}
                             </div>
                             <span className="text-xs text-red-600 dark:text-red-400">
-                                Immediate action required
+                                Rule-based HIGH zones
                             </span>
                         </div>
                         <div className="p-2.5 rounded-lg bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400">
@@ -491,7 +465,7 @@ const Alerts = () => {
                 {/* Error Banner */}
                 {error && (
                     <div className="p-3 rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/40 text-red-700 dark:text-red-300 text-xs flex items-center justify-between">
-                        <span>Notice: {error}</span>
+                        <span data-testid="alerts-error">{error}</span>
                         <button
                             onClick={() => fetchAlerts(false)}
                             className="px-2 py-0.5 bg-red-600 text-white rounded text-xs font-medium cursor-pointer hover:bg-red-700 transition-colors"
@@ -502,7 +476,7 @@ const Alerts = () => {
                 )}
 
                 {/* Empty State */}
-                {!loading && filteredAndSortedAlerts.length === 0 && (
+                {!loading && !error && filteredAndSortedAlerts.length === 0 && (
                     <div className="bg-white dark:bg-[#111827] border border-gray-200 dark:border-gray-700 rounded-lg p-10 text-center my-6 shadow-sm flex flex-col items-center justify-center">
                         <ShieldCheck size={28} className="text-emerald-500 mb-2" />
                         <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
@@ -511,7 +485,7 @@ const Alerts = () => {
                         <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 max-w-sm">
                             {filter !== 'ALL' || searchQuery
                                 ? "No alerts match your current filter and search query."
-                                : "All monitored meteorological sectors are currently stable with no active hazards."}
+                                : "No alerts in this data."}
                         </p>
                         {(filter !== 'ALL' || searchQuery) && (
                             <button
@@ -618,12 +592,7 @@ const Alerts = () => {
                                                         <p className="text-[11px] text-gray-500 mt-0.5">{alert.message}</p>
                                                     </div>
                                                 )}
-                                                {alert.action && alert.action !== cleanAction && (
-                                                    <div>
-                                                        <span className="font-medium text-gray-700 dark:text-gray-300 block">Complete Advisory:</span>
-                                                        <p className="text-[11px] text-gray-500 mt-0.5">{alert.action}</p>
-                                                    </div>
-                                                )}
+
                                                 {alert.timestamp && (
                                                     <div className="text-[10px] text-gray-400 pt-1">
                                                         Reported: {new Date(alert.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}

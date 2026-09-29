@@ -495,14 +495,39 @@ screenshots). It did not recur in later page loads or in the e2e runs.
 **Known issues (team pages; not changed):**
 - Dashboard sidebar: "Live Map" and "Locations" only reload the zone list, "Settings" opens Analytics,
   and the avatar does nothing.
-- Analytics / Reports still show fixed figures ("94.6% accuracy", "Validation 96.2%", …). A banner at
-  the top of each now says "Illustrative figures — not from the ML model. Measured skill: ML Nowcast →
-  Results". The figures themselves and Analytics' "Real-Time Atmospheric Telemetry" subtitle are
-  unchanged.
+- **Honesty fixes (Batch 1, audit A1–A6, F2):**
+  - **Analytics:** "Rule-based indicator (not the ML model)" and "Rule-based summary of sample data /
+    OpenWeather data / built-in example data (backend not reachable)". The XGBoost, "Validated" and
+    "94.6% confidence" claims are removed. The subtitle follows the weather source. The risk donut is
+    now an SVG chart: the recharts Pie drew NaN sectors under React 19 and logged console errors.
+  - **Reports:** each card is labelled "Example report (illustrative)", and the page says "not official
+    bulletins". The certified/official, Doppler/radar, accuracy and "Confidential" wording is gone. The
+    evaluation card says "not evaluated". The export footer reads "Example report (illustrative) - not
+    an official bulletin".
+  - **Forecast:**
+    - the fixed "Model Confidence" line is removed;
+    - "Backend Synchronized" appears only after `/batch_predict` answers;
+    - the alert badge reads "Rule-based alert on sample data / OpenWeather data";
+    - with the backend down: "Forecast unavailable — backend not reachable", with no built-in Mumbai record;
+    - no "stable" wording.
+  - **/alerts:**
+    - every card says "Follow official IMD and state advisories." instead of action advice;
+    - with the backend down: "Alerts unavailable — backend not reachable", and the badge says
+      "Backend not reachable";
+    - never "stable".
+  - **Dashboard:**
+    - the banner adds "(sample data, rule-based)" on sample data;
+    - with the backend down: "Zone data unavailable — backend not reachable", and no risk banner.
+- **Still on the team pages (not changed yet):**
+  - Forecast: "Short-Range (24h NWP)", "Extended Outlook (7 Days)", "Continuous data ingest from
+    backend ML inference", and "Flash flood & waterlogging safeguards recommended" in its alert text;
+  - Analytics: its insight texts mention "Thunderstorm convective probability"; the page still falls
+    back to built-in example nodes when the backend is down, now labelled as such;
+  - Reports: the fixed example figures (dates, sector counts, river-basin text) are unchanged but labelled
+    as examples.
 - Forecast: its source line follows the backend's weather source, with the same text as "/" ("Sample
-  data — no live weather feed" / "OpenWeather, observed HH:MM UTC"). With sample data it shows no
-  "Live" / "Real-Time" wording. A banner says "Score" and the risk levels are a rule-based indicator,
-  not the ML model. The fixed "Score" and "Model Confidence" values themselves are unchanged.
+  data — no live weather feed" / "OpenWeather, observed HH:MM UTC"). A banner says "Score" and the risk
+  levels are a rule-based indicator, not the ML model.
 - /alerts: "Live Feed" and "Live • …" appear only when the source is OpenWeather; otherwise it shows
   "Sample data — no live weather feed".
 - `backend/main.py` allows any CORS origin with credentials (`allow_origins=["*"]`). Restrict it

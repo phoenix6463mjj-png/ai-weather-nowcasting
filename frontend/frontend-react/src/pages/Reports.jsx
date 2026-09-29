@@ -24,7 +24,7 @@ const INITIAL_REPORTS = [
     {
         id: "rep-01",
         title: "National Daily Meteorological Intelligence Summary",
-        description: "Comprehensive synoptic briefing compiling radar telemetry, monsoon trough oscillations, and threshold breaches across national sectors.",
+        description: "Example synoptic briefing layout: monsoon trough, moisture transport and rule-based threshold breaches across sectors.",
         type: "PDF",
         date: "23 Sep 2026 • 06:00 IST",
         highRiskCount: 14,
@@ -42,13 +42,13 @@ const INITIAL_REPORTS = [
     {
         id: "rep-02",
         title: "Nowcasting Rapid Alert & Telemetry Incident Log",
-        description: "High-frequency timestamped record of automated threshold rule triggers, ML hybrid prediction inferences, and emergency dispatches.",
+        description: "Example incident-log layout: timestamped rule-based threshold triggers.",
         type: "CSV",
         date: "23 Sep 2026 • 01:15 IST",
         highRiskCount: 8,
         regionCoverage: "100 Monitored Stations",
         riskDistribution: { high: 18, moderate: 52, low: 30 },
-        insight: "Nowcasting ML pipeline registered 8 localized threshold triggers within the last 6-hour evaluation window. All regional defense nodes acknowledged receipt.",
+        insight: "Example text: 8 localized rule-based threshold triggers within a 6-hour window.",
         affectedCities: [
             { city: "Nagpur", state: "Maharashtra", hazard: "Lightning Storm", severity: "HIGH", metric: "92 kVA discharge" },
             { city: "Hyderabad", state: "Telangana", hazard: "Urban Inundation", severity: "HIGH", metric: "31.2 mm/hr" },
@@ -77,20 +77,20 @@ const INITIAL_REPORTS = [
     },
     {
         id: "rep-04",
-        title: "Atmospheric Sounding & ML Model Validation Audit",
-        description: "Statistical diagnostic ledger benchmarking XGBoost/RandomForest nowcast predictions against IMD ground truth rain gauges and satellite soundings.",
+        title: "Model Evaluation Report (layout only)",
+        description: "Example layout for an evaluation ledger. No evaluation is shown here; the ML model's measured skill is on ML Nowcast → Results.",
         type: "CSV",
         date: "22 Sep 2026 • 12:00 IST",
         highRiskCount: 3,
-        regionCoverage: "National Doppler Radar Network",
+        regionCoverage: "Example regions",
         riskDistribution: { high: 8, moderate: 32, low: 60 },
-        insight: "Validation audit confirms 94.6% accuracy on 3-hour precipitation threshold forecasts with zero false-negative classifications in designated high-risk zones.",
+        insight: "No evaluation figures are given in this example report.",
         affectedCities: [
-            { city: "Bengaluru", state: "Karnataka", hazard: "Convective Cell", severity: "MODERATE", metric: "Validation 96.2%" },
-            { city: "Chennai", state: "Tamil Nadu", hazard: "Coastal Convergence", severity: "MODERATE", metric: "Validation 93.8%" },
-            { city: "Jaipur", state: "Rajasthan", hazard: "Dry Line Instability", severity: "LOW", metric: "Validation 95.1%" },
-            { city: "Delhi NCR", state: "National Capital", hazard: "Frontal Squall", severity: "LOW", metric: "Validation 97.4%" },
-            { city: "Kolkata", state: "West Bengal", hazard: "Low Pressure Drift", severity: "LOW", metric: "Validation 94.0%" }
+            { city: "Bengaluru", state: "Karnataka", hazard: "Convective Cell", severity: "MODERATE", metric: "not evaluated" },
+            { city: "Chennai", state: "Tamil Nadu", hazard: "Coastal Convergence", severity: "MODERATE", metric: "not evaluated" },
+            { city: "Jaipur", state: "Rajasthan", hazard: "Dry Line Instability", severity: "LOW", metric: "not evaluated" },
+            { city: "Delhi NCR", state: "National Capital", hazard: "Frontal Squall", severity: "LOW", metric: "not evaluated" },
+            { city: "Kolkata", state: "West Bengal", hazard: "Low Pressure Drift", severity: "LOW", metric: "not evaluated" }
         ]
     }
 ];
@@ -103,7 +103,7 @@ const Reports = () => {
         totalReportsToday: 18,
         totalAlertsLogged: 42,
         highRiskPercentage: "24.8%",
-        systemStatus: "Active / Stable"
+        systemStatus: "Checking…"
     });
 
     // Optionally sync summary stats with live alerts endpoint if reachable
@@ -122,7 +122,7 @@ const Reports = () => {
                             totalReportsToday: 18,
                             totalAlertsLogged: liveAlerts.length,
                             highRiskPercentage: `${pct}%`,
-                            systemStatus: "Active / Stable"
+                            systemStatus: "Backend reachable"
                         });
 
                         // Optionally enrich first report with live affected cities
@@ -133,7 +133,7 @@ const Reports = () => {
                                 state: "Monitored Zone",
                                 hazard: a.type || "Weather Warning",
                                 severity: String(a.severity).toUpperCase() === "HIGH" ? "HIGH" : "MODERATE",
-                                metric: a.action || a.message || "Active Alert"
+                                metric: a.message || a.type || "Rule-based alert"
                             }));
                             if (liveAffected.length > 0) {
                                 updated[0] = {
@@ -147,7 +147,7 @@ const Reports = () => {
                     }
                 }
             } catch {
-                // Silently fallback to professional baseline data
+                if (isMounted) setSummaryStats((s) => ({ ...s, systemStatus: "Backend not reachable" }));
             }
         };
 
@@ -201,7 +201,7 @@ const Reports = () => {
                         `- Moderate Advisory: ${report.riskDistribution.moderate}%\n` +
                         `- Baseline Low:      ${report.riskDistribution.low}%\n` +
                         `=======================================================\n` +
-                        `National Emergency Nowcasting Network • Confidential`;
+                        `Example report (illustrative) - not an official bulletin`;
 
                     const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
                     const url = URL.createObjectURL(blob);
@@ -236,7 +236,7 @@ const Reports = () => {
                                 Meteorological Intelligence Report Center
                             </h1>
                             <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
-                                Official Archival Summaries, Synoptic Bulletins & Sensor Telemetry Logs
+                                Example report layouts (illustrative) and the current zone-list counts
                             </p>
                         </div>
                     </div>
@@ -283,7 +283,7 @@ const Reports = () => {
                             {summaryStats.totalAlertsLogged}
                         </div>
                         <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                            Synchronized across 100 Doppler stations
+                            From the rule-based zone list
                         </p>
                     </div>
 
@@ -301,7 +301,7 @@ const Reports = () => {
                             {summaryStats.highRiskPercentage}
                         </div>
                         <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                            Threshold breaches requiring civil advisory
+                            Share of zones at rule-based HIGH
                         </p>
                     </div>
 
@@ -320,7 +320,7 @@ const Reports = () => {
                             <span>{summaryStats.systemStatus}</span>
                         </div>
                         <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                            All pipeline telemetry nodes synchronized
+                            Team backend (/alerts)
                         </p>
                     </div>
                 </div>
@@ -332,7 +332,7 @@ const Reports = () => {
                             Archival & Automated Intelligence Dossiers
                         </h2>
                         <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                            Official reports certified under National Meteorological Observation Guidelines
+                            Example reports (illustrative) — not official bulletins
                         </p>
                     </div>
                     <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
@@ -354,9 +354,12 @@ const Reports = () => {
                                 <div>
                                     {/* Card Header: Title + Type Badge */}
                                     <div className="flex items-start justify-between gap-3 mb-2">
-                                        <h3 className="font-bold text-base text-slate-900 dark:text-white leading-snug">
-                                            {report.title}
-                                        </h3>
+                                        <div>
+                                            <h3 className="font-bold text-base text-slate-900 dark:text-white leading-snug">
+                                                {report.title}
+                                            </h3>
+                                            <span data-testid="report-example-label" className="inline-block mt-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800">Example report (illustrative)</span>
+                                        </div>
                                         <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider shrink-0 ${
                                             report.type === 'PDF'
                                                 ? 'bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-950/50 dark:text-rose-400 dark:border-rose-900'

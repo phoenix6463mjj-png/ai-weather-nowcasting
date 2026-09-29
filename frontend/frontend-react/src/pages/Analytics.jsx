@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { API_BASE } from '../config';
 import HonestyBanner from '../components/HonestyBanner';
+import DonutChart from '../components/DonutChart';
 import {
     BarChart2,
     ArrowLeft,
@@ -12,8 +13,7 @@ import {
     Sparkles,
     Calendar,
     Filter,
-    MapPin,
-    CheckCircle2
+    MapPin
 } from 'lucide-react';
 import {
     ResponsiveContainer,
@@ -21,14 +21,11 @@ import {
     Line,
     BarChart,
     Bar,
-    PieChart,
-    Pie,
     Cell,
     XAxis,
     YAxis,
     CartesianGrid,
-    Tooltip,
-    Legend
+    Tooltip
 } from 'recharts';
 import TopHeader from '../components/TopHeader';
 
@@ -68,9 +65,14 @@ const POPULAR_STATES = [
 
 const Analytics = () => {
     const [data, setData] = useState([]);
+    // "backend" = /batch_predict answered; "fallback" = the page's built-in example nodes
+    const [dataOrigin, setDataOrigin] = useState(null);
     const [loading, setLoading] = useState(true);
     const [, setError] = useState(null);
     const isFetchingRef = useRef(false);
+    const liveWeather = dataOrigin === "backend" && data.length > 0 && data.every((d) => (d.source || d.weather?.source) === "openweather");
+    const dataLabel = dataOrigin === "fallback" ? "built-in example data (backend not reachable)"
+        : liveWeather ? "OpenWeather data" : "sample data";
 
     // 1. FILTER BAR STATE
     const [timeRange, setTimeRange] = useState("Today"); // "Today" | "7 Days" | "30 Days"
@@ -89,12 +91,15 @@ const Analytics = () => {
             const json = await res.json();
             if (Array.isArray(json) && json.length > 0) {
                 setData(json);
+                setDataOrigin("backend");
             } else {
                 setData(FALLBACK_NODES);
+                setDataOrigin("fallback");
             }
         } catch (err) {
             console.warn("Analytics fetch error, falling back to cached nodes:", err);
             setData(FALLBACK_NODES);
+            setDataOrigin("fallback");
         } finally {
             setLoading(false);
             isFetchingRef.current = false;
@@ -303,13 +308,8 @@ const Analytics = () => {
             text: `Atmospheric relative humidity remains elevated at ${avgHum}%, sustaining strong latent heat flux for afternoon localized convection.`
         });
 
-        insights.push({
-            type: "info",
-            text: `Nowcasting ML hybrid model validation indicates 94.6% confidence score over the current ${timeRange.toLowerCase()} telemetry horizon.`
-        });
-
         return insights;
-    }, [topRiskCities, avgWind, avgHum, timeRange]);
+    }, [topRiskCities, avgWind, avgHum]);
 
     return (
         <div className="min-h-screen bg-slate-50 dark:bg-[#0b0f19] text-slate-900 dark:text-slate-100 flex flex-col font-sans transition-colors duration-200">
@@ -328,7 +328,7 @@ const Analytics = () => {
                                 Meteorological Analytics Dashboard
                             </h1>
                             <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
-                                Real-Time Atmospheric Telemetry, Predictive Risk Stratification & Trends
+                                {liveWeather ? 'Real-Time Atmospheric Telemetry, Predictive Risk Stratification & Trends' : 'Atmospheric Summary, Rule-based Risk Stratification & Trends'}
                             </p>
                         </div>
                     </div>
@@ -615,39 +615,7 @@ const Analytics = () => {
                         </div>
 
                         <div className="h-60 w-full flex items-center justify-center">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <PieChart>
-                                    <Pie
-                                        data={pieChartData}
-                                        cx="50%"
-                                        cy="50%"
-                                        innerRadius={55}
-                                        outerRadius={80}
-                                        paddingAngle={4}
-                                        dataKey="value"
-                                    >
-                                        {pieChartData.map((entry, index) => (
-                                            <Cell key={`cell-${index}`} fill={entry.color} />
-                                        ))}
-                                    </Pie>
-                                    <Tooltip
-                                        contentStyle={{
-                                            backgroundColor: '#0f172a',
-                                            borderColor: '#334155',
-                                            borderRadius: '8px',
-                                            color: '#f8fafc',
-                                            fontSize: '12px',
-                                            fontWeight: 'bold'
-                                        }}
-                                        formatter={(val, name) => [`${val} nodes`, name]}
-                                    />
-                                    <Legend
-                                        verticalAlign="bottom"
-                                        iconSize={9}
-                                        wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }}
-                                    />
-                                </PieChart>
-                            </ResponsiveContainer>
+                            <DonutChart data={pieChartData.map((d) => ({ name: d.name, value: d.value, color: d.color }))} />
                         </div>
                     </div>
 
@@ -664,12 +632,12 @@ const Analytics = () => {
                                     </h3>
                                 </div>
                                 <span className="text-[10px] font-black uppercase tracking-wider text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 px-2 py-0.5 rounded border border-blue-200 dark:border-blue-900">
-                                    AI-Generated Synthesis
+                                    Rule-based summary
                                 </span>
                             </div>
 
                             <p className="text-xs text-slate-500 dark:text-slate-400 mb-3.5">
-                                Automated predictive intelligence evaluated across live sensor streams for {selectedRegion}:
+                                <span data-testid="analytics-summary-source">Rule-based summary of {dataLabel}</span> for {selectedRegion}:
                             </p>
 
                             <div className="space-y-2.5">
@@ -686,11 +654,7 @@ const Analytics = () => {
                         </div>
 
                         <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[11px] text-slate-400">
-                            <span>Evaluated Model: Hybrid Rule + XGBoost Nowcasting</span>
-                            <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-bold">
-                                <CheckCircle2 size={12} />
-                                Status: Validated
-                            </span>
+                            <span data-testid="analytics-model-label">Rule-based indicator (not the ML model)</span>
                         </div>
                     </div>
                 </div>

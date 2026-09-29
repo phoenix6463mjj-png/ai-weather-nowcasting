@@ -94,8 +94,8 @@ const Dashboard = () => {
                 if (formatted.length > 0) return formatted[0];
                 return null;
             });
-        } catch (err) {
-            setError(err.message || "Failed to load India locations dataset.");
+        } catch {
+            setError("Zone data unavailable — backend not reachable");
         } finally {
             setLoading(false);
             isFetchingRef.current = false;
@@ -306,7 +306,8 @@ const Dashboard = () => {
 
                         {/* Alert Banner: Pure component using backend single source of truth summary */}
                         <div className="px-6 pt-4">
-                            <AlertBanner locations={allCities} summary={summary} />
+                            {/* only for zone data that actually loaded (never a "no high-risk" banner on an error) */}
+                            {source.source && <AlertBanner locations={allCities} summary={summary} sample={source.source !== 'openweather'} />}
                         </div>
 
                         {/* Interactive Main Map & Right Panel */}

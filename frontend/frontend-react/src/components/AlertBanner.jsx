@@ -1,7 +1,8 @@
 import React from 'react';
 import { AlertTriangle, ShieldCheck } from 'lucide-react';
 
-const AlertBanner = ({ locations = [], summary = null }) => {
+const AlertBanner = ({ locations = [], summary = null, sample = false }) => {
+    const note = sample ? ' (sample data, rule-based)' : '';
     // If backend single source of truth summary is provided, use it directly (NO recalculations)
     const highCount = summary != null ? (summary.high ?? 0) : locations.filter(
         loc => loc.risk === "HIGH" || loc.prediction?.risk_label === 2 || loc.prediction?.risk_text === "HIGH"
@@ -23,11 +24,11 @@ const AlertBanner = ({ locations = [], summary = null }) => {
                 <div className="flex items-center gap-3">
                     <div className="flex items-center gap-2 text-red-600 dark:text-red-400 font-black text-sm">
                         <AlertTriangle size={18} className="fill-red-100 dark:fill-transparent" />
-                        <span>High Risk in {highCount} locations</span>
+                        <span data-testid="alert-banner-text">High Risk in {highCount} locations{note}</span>
                     </div>
                 </div>
                 <span className="text-[11px] font-black uppercase tracking-wider text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-950/60 px-2.5 py-1 rounded-md border border-red-200 dark:border-red-800">
-                    High Alert
+                    High Alert{note}
                 </span>
             </div>
         );
@@ -39,7 +40,7 @@ const AlertBanner = ({ locations = [], summary = null }) => {
                 <div className="flex items-center gap-3">
                     <div className="flex items-center gap-2 text-orange-600 dark:text-orange-400 font-black text-sm">
                         <AlertTriangle size={18} className="fill-orange-100 dark:fill-transparent" />
-                        <span>Moderate Risk present ({modCount} locations)</span>
+                        <span data-testid="alert-banner-text">Moderate Risk present ({modCount} locations){note}</span>
                     </div>
                 </div>
                 <span className="text-[11px] font-black uppercase tracking-wider text-orange-600 dark:text-orange-400 bg-orange-100 dark:bg-orange-950/60 px-2.5 py-1 rounded-md border border-orange-200 dark:border-orange-800">

@@ -139,6 +139,7 @@ const Forecast = () => {
     const [citiesList, setCitiesList] = useState([]);
     const [hoveredPoint, setHoveredPoint] = useState(null);
     const [loading, setLoading] = useState(false);
+    const [backendStatus, setBackendStatus] = useState('pending');
 
     // STEP 1: ADD NEW STATE (Real-time nowcasting from /nowcast API)
     const [isRealtime, setIsRealtime] = useState(false);
@@ -215,6 +216,7 @@ const Forecast = () => {
                 const res = await fetch(`${API_BASE}/batch_predict?limit=100`);
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 const data = await res.json();
+                if (!Array.isArray(data) || data.length === 0) throw new Error('no data');
 
                 if (isMounted && Array.isArray(data) && data.length > 0) {
                     // Normalize all cities to include full 0–4h nowcast forecast array
@@ -225,6 +227,7 @@ const Forecast = () => {
                     }));
 
                     setCitiesList(enrichedCities);
+                    setBackendStatus('ok');
 
                     // Active City Logic: Use same selected city as Dashboard or URL
                     const savedCity = cityParam || localStorage.getItem('selectedCity') || localStorage.getItem('selected_city');
@@ -247,7 +250,8 @@ const Forecast = () => {
                     setSearch(defaultCity.location || defaultCity.city);
                 }
             } catch (err) {
-                console.warn("Using fallback data for Nowcasting engine:", err);
+                console.warn("Forecast backend not reachable:", err);
+                if (isMounted) setBackendStatus('down');
             } finally {
                 if (isMounted) setLoading(false);
             }
@@ -490,7 +494,7 @@ const Forecast = () => {
                 severity: "HIGH",
                 icon: AlertTriangle,
                 heading: `High risk expected in +${highRiskInFuture.hour}h`,
-                badge: "CRITICAL NOWCAST ALERT",
+                badge: liveWeather ? "Rule-based alert on OpenWeather data" : "Rule-based alert on sample data",
                 message: `Intense convective activity projected at +${highRiskInFuture.hour}h with ${highRiskInFuture.rainfall} mm/h precipitation and ${highRiskInFuture.wind_speed} m/s wind. Flash flood & waterlogging safeguards recommended.`,
                 hour: highRiskInFuture.hour,
                 rainfall: highRiskInFuture.rainfall,
@@ -531,14 +535,14 @@ const Forecast = () => {
         return {
             severity: "LOW",
             icon: CheckCircle2,
-            heading: `Stable atmospheric conditions expected`,
+            heading: `No rule-based high risk in the next hours`,
             badge: "NORMAL NOWCAST",
             message: `No elevated hazard projected over the 0–4 hour nowcast horizon. Precipitation baseline remains nominal at ${activeForecast[0]?.rainfall || 0} mm/h.`,
             hour: null,
             rainfall: activeForecast[0]?.rainfall || 0,
             bgClass: "bg-emerald-500/10 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800/80 text-emerald-900 dark:text-emerald-100"
         };
-    }, [activeForecast]);
+    }, [activeForecast, liveWeather]);
 
     // TREND CHART: Forecast data mapping
     const chartWidth = 620;
@@ -701,12 +705,29 @@ const Forecast = () => {
         return {
             text: "Normal atmospheric conditions across nowcast window",
             severity: "LOW",
-            subtext: "Stable barometric pressure and balanced moisture indices.",
+            subtext: "No rule-based threshold exceeded.",
             color: "emerald"
         };
     }, [isRealtime, realtimeData, activeNowcast, activeData?.reason, activeData?.city, liveWeather]);
 
     const activeNodeName = activeData?.location || activeData?.city || activeData?.name || "Active Node";
+
+    if (backendStatus !== 'ok' && !isRealtime) {
+        return (
+            <div className="min-h-screen bg-slate-50 dark:bg-[#0b0f19] text-slate-900 dark:text-slate-100 flex flex-col font-sans transition-colors duration-200">
+                <TopHeader onSearch={handleSearchSubmit} searchLoading={loading} selectedCity="" />
+                <main className="flex-1 p-6 md:p-8 max-w-6xl mx-auto w-full space-y-6">
+                    <HonestyBanner kind="rule-score" />
+                    <div data-testid="forecast-status" data-status={backendStatus}
+                        className={`p-6 rounded-2xl border text-center font-bold ${backendStatus === 'down'
+                            ? 'bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-900 text-red-700 dark:text-red-300'
+                            : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-500'}`}>
+                        {backendStatus === 'down' ? 'Forecast unavailable — backend not reachable' : 'Loading forecast…'}
+                    </div>
+                </main>
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen bg-slate-50 dark:bg-[#0b0f19] text-slate-900 dark:text-slate-100 flex flex-col font-sans transition-colors duration-200">
@@ -1023,9 +1044,11 @@ const Forecast = () => {
                                 0–4h Horizon
                             </span>
                         </div>
-                        <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 flex items-center gap-1">
-                            <Activity size={12} className="text-blue-500" /> Backend Synchronized
-                        </span>
+                        {backendStatus === 'ok' && (
+                            <span data-testid="forecast-backend-sync" className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                                <Activity size={12} className="text-blue-500" /> Backend Synchronized
+                            </span>
+                        )}
                     </div>
                     <p className="text-slate-600 dark:text-slate-400 text-sm mb-6">
                         {liveWeather ? 'Real-time localized convective extrapolation using telemetry feeds and hybrid ML probability vectors.'
@@ -1171,7 +1194,7 @@ const Forecast = () => {
                             <div>
                                 <h3 className="font-bold text-sm mb-1">Extended Outlook (7 Days)</h3>
                                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                                    Regional synoptic risk evolution & ensemble confidence.
+                                    Rule-based risk evolution over the next hours.
                                 </p>
                             </div>
                             <div className="mt-4 pt-3 border-t border-slate-200 dark:border-slate-700/60">
@@ -1181,12 +1204,6 @@ const Forecast = () => {
                                         activeData?.risk_level === "HIGH" ? "text-red-500" : activeData?.risk_level === "MODERATE" ? "text-amber-500" : "text-emerald-500"
                                     }`}>
                                         {activeData?.risk_level === "HIGH" ? "Active Storm Cell" : activeData?.risk_level === "MODERATE" ? "Moisture Influx" : "Steady Normal"}
-                                    </span>
-                                </div>
-                                <div className="flex items-center justify-between text-xs">
-                                    <span className="text-slate-500 dark:text-slate-400">Model Confidence:</span>
-                                    <span className="font-bold text-blue-600 dark:text-blue-400">
-                                        {activeData?.prediction?.confidence ? `${Math.round(activeData.prediction.confidence * 100)}%` : (isRealtime ? "85.0%" : "88.5%")}
                                     </span>
                                 </div>
                                 <div className="mt-3 p-2 bg-white dark:bg-slate-900/90 rounded-lg border border-slate-200/80 dark:border-slate-700/60 text-[11px] text-slate-500 dark:text-slate-400">
@@ -1579,7 +1596,7 @@ const Forecast = () => {
                                         <div className={`text-[10px] font-bold mt-2 ${
                                             comparisonStats.futureRisk === "HIGH" ? "text-rose-500 dark:text-rose-400" : "text-slate-500"
                                         }`}>
-                                            {comparisonStats.isSurge ? "Convective Surge Alert" : "Stable Evolution"}
+                                            {comparisonStats.isSurge ? "Convective Surge Alert" : "No surge"}
                                         </div>
                                     </div>
                                 </div>
@@ -1705,7 +1722,7 @@ const Forecast = () => {
 
                         <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-xs">
                             <span className="text-slate-500 dark:text-slate-400">
-                                {activeNowcast.risk === "HIGH" ? "High convective activity expected" : activeNowcast.risk === "MODERATE" ? "Elevated precipitation expected" : "Atmospheric conditions stable"}
+                                {activeNowcast.risk === "HIGH" ? "High convective activity expected" : activeNowcast.risk === "MODERATE" ? "Elevated precipitation expected" : "No rule-based hazard"}
                             </span>
                             <span className="font-bold text-slate-700 dark:text-slate-300">
                                 Score: {activeNowcast.risk === "HIGH" ? 90 : activeNowcast.risk === "MODERATE" ? 55 : 20}%
