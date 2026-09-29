@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { API_BASE } from '../config';
-import { fetchedLabel, isLiveSource, sourceBadge } from '../utils/dashboardRisk';
+import { fetchedLabel, isLiveSource, parseUtcIso, sourceBadge } from '../utils/dashboardRisk';
 import OpenMeteoCredit from '../components/OpenMeteoCredit';
 import {
     ArrowLeft,
@@ -57,14 +57,9 @@ const CITY_STATE_MAP = {
     "Raipur": "Chhattisgarh"
 };
 
-// Format timestamp to relative time ago (e.g. "Just now", "2 min ago")
+// "N min ago" from the backend's UTC timestamp ("...Z"); a naive or missing one falls back to the fetch time
 const getTimeAgo = (ts, fallbackDate) => {
-    let d = null;
-    if (ts) {
-        const parsed = new Date(ts);
-        if (!isNaN(parsed.getTime())) d = parsed;
-    }
-    if (!d) d = fallbackDate || new Date();
+    const d = parseUtcIso(ts) || fallbackDate || new Date();
 
     const diffMs = Math.max(0, Date.now() - d.getTime());
     const diffSec = Math.floor(diffMs / 1000);
@@ -77,8 +72,6 @@ const getTimeAgo = (ts, fallbackDate) => {
     if (diffHr === 1) return "1 hr ago";
     return `${diffHr} hrs ago`;
 };
-
-// "Fetched HH:MM UTC" (when this page fetched the alerts), as the source badge
 
 // Normalize severity to standard categories: HIGH, MODERATE, LOW
 const normalizeSeverity = (sev) => {
@@ -98,20 +91,13 @@ const getSeverityWeight = (sev) => {
     return 0;
 };
 
-// 1-2 line short message helper (no long paragraphs)
+// Card sentence: the rule(s) that put the zone at its level, as reported by the backend (rules_fired)
 const resolveShortMessage = (alert) => {
-    const type = (alert.type || '').toLowerCase();
-    const msg = (alert.message || '').toLowerCase();
     const sev = normalizeSeverity(alert.severity);
-
-    if (type.includes('flood') || msg.includes('flood')) return "Heavy rainfall may cause flooding in low-lying areas.";
-    if (type.includes('cloudburst') || msg.includes('cloudburst')) return "Cloudburst event detected with rapid water runoff.";
-    if (type.includes('thunder') || type.includes('storm')) return "Severe thunderstorm activity with high winds and rain.";
-    if (type.includes('wind')) return "Strong winds with heavy rain expected.";
-    if (type.includes('rain')) return "Heavy rainfall expected in next few hours.";
-    if (sev === 'HIGH') return "Severe rainfall may cause flooding in low-lying areas.";
-    if (sev === 'MODERATE') return "Moderate rainfall or wind by the page's rules.";
-    return "No rule-based hazard flagged for this zone.";
+    if (sev === 'LOW') return "No rule-based hazard flagged for this zone.";
+    const rules = Array.isArray(alert.rules_fired) ? alert.rules_fired.filter(Boolean) : [];
+    if (!rules.length) return "Rule-based level; the rule that fired was not reported.";
+    return `${rules.join('; ')} (rule-based).`;
 };
 
 // No action advice from this demo (its alerts are rule-based, usually on sample data): point to the
@@ -157,7 +143,7 @@ const Alerts = () => {
             setSummary(fetchedSummary);
             setWeatherSource(fetchedSummary.source || 'sample');
             setDataTime(fetchedSummary.data_time || fetchedSummary.latest_observed_at || null);
-            setLastSyncTime(new Date());      // fetch time (the backend's last_updated has no time zone)
+            setLastSyncTime(parseUtcIso(data.last_updated) || new Date());   // backend UTC time of the zone data
         } catch (err) {
             console.error("Alerts fetch error:", err);
             setError("Alerts unavailable — backend not reachable");

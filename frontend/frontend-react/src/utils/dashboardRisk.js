@@ -60,12 +60,18 @@ export function explanationText(loc) {
 
 const hhmmUtc = (iso) => `${iso.slice(11, 16)} UTC`;
 
-// "Fetched HH:MM UTC": when this page fetched the data (browser clock, UTC). The backend's own
-// timestamps carry no time zone, so they are not used for this label.
+// A timezone-aware ISO time ("...Z" or "...+05:30") as a Date; null when missing, unparseable or naive
+// (a naive time would be read in the browser's zone).
+export function parseUtcIso(iso) {
+    if (typeof iso !== 'string' || !/(Z|[+-]\d\d:?\d\d)$/.test(iso.trim())) return null;
+    const d = new Date(iso);
+    return Number.isNaN(d.getTime()) ? null : d;
+}
+
+// "Fetched HH:MM UTC" from a Date or a timezone-aware ISO time (the team backend emits UTC "...Z").
 export function fetchedLabel(fetchedAt) {
-    if (!fetchedAt) return 'Fetched —';
-    const d = new Date(fetchedAt);
-    return Number.isNaN(d.getTime()) ? 'Fetched —' : `Fetched ${hhmmUtc(d.toISOString())}`;
+    const d = fetchedAt instanceof Date ? fetchedAt : parseUtcIso(fetchedAt);
+    return !d || Number.isNaN(d.getTime()) ? 'Fetched —' : `Fetched ${hhmmUtc(d.toISOString())}`;
 }
 
 // Neutral wording of the zone-list weather source, for the info strip

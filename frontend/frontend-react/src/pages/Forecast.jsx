@@ -13,98 +13,14 @@ import {
     Thermometer,
     Droplets,
     Wind,
-    TrendingUp,
     Activity,
     MapPin,
-    ArrowRight,
-    ArrowUpRight,
-    ArrowDownRight,
-    Zap,
     ShieldAlert,
-    Clock,
-    Flame,
-    AlertOctagon,
-    CheckCircle2,
     Info,
     Search,
     Loader2
 } from 'lucide-react';
 import TopHeader from '../components/TopHeader';
-
-const TIMELINE_STEPS = ["Now", "+1h", "+2h", "+3h", "+4h"];
-
-// Dynamic forecast normalizer: guarantees each city has a robust 0–4h nowcast trajectory
-const normalizeCityForecast = (item) => {
-    if (!item) return [];
-
-    // If backend already returned a forecast array, validate and format it
-    if (Array.isArray(item.forecast) && item.forecast.length >= 5) {
-        return item.forecast.slice(0, 5).map((f, idx) => ({
-            hour: f.hour ?? idx,
-            rainfall: Number((Number(f.rainfall ?? 0)).toFixed(1)),
-            humidity: Math.min(100, Math.max(20, Math.round(Number(f.humidity ?? 70)))),
-            wind_speed: Number((Number(f.wind_speed ?? 4)).toFixed(1)),
-            temperature: Number((Number(f.temperature ?? item.temperature ?? 28)).toFixed(1)),
-            risk: (f.risk || f.risk_level || (f.rainfall >= 20 ? "HIGH" : f.rainfall >= 10 ? "MODERATE" : "LOW")).toUpperCase()
-        }));
-    }
-
-    // Dynamic derivation from real backend telemetry and ML probabilities
-    const baseRain = Number(item.rainfall ?? item.weather?.rainfall ?? 0);
-    const baseHum = Number(item.humidity ?? item.weather?.humidity ?? 70);
-    const baseWind = Number(item.wind_speed ?? item.weather?.wind_speed ?? 4.5);
-    const baseTemp = Number(item.temperature ?? item.weather?.temperature ?? 28.0);
-    const baseRisk = (item.risk_level || item.risk || "LOW").toUpperCase();
-
-    const pFlood = Number(item.probabilities?.flash_flood ?? (baseRisk === "HIGH" ? 0.78 : baseRisk === "MODERATE" ? 0.42 : 0.1));
-    const pThunder = Number(item.probabilities?.thunderstorm ?? (baseRisk === "HIGH" ? 0.74 : baseRisk === "MODERATE" ? 0.45 : 0.12));
-
-    const hours = [0, 1, 2, 3, 4];
-    return hours.map((h) => {
-        if (h === 0) {
-            return {
-                hour: 0,
-                rainfall: Number(baseRain.toFixed(1)),
-                humidity: Math.min(100, Math.max(20, Math.round(baseHum))),
-                wind_speed: Number(baseWind.toFixed(1)),
-                temperature: Number(baseTemp.toFixed(1)),
-                risk: ["HIGH", "MODERATE", "LOW"].includes(baseRisk) ? baseRisk : "LOW"
-            };
-        }
-
-        let rain_h;
-        if (baseRisk === "HIGH") {
-            const growth = pFlood > 0.7 ? 2.2 * h : 1.3 * h;
-            rain_h = Math.max(0, baseRain + (h <= 2 ? growth * 1.2 : growth * 0.9));
-        } else if (baseRisk === "MODERATE") {
-            const shift = pThunder > 0.45 ? 1.4 * h : (h <= 2 ? 0.7 * h : -0.4 * (h - 2));
-            rain_h = Math.max(0, baseRain + shift);
-        } else {
-            const variation = (pFlood - 0.2) * 1.8 * h;
-            rain_h = Math.max(0, baseRain + variation);
-        }
-
-        const hum_h = Math.min(100, Math.max(25, Math.round(baseHum + (pThunder > 0.4 ? h * 1.6 : -h * 0.7))));
-        const wind_h = Math.max(0.5, Number((baseWind + (baseRisk === "HIGH" ? h * 0.6 : h * 0.2)).toFixed(1)));
-        const temp_h = Number((baseTemp - h * 0.35).toFixed(1));
-
-        let risk_h = "LOW";
-        if (rain_h >= 20 || (hum_h >= 90 && wind_h >= 9) || (baseRisk === "HIGH" && h <= 2)) {
-            risk_h = "HIGH";
-        } else if (rain_h >= 10 || hum_h >= 80 || baseRisk === "MODERATE") {
-            risk_h = "MODERATE";
-        }
-
-        return {
-            hour: h,
-            rainfall: Number(rain_h.toFixed(1)),
-            humidity: hum_h,
-            wind_speed: wind_h,
-            temperature: temp_h,
-            risk: risk_h
-        };
-    });
-};
 
 // Safe fallback state in case backend network is down
 const DEFAULT_WEATHER = {
@@ -118,27 +34,16 @@ const DEFAULT_WEATHER = {
     wind_speed: 6.2,
     lat: 19.0760,
     lon: 72.8777,
-    reason: "Moderate rainfall expected due to coastal moisture build-up",
-    forecast: [
-        { hour: 0, rainfall: 12.4, humidity: 78, wind_speed: 6.2, temperature: 28.5, risk: "MODERATE" },
-        { hour: 1, rainfall: 14.8, humidity: 80, wind_speed: 6.8, temperature: 28.1, risk: "MODERATE" },
-        { hour: 2, rainfall: 18.2, humidity: 83, wind_speed: 7.4, temperature: 27.8, risk: "MODERATE" },
-        { hour: 3, rainfall: 22.0, humidity: 86, wind_speed: 8.1, temperature: 27.4, risk: "HIGH" },
-        { hour: 4, rainfall: 19.5, humidity: 84, wind_speed: 7.6, temperature: 27.2, risk: "MODERATE" }
-    ]
+    reason: "Moderate rainfall expected due to coastal moisture build-up"
 };
 
 const Forecast = () => {
     const [searchParams] = useSearchParams();
     const cityParam = searchParams.get('city');
 
-    // 1. Forecast Timeline State: Default = 0 (Now), Range = 0 to 4
-    const [timelineHour, setTimelineHour] = useState(0);
-
     // Weather Data & Cities State
     const [currentData, setCurrentData] = useState(DEFAULT_WEATHER);
     const [citiesList, setCitiesList] = useState([]);
-    const [hoveredPoint, setHoveredPoint] = useState(null);
     const [loading, setLoading] = useState(false);
     const [backendStatus, setBackendStatus] = useState('pending');
 
@@ -179,7 +84,6 @@ const Forecast = () => {
         if (matchingNode) {
             const locName = matchingNode.location || matchingNode.city || matchingNode.name;
             setCurrentData(matchingNode);
-            setTimelineHour(0);
             setFallbackMessage("");
             try {
                 localStorage.setItem("selectedCity", locName);
@@ -199,7 +103,6 @@ const Forecast = () => {
         setRealtimeData(null);
         const locName = cityItem.location || cityItem.city || cityItem.name;
         setCurrentData(cityItem);
-        setTimelineHour(0);
         setFallbackMessage("");
         setSearch(locName);
         try {
@@ -222,11 +125,9 @@ const Forecast = () => {
                 if (!Array.isArray(data) || data.length === 0) throw new Error('no data');
 
                 if (isMounted && Array.isArray(data) && data.length > 0) {
-                    // Normalize all cities to include full 0–4h nowcast forecast array
                     const enrichedCities = data.map((item) => ({
                         ...item,
-                        location: item.location || item.city || item.name,
-                        forecast: normalizeCityForecast(item)
+                        location: item.location || item.city || item.name
                     }));
 
                     setCitiesList(enrichedCities);
@@ -310,7 +211,6 @@ const Forecast = () => {
                 if (data && !data.error && data.city) {
                     setRealtimeData(data);
                     setIsRealtime(true);
-                    setTimelineHour(0);
                     setFallbackMessage("");
                     setShowDropdown(false);
                     setSearch(data.city);
@@ -335,7 +235,6 @@ const Forecast = () => {
         if (exactNode) {
             const locName = exactNode.location || exactNode.city || exactNode.name;
             setCurrentData(exactNode);
-            setTimelineHour(0);
             setFallbackMessage("");
             setSearch(locName);
             setShowDropdown(false);
@@ -381,7 +280,6 @@ const Forecast = () => {
         if (fallbackNode) {
             const locName = fallbackNode.location || fallbackNode.city || fallbackNode.name;
             setCurrentData(fallbackNode);
-            setTimelineHour(0);
             setFallbackMessage(
                 "⚠ Exact location not found. Showing nearest available node: " + locName
             );
@@ -400,38 +298,17 @@ const Forecast = () => {
         setIsSearching(false);
     }, [search, citiesList]);
 
-    // Active city's forecast array (0–4 hours) - STEP 4: Disabled for realtime
-    const activeForecast = useMemo(() => {
-        if (isRealtime) {
-            return [];
-        }
-        if (Array.isArray(activeData?.forecast) && activeData.forecast.length >= 5) {
-            return activeData.forecast;
-        }
-        return normalizeCityForecast(activeData);
-    }, [activeData, isRealtime]);
-
-    // 4. Timeline Slider (Core Nowcast): Read forecast[selectedHour] or realtime telemetry
+    // Current values only (the page has no hourly forecast)
     const activeNowcast = useMemo(() => {
-        if (isRealtime && realtimeData) {
-            return {
-                hour: 0,
-                rainfall: Number(realtimeData.rainfall ?? 0),
-                humidity: Number(realtimeData.humidity ?? 70),
-                wind_speed: Number(realtimeData.wind_speed ?? 2),
-                temperature: Number(realtimeData.temperature ?? 28),
-                risk: (realtimeData.risk_level || realtimeData.risk || "LOW").toUpperCase()
-            };
-        }
-        return activeForecast[timelineHour] || activeForecast[0] || {
-            hour: 0,
-            rainfall: 0,
-            humidity: 70,
-            wind_speed: 4,
-            temperature: 28,
-            risk: "LOW"
+        const src = isRealtime && realtimeData ? realtimeData : activeData;
+        return {
+            rainfall: Number(Number(src?.rainfall ?? src?.weather?.rainfall ?? 0).toFixed(1)),
+            humidity: Math.round(Number(src?.humidity ?? src?.weather?.humidity ?? 70)),
+            wind_speed: Number(Number(src?.wind_speed ?? src?.weather?.wind_speed ?? 2).toFixed(1)),
+            temperature: Number(Number(src?.temperature ?? src?.weather?.temperature ?? 28).toFixed(1)),
+            risk: (src?.risk_level || src?.risk || "LOW").toUpperCase()
         };
-    }, [isRealtime, realtimeData, activeForecast, timelineHour]);
+    }, [isRealtime, realtimeData, activeData]);
 
     // Risk styling helper
     const getRiskBadge = (risk) => {
@@ -467,195 +344,6 @@ const Forecast = () => {
     };
 
     const currentRiskInfo = getRiskBadge(activeNowcast.risk);
-
-    // Risk Progression Bar Data (Horizontal timeline: Now → +1h → +2h → +3h → +4h)
-    const riskProgressionSteps = useMemo(() => {
-        return activeForecast.map((f, idx) => {
-            const riskBadge = getRiskBadge(f.risk);
-            const stepLabel = TIMELINE_STEPS[idx] || `+${f.hour}h`;
-            return {
-                step: stepLabel,
-                hour: f.hour,
-                rain: f.rainfall,
-                humidity: f.humidity,
-                wind_speed: f.wind_speed,
-                risk: f.risk,
-                ...riskBadge,
-                desc: f.risk === "HIGH" ? "Heavy Convection" : f.risk === "MODERATE" ? "Active Showers" : "Nominal"
-            };
-        });
-    }, [activeForecast]);
-
-    // FUTURE ALERT PREVIEW
-    const futureAlertPreview = useMemo(() => {
-        if (!activeForecast || activeForecast.length < 2) return null;
-
-        // Check if future hour (hour > 0) becomes HIGH
-        const highRiskInFuture = activeForecast.slice(1).find(f => (f.risk || '').toUpperCase() === "HIGH");
-        if (highRiskInFuture) {
-            return {
-                severity: "HIGH",
-                icon: AlertTriangle,
-                heading: `High risk expected in +${highRiskInFuture.hour}h`,
-                badge: liveWeather ? "Rule-based alert on OpenWeather data" : "Rule-based alert on sample data",
-                message: `Intense convective activity projected at +${highRiskInFuture.hour}h with ${highRiskInFuture.rainfall} mm/h precipitation and ${highRiskInFuture.wind_speed} m/s wind. Follow official IMD and state advisories.`,
-                hour: highRiskInFuture.hour,
-                rainfall: highRiskInFuture.rainfall,
-                bgClass: "bg-red-500/10 dark:bg-red-950/40 border-red-300 dark:border-red-800/80 text-red-900 dark:text-red-100"
-            };
-        }
-
-        // Check if current hour is already HIGH and sustained
-        if ((activeForecast[0]?.risk || '').toUpperCase() === "HIGH") {
-            return {
-                severity: "HIGH",
-                icon: AlertOctagon,
-                heading: `High risk currently active (Now)`,
-                badge: "ACTIVE HAZARD ALERT",
-                message: `Current precipitation of ${activeForecast[0]?.rainfall} mm/h under high convective stress. Monitor local municipal drainage and storm advisories.`,
-                hour: 0,
-                rainfall: activeForecast[0]?.rainfall,
-                bgClass: "bg-red-500/10 dark:bg-red-950/40 border-red-300 dark:border-red-800/80 text-red-900 dark:text-red-100"
-            };
-        }
-
-        // Check if moderate risk is approaching
-        const modRiskInFuture = activeForecast.slice(1).find(f => (f.risk || '').toUpperCase() === "MODERATE");
-        if (modRiskInFuture) {
-            return {
-                severity: "MODERATE",
-                icon: AlertTriangle,
-                heading: `Moderate rain expected in +${modRiskInFuture.hour}h`,
-                badge: "PRECIPITATION ADVISORY",
-                message: `Scattered precipitation reaching ${modRiskInFuture.rainfall} mm/h expected in +${modRiskInFuture.hour}h. Low atmospheric disturbance.`,
-                hour: modRiskInFuture.hour,
-                rainfall: modRiskInFuture.rainfall,
-                bgClass: "bg-amber-500/10 dark:bg-amber-950/40 border-amber-300 dark:border-amber-800/80 text-amber-900 dark:text-amber-100"
-            };
-        }
-
-        // Low / Stable outlook
-        return {
-            severity: "LOW",
-            icon: CheckCircle2,
-            heading: `No rule-based high risk in the next hours`,
-            badge: "NORMAL NOWCAST",
-            message: `No elevated hazard projected over the 0–4 hour nowcast horizon. Precipitation baseline remains nominal at ${activeForecast[0]?.rainfall || 0} mm/h.`,
-            hour: null,
-            rainfall: activeForecast[0]?.rainfall || 0,
-            bgClass: "bg-emerald-500/10 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800/80 text-emerald-900 dark:text-emerald-100"
-        };
-    }, [activeForecast, liveWeather]);
-
-    // TREND CHART: Forecast data mapping
-    const chartWidth = 620;
-    const chartHeight = 170;
-    const paddingX = 45;
-    const paddingY = 28;
-
-    const chartPoints = useMemo(() => {
-        if (!activeForecast || activeForecast.length === 0) return [];
-        const maxVal = Math.max(25, ...activeForecast.map(f => Number(f.rainfall) || 0)) * 1.25;
-
-        return activeForecast.map((f, idx) => {
-            const val = Number(f.rainfall) || 0;
-            const x = paddingX + (idx / (activeForecast.length - 1)) * (chartWidth - paddingX * 2);
-            const y = chartHeight - paddingY - (val / maxVal) * (chartHeight - paddingY * 2);
-            return {
-                x,
-                y,
-                val,
-                hour: f.hour,
-                timeLabel: TIMELINE_STEPS[idx] || (f.hour === 0 ? "Now" : `+${f.hour}h`),
-                risk: f.risk
-            };
-        });
-    }, [activeForecast, chartWidth, chartHeight, paddingX, paddingY]);
-
-    const svgPathD = useMemo(() => {
-        return chartPoints.reduce((acc, pt, idx) => {
-            return idx === 0 ? `M ${pt.x},${pt.y}` : `${acc} L ${pt.x},${pt.y}`;
-        }, "");
-    }, [chartPoints]);
-
-    const svgAreaD = useMemo(() => {
-        if (!chartPoints.length) return "";
-        return `${svgPathD} L ${chartPoints[chartPoints.length - 1].x},${chartHeight - paddingY} L ${chartPoints[0].x},${chartHeight - paddingY} Z`;
-    }, [svgPathD, chartPoints, chartHeight, paddingY]);
-
-    const activeChartIndex = hoveredPoint !== null ? hoveredPoint : timelineHour;
-    const activePointData = chartPoints[activeChartIndex] || chartPoints[0] || { x: 0, y: 0, val: 0, timeLabel: "Now" };
-
-    // Dynamic Chart Statistics
-    const chartStats = useMemo(() => {
-        if (!activeForecast.length) {
-            return {
-                peak: activeNowcast.rainfall,
-                baseline: activeNowcast.rainfall,
-                average: activeNowcast.rainfall,
-                diff: 0,
-                trajectoryText: liveWeather ? "Current value (live weather data)" : "Single value (sample data)"
-            };
-        }
-        const rains = activeForecast.map(f => Number(f.rainfall) || 0);
-        const peak = Math.max(...rains);
-        const baseline = rains[0] ?? 0;
-        const average = Number((rains.reduce((a, b) => a + b, 0) / (rains.length || 1)).toFixed(1));
-        const diff = Number((rains[rains.length - 1] - baseline).toFixed(1));
-
-        let trajectoryText = "Nominal and steady precipitation";
-        if (diff > 5) {
-            trajectoryText = `Surging convective momentum (+${diff} mm delta by +4h)`;
-        } else if (diff > 0) {
-            trajectoryText = `Gentle moisture buildup (+${diff} mm by +4h)`;
-        } else if (diff < -2) {
-            trajectoryText = `Clearing trend (${diff} mm reduction by +4h)`;
-        }
-
-        return { peak, baseline, average, diff, trajectoryText };
-    }, [activeForecast, activeNowcast.rainfall, liveWeather]);
-
-    // Dynamic Comparison Card: Now vs +4h Change
-    const comparisonStats = useMemo(() => {
-        if (!activeForecast.length) {
-            return {
-                nowRain: activeNowcast.rainfall,
-                futureRain: activeNowcast.rainfall,
-                rainDiff: "0",
-                nowTemp: activeNowcast.temperature.toFixed(1),
-                futureTemp: activeNowcast.temperature.toFixed(1),
-                tempDiff: "0",
-                nowRisk: activeNowcast.risk,
-                futureRisk: activeNowcast.risk,
-                isSurge: false
-            };
-        }
-        const nowItem = activeForecast[0] || {};
-        const futureItem = activeForecast[activeForecast.length - 1] || {};
-
-        const nowRain = Number(nowItem.rainfall ?? 0);
-        const futureRain = Number(futureItem.rainfall ?? 0);
-        const rainDiff = Number((futureRain - nowRain).toFixed(1));
-
-        const nowTemp = Number(nowItem.temperature ?? 28);
-        const futureTemp = Number(futureItem.temperature ?? 27);
-        const tempDiff = Number((futureTemp - nowTemp).toFixed(1));
-
-        const nowRisk = (nowItem.risk || "LOW").toUpperCase();
-        const futureRisk = (futureItem.risk || "LOW").toUpperCase();
-
-        return {
-            nowRain,
-            futureRain,
-            rainDiff: rainDiff > 0 ? `+${rainDiff}` : `${rainDiff}`,
-            nowTemp: nowTemp.toFixed(1),
-            futureTemp: futureTemp.toFixed(1),
-            tempDiff: tempDiff > 0 ? `+${tempDiff}` : `${tempDiff}`,
-            nowRisk,
-            futureRisk,
-            isSurge: rainDiff > 5
-        };
-    }, [activeForecast, activeNowcast]);
 
     // AI Insight derivation based on dynamic active nowcast
     const aiInsightData = useMemo(() => {
@@ -766,7 +454,7 @@ const Forecast = () => {
                         <div>
                             <div className="flex items-center gap-2">
                                 <h1 className="text-2xl font-black tracking-tight">
-                                    Nowcasting Engine (0–4 Hour Prediction)
+                                    Nowcasting Engine (current conditions)
                                 </h1>
                                 {activeData?.city && (
                                     <span className="text-xs px-2.5 py-0.5 rounded-full font-bold bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
@@ -775,7 +463,7 @@ const Forecast = () => {
                                 )}
                             </div>
                             <p className="text-sm text-slate-500 dark:text-slate-400">
-                                {liveWeather ? 'Real-Time Convective Extrapolation & Sub-Daily Risk Modeling' : 'Convective Extrapolation & Sub-Daily Risk Modeling'}
+                                Current weather and a rule-based risk level
                             </p>
                             <p data-testid="forecast-source-badge" data-source={weatherSource} className="text-xs font-bold text-amber-700 dark:text-amber-400 mt-0.5">
                                 {sourceText}
@@ -994,59 +682,13 @@ const Forecast = () => {
                     </div>
                 )}
 
-                {/* FUTURE ALERT PREVIEW */}
-                {futureAlertPreview && (
-                    <div className={`p-4 md:p-5 rounded-2xl border shadow-sm transition-all duration-300 flex items-start gap-4 ${futureAlertPreview.bgClass}`}>
-                        <div className={`p-2.5 rounded-xl shrink-0 ${
-                            futureAlertPreview.severity === "HIGH"
-                                ? "bg-red-600 text-white animate-pulse"
-                                : futureAlertPreview.severity === "MODERATE"
-                                    ? "bg-amber-500 text-white"
-                                    : "bg-emerald-600 text-white"
-                        }`}>
-                            <futureAlertPreview.icon size={22} />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                            <div className="flex flex-wrap items-center gap-2 mb-1">
-                                <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-md ${
-                                    futureAlertPreview.severity === "HIGH"
-                                        ? "bg-red-600 text-white"
-                                        : futureAlertPreview.severity === "MODERATE"
-                                            ? "bg-amber-500 text-white"
-                                            : "bg-emerald-600 text-white"
-                                }`}>
-                                    {futureAlertPreview.badge}
-                                </span>
-                                <h3 className="text-base font-black tracking-tight">
-                                    {futureAlertPreview.heading}
-                                </h3>
-                            </div>
-                            <p className="text-xs md:text-sm font-medium opacity-90 leading-relaxed">
-                                {futureAlertPreview.message}
-                            </p>
-                        </div>
-                        {futureAlertPreview.hour !== null && (
-                            <button
-                                onClick={() => setTimelineHour(futureAlertPreview.hour)}
-                                className={`px-3 py-1.5 rounded-xl font-bold text-xs shrink-0 self-center transition-all ${
-                                    futureAlertPreview.severity === "HIGH"
-                                        ? "bg-red-600 hover:bg-red-700 text-white shadow-sm hover:scale-105"
-                                        : "bg-amber-600 hover:bg-amber-700 text-white shadow-sm hover:scale-105"
-                                }`}
-                            >
-                                Inspect +{futureAlertPreview.hour}h
-                            </button>
-                        )}
-                    </div>
-                )}
-
                 {/* NOWCASTING ENGINE & LIVE NOWCAST PANEL */}
                 <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 md:p-8 shadow-sm transition-all duration-300 hover:shadow-xl hover:scale-[1.005]">
                     <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
                             <h2 className="text-lg font-bold">Nowcasting Engine</h2>
                             <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
-                                0–4h Horizon
+                                Now
                             </span>
                         </div>
                         {backendStatus === 'ok' && (
@@ -1056,8 +698,8 @@ const Forecast = () => {
                         )}
                     </div>
                     <p className="text-slate-600 dark:text-slate-400 text-sm mb-6">
-                        {liveWeather ? `Localized extrapolation by fixed rules from ${sourceText} (not the ML model).`
-                            : 'Localized convective extrapolation from sample weather and fixed rules (not the ML model).'}
+                        {liveWeather ? `Current values from ${sourceText}; risk level by fixed rules (not the ML model).`
+                            : 'Current sample weather values; risk level by fixed rules (not the ML model).'}
                     </p>
 
                     <div className="grid grid-cols-1 gap-5">
@@ -1076,44 +718,14 @@ const Forecast = () => {
                                             <Info size={13} /> {liveWeather ? 'Live Nowcast' : 'Nowcast'} (No historical projection available)
                                         </span>
                                     ) : (
-                                        <>Readout for: <strong>{timelineHour === 0 ? "Now (Current)" : `+${timelineHour}h Future Projection`}</strong></>
+                                        <>Readout for: <strong>Now (current)</strong></>
                                     )}
                                 </p>
                             </div>
 
                             {/* Timeline Slider Section */}
                             <div className="mt-4 pt-3 border-t border-slate-200 dark:border-slate-700/60">
-                                {!isRealtime ? (
-                                    <>
-                                        <div className="flex items-center justify-between mb-2">
-                                            <span className="text-xs font-bold text-blue-600 dark:text-blue-400">
-                                                Horizon: {timelineHour === 0 ? "Now (0h)" : `+${timelineHour} hour${timelineHour === 1 ? '' : 's'}`}
-                                            </span>
-                                            <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300">
-                                                {TIMELINE_STEPS[timelineHour]}
-                                            </span>
-                                        </div>
-
-                                        <input
-                                            type="range"
-                                            min="0"
-                                            max="4"
-                                            step="1"
-                                            value={timelineHour}
-                                            onChange={(e) => setTimelineHour(Number(e.target.value))}
-                                            aria-label="Forecast timeline slider"
-                                            className="w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-600 transition-all duration-300 hover:opacity-90"
-                                        />
-
-                                        <div className="flex justify-between text-[10px] text-slate-400 dark:text-slate-500 mt-1 font-semibold px-0.5">
-                                            <span>Now (0h)</span>
-                                            <span>+1h</span>
-                                            <span>+2h</span>
-                                            <span>+3h</span>
-                                            <span>+4h</span>
-                                        </div>
-                                    </>
-                                ) : (
+                                {isRealtime && (
                                     <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 text-amber-800 dark:text-amber-300 text-xs">
                                         <div className="font-bold flex items-center gap-1.5">
                                             <Info size={14} className="shrink-0" />
@@ -1169,401 +781,10 @@ const Forecast = () => {
                     </div>
                 </div>
 
-                {/* DYNAMIC TREND CHART (Using forecast data: hour & rainfall) */}
-                <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 md:p-8 shadow-sm transition-all duration-300 hover:shadow-xl hover:scale-[1.005]">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
-                        <div>
-                            <div className="flex items-center gap-2">
-                                <div className="p-2 rounded-lg bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 shadow-sm">
-                                    <TrendingUp size={20} />
-                                </div>
-                                <h2 className="text-lg font-bold">Rainfall Trend Chart (0–4h Projection)</h2>
-                            </div>
-                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                                {liveWeather ? 'Precipitation curve extrapolated by fixed rules from live weather data' : 'Precipitation curve extrapolated by fixed rules from sample data'}
-                            </p>
-                        </div>
-
-                        {/* Interactive active point badge */}
-                        <div className="flex items-center gap-3">
-                            <div className="text-right">
-                                <span className="text-[11px] text-slate-400 font-medium block">Selected value</span>
-                                <span className="text-sm font-black text-blue-600 dark:text-blue-400">
-                                    {activePointData.val} mm ({activePointData.timeLabel})
-                                </span>
-                            </div>
-                            <div className="px-3 py-1.5 rounded-xl bg-blue-50 dark:bg-blue-950/50 border border-blue-100 dark:border-blue-900/50 text-blue-600 dark:text-blue-400 text-xs font-bold transition-all duration-300">
-                                {timelineHour === activeChartIndex ? "Linked to Slider" : "Hover Inspected"}
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Chart SVG Visualization with Tooltip and Guide Line */}
-                    {isRealtime ? (
-                        <div className="py-12 flex flex-col items-center justify-center text-center p-6 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-dashed border-slate-200 dark:border-slate-700">
-                            <Sparkles className="text-purple-500 mb-2" size={32} />
-                            <h3 className="font-bold text-slate-800 dark:text-slate-100 text-sm">
-                                {liveWeather ? 'Live Nowcast' : 'Nowcast'} (No historical projection available)
-                            </h3>
-                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-md">
-                                {liveWeather
-                                    ? <>Showing current weather for <strong>{activeNodeName}</strong> from {sourceText}.</>
-                                    : <>Showing sample weather values for <strong>{activeNodeName}</strong> (no live weather feed).</>}
-                            </p>
-                            <div className="mt-4 flex flex-wrap items-center justify-center gap-3 text-xs font-semibold">
-                                <span className="px-3 py-1 rounded-lg bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
-                                    Rainfall: {activeNowcast.rainfall} mm
-                                </span>
-                                <span className="px-3 py-1 rounded-lg bg-teal-50 dark:bg-teal-900/40 text-teal-600 dark:text-teal-300 border border-teal-200 dark:border-teal-800">
-                                    Humidity: {activeNowcast.humidity}%
-                                </span>
-                                <span className="px-3 py-1 rounded-lg bg-sky-50 dark:bg-sky-900/40 text-sky-600 dark:text-sky-300 border border-sky-200 dark:border-sky-800">
-                                    Wind: {activeNowcast.wind_speed} m/s
-                                </span>
-                                <span className="px-3 py-1 rounded-lg bg-amber-50 dark:bg-amber-900/40 text-amber-600 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
-                                    Temperature: {activeNowcast.temperature}°C
-                                </span>
-                            </div>
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    setIsRealtime(false);
-                                    setRealtimeData(null);
-                                    setFallbackMessage("");
-                                }}
-                                className="mt-5 px-3.5 py-1.5 rounded-xl text-xs font-bold bg-blue-600 text-white hover:bg-blue-700 shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
-                            >
-                                <ArrowLeft size={13} />
-                                <span>Back to Monitoring Nodes</span>
-                            </button>
-                        </div>
-                    ) : (
-                        <div className="relative w-full overflow-visible select-none">
-                            {/* Floating Tooltip Overlay */}
-                            <div
-                                className="absolute pointer-events-none z-20 transition-all duration-300 ease-out -translate-x-1/2"
-                                style={{
-                                    left: `${(activePointData.x / chartWidth) * 100}%`,
-                                    top: `${Math.max(0, (activePointData.y / chartHeight) * 100 - 32)}%`
-                                }}
-                            >
-                                <div className="px-3 py-1.5 rounded-xl bg-slate-900/90 dark:bg-slate-800/95 backdrop-blur-md text-white border border-slate-700/80 shadow-xl flex items-center gap-2 whitespace-nowrap">
-                                    <div className="w-2 h-2 rounded-full bg-blue-400 animate-ping"></div>
-                                    <span className="text-xs font-bold text-blue-300">{activePointData.timeLabel}:</span>
-                                    <span className="text-xs font-black text-white">{activePointData.val} mm</span>
-                                    <span className="text-[10px] px-1.5 py-0.5 rounded font-bold bg-blue-500/20 text-blue-300">
-                                        {activePointData.val >= 20 ? "Heavy" : activePointData.val >= 10 ? "Moderate" : "Light"}
-                                    </span>
-                                </div>
-                            </div>
-
-                            <svg
-                                viewBox={`0 0 ${chartWidth} ${chartHeight}`}
-                                className="w-full h-48 sm:h-56 overflow-visible"
-                            >
-                                <defs>
-                                    <linearGradient id="rainGradientNowcast" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.45" />
-                                        <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.0" />
-                                    </linearGradient>
-                                </defs>
-
-                                {/* Dynamic Grid Lines based on Peak */}
-                                {[0.33, 0.66, 1].map((ratio) => {
-                                    const tickVal = Math.round((chartStats.peak + 5) * ratio);
-                                    const maxVal = Math.max(25, chartStats.peak) * 1.25;
-                                    const yPos = chartHeight - paddingY - (tickVal / maxVal) * (chartHeight - paddingY * 2);
-                                    return (
-                                        <g key={ratio} className="text-slate-300 dark:text-slate-700/70">
-                                            <line
-                                                x1={paddingX}
-                                                y1={yPos}
-                                                x2={chartWidth - paddingX}
-                                                y2={yPos}
-                                                stroke="currentColor"
-                                                strokeDasharray="4 4"
-                                                strokeWidth="1"
-                                                opacity="0.6"
-                                            />
-                                            <text
-                                                x={paddingX - 8}
-                                                y={yPos + 3}
-                                                textAnchor="end"
-                                                className="text-[10px] fill-slate-400 dark:fill-slate-500 font-semibold"
-                                            >
-                                                {tickVal}mm
-                                            </text>
-                                        </g>
-                                    );
-                                })}
-
-                                {/* Vertical Guide Line at Active Point */}
-                                <line
-                                    x1={activePointData.x}
-                                    y1={paddingY}
-                                    x2={activePointData.x}
-                                    y2={chartHeight - paddingY}
-                                    stroke="#3b82f6"
-                                    strokeDasharray="3 3"
-                                    strokeWidth="1.5"
-                                    opacity="0.6"
-                                    className="transition-all duration-300 ease-out"
-                                />
-
-                                {/* Area Fill */}
-                                <path d={svgAreaD} fill="url(#rainGradientNowcast)" />
-
-                                {/* Trend Line Path */}
-                                <path
-                                    d={svgPathD}
-                                    fill="none"
-                                    stroke="#3b82f6"
-                                    strokeWidth="3.5"
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    className="drop-shadow-sm animate-line-draw"
-                                />
-
-                                {/* Data Points */}
-                                {chartPoints.map((pt, idx) => {
-                                    const isActive = idx === activeChartIndex;
-                                    return (
-                                        <g
-                                            key={idx}
-                                            onMouseEnter={() => setHoveredPoint(idx)}
-                                            onMouseLeave={() => setHoveredPoint(null)}
-                                            onClick={() => setTimelineHour(idx)}
-                                            className="cursor-pointer group"
-                                        >
-                                            <circle cx={pt.x} cy={pt.y} r="22" fill="transparent" />
-
-                                            {isActive && (
-                                                <circle
-                                                    cx={pt.x}
-                                                    cy={pt.y}
-                                                    r="14"
-                                                    className="fill-blue-500/20 stroke-blue-500 animate-pulse"
-                                                    strokeWidth="2"
-                                                />
-                                            )}
-
-                                            <circle
-                                                cx={pt.x}
-                                                cy={pt.y}
-                                                r={isActive ? 7 : 4.5}
-                                                className={`${isActive ? "fill-blue-600 stroke-white dark:stroke-slate-900" : "fill-white dark:fill-slate-800 stroke-blue-500"} transition-all duration-300`}
-                                                strokeWidth="2.5"
-                                            />
-
-                                            <text
-                                                x={pt.x}
-                                                y={chartHeight - 6}
-                                                textAnchor="middle"
-                                                className={`text-[11px] font-bold ${isActive ? "fill-blue-600 dark:fill-blue-400" : "fill-slate-400 dark:fill-slate-500"} transition-all duration-300`}
-                                            >
-                                                {pt.timeLabel}
-                                            </text>
-                                        </g>
-                                    );
-                                })}
-                            </svg>
-                        </div>
-                    )}
-
-                    {/* Dynamic Chart Summary Chips */}
-                    <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800/80 flex flex-wrap items-center justify-between gap-3 text-xs">
-                        <div className="flex items-center gap-2">
-                            <span className="w-2.5 h-2.5 rounded-full bg-blue-500"></span>
-                            <span className="text-slate-500 dark:text-slate-400 font-medium">Trajectory:</span>
-                            <span className="font-bold text-slate-800 dark:text-slate-200">
-                                {chartStats.trajectoryText}
-                            </span>
-                        </div>
-                        <div className="flex items-center gap-4 text-slate-500 dark:text-slate-400">
-                            <span>Peak: <strong className="text-slate-800 dark:text-slate-200">{chartStats.peak} mm</strong></span>
-                            <span>Average: <strong className="text-slate-800 dark:text-slate-200">{chartStats.average} mm</strong></span>
-                            <span>Baseline: <strong className="text-slate-800 dark:text-slate-200">{chartStats.baseline} mm</strong></span>
-                        </div>
-                    </div>
-                </div>
-
-                {/* RISK PROGRESSION BAR & COMPARISON CARD (Now vs +4h) */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    {/* RISK PROGRESSION BAR (Horizontal timeline: Now → +1h → +2h → +3h → +4h) */}
-                    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm transition-all duration-300 hover:shadow-xl hover:scale-[1.01] flex flex-col justify-between">
-                        <div>
-                            <div className="flex items-center justify-between mb-4">
-                                <div className="flex items-center gap-2.5">
-                                    <div className="p-2 bg-gradient-to-tr from-emerald-500 via-amber-400 to-rose-600 text-white rounded-xl shadow-sm">
-                                        <Flame size={18} />
-                                    </div>
-                                    <div>
-                                        <h2 className="text-base font-bold tracking-tight">Risk Progression Bar</h2>
-                                        <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                                            Horizontal nowcast timeline: Now → +1h → +2h → +3h → +4h
-                                        </p>
-                                    </div>
-                                </div>
-                                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
-                                    PS-Compliant
-                                </span>
-                            </div>
-
-                            {/* Horizontal Step Timeline or Realtime Status */}
-                            {isRealtime ? (
-                                <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700 text-center py-6">
-                                    <span className={`text-xs font-black px-3 py-1 rounded-full border ${currentRiskInfo.badgeClass}`}>
-                                        {currentRiskInfo.label}
-                                    </span>
-                                    <h3 className="font-bold text-slate-800 dark:text-slate-100 text-sm mt-3">
-                                        {liveWeather ? 'Live Risk Classification' : 'Rule-based Risk Classification'}: {activeNowcast.risk}
-                                    </h3>
-                                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-sm mx-auto">
-                                        {liveWeather ? `Live Nowcast (No historical projection available). Values from ${sourceText}.`
-                                            : 'No projection available for a single searched location (sample data).'}
-                                    </p>
-                                </div>
-                            ) : (
-                                <div className="mt-4 relative py-2">
-                                    {/* Connecting Background Track */}
-                                    <div className="absolute top-1/2 left-6 right-6 h-2 -translate-y-1/2 rounded-full bg-slate-200 dark:bg-slate-700/80" />
-
-                                    {/* Step Nodes */}
-                                    <div className="relative flex justify-between">
-                                        {riskProgressionSteps.map((item, idx) => {
-                                            const isSelected = timelineHour === item.hour;
-                                            return (
-                                                <button
-                                                    key={idx}
-                                                    onClick={() => setTimelineHour(item.hour)}
-                                                    className="flex flex-col items-center gap-1.5 focus:outline-none group cursor-pointer"
-                                                >
-                                                    <div
-                                                        className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-black text-white shadow-md border-2 border-white dark:border-slate-900 transition-all duration-300 ${item.bgClass} ${
-                                                            isSelected ? 'ring-4 ring-blue-500/50 scale-125' : 'group-hover:scale-110'
-                                                        }`}
-                                                    >
-                                                        {item.hour === 0 ? "0h" : `+${item.hour}h`}
-                                                    </div>
-                                                    <span className={`text-[11px] font-bold transition-colors duration-300 ${isSelected ? 'text-blue-600 dark:text-blue-400' : 'text-slate-500 dark:text-slate-400 group-hover:text-slate-800 dark:group-hover:text-slate-200'}`}>
-                                                        {item.step}
-                                                    </span>
-                                                    <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded ${item.textClass} bg-slate-100 dark:bg-slate-800/80`}>
-                                                        {item.risk}
-                                                    </span>
-                                                    <span className="text-[10px] font-medium text-slate-400">
-                                                        {item.rain}mm
-                                                    </span>
-                                                </button>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-
-                        <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
-                            <span>Color: Green (Low) → Yellow (Moderate) → Red (High)</span>
-                            <span className="font-bold text-slate-700 dark:text-slate-300">
-                                Active: {riskProgressionSteps[timelineHour]?.step} ({riskProgressionSteps[timelineHour]?.risk})
-                            </span>
-                        </div>
-                    </div>
-
-                    {/* Comparison Card: Now vs +4h Change */}
-                    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm transition-all duration-300 hover:shadow-xl hover:scale-[1.01] flex flex-col justify-between">
-                        <div>
-                            <div className="flex items-center justify-between mb-4">
-                                <div className="flex items-center gap-2.5">
-                                    <div className="p-2 bg-blue-100 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 rounded-xl shadow-sm">
-                                        <Clock size={18} />
-                                    </div>
-                                    <div>
-                                        <h2 className="text-base font-bold tracking-tight">Now vs +4h Change</h2>
-                                        <p className="text-[11px] text-slate-500 dark:text-slate-400">Dynamic delta across the full 4-hour forecast horizon</p>
-                                    </div>
-                                </div>
-                                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
-                                    Delta Metrics
-                                </span>
-                            </div>
-
-                            {/* 3 Metric Comparison Grid or Realtime Status */}
-                            {isRealtime ? (
-                                <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700 text-center py-6">
-                                    <div className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-                                        Source: <strong className="text-purple-600 dark:text-purple-400 font-bold">{sourceText}</strong>
-                                    </div>
-                                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 max-w-sm mx-auto">
-                                        {liveWeather ? `Live Nowcast (No historical projection available). Current values for ${activeNodeName} from ${sourceText}.`
-                                            : `No projection available for ${activeNodeName} (sample data).`}
-                                    </p>
-                                </div>
-                            ) : (
-                                <div className="grid grid-cols-3 gap-3">
-                                    {/* Rainfall Increase (mm) */}
-                                    <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/60 transition-all duration-300 hover:border-blue-400/60">
-                                        <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 text-[11px] font-medium mb-1">
-                                            <span>Rainfall Shift</span>
-                                            <ArrowUpRight size={14} className="text-blue-500" />
-                                        </div>
-                                        <div className="text-lg font-black text-blue-600 dark:text-blue-400">
-                                            {comparisonStats.rainDiff} mm
-                                        </div>
-                                        <div className="text-[11px] text-slate-400 dark:text-slate-500 mt-1 flex items-center justify-between">
-                                            <span>{comparisonStats.nowRain}mm</span>
-                                            <ArrowRight size={10} className="text-slate-400" />
-                                            <span className="font-bold text-slate-700 dark:text-slate-300">{comparisonStats.futureRain}mm</span>
-                                        </div>
-                                    </div>
-
-                                    {/* Temperature Change */}
-                                    <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/60 transition-all duration-300 hover:border-amber-400/60">
-                                        <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 text-[11px] font-medium mb-1">
-                                            <span>Temp Change</span>
-                                            <ArrowDownRight size={14} className="text-teal-500" />
-                                        </div>
-                                        <div className="text-lg font-black text-slate-800 dark:text-slate-100">
-                                            {comparisonStats.tempDiff}°C
-                                        </div>
-                                        <div className="text-[11px] text-slate-400 dark:text-slate-500 mt-1 flex items-center justify-between">
-                                            <span>{comparisonStats.nowTemp}°C</span>
-                                            <ArrowRight size={10} className="text-slate-400" />
-                                            <span className="font-bold text-slate-700 dark:text-slate-300">{comparisonStats.futureTemp}°C</span>
-                                        </div>
-                                    </div>
-
-                                    {/* Risk Change */}
-                                    <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/60 transition-all duration-300 hover:border-rose-400/60">
-                                        <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 text-[11px] font-medium mb-1">
-                                            <span>Risk Evolution</span>
-                                            <Zap size={14} className="text-rose-500" />
-                                        </div>
-                                        <div className="text-xs font-black flex items-center gap-1.5 mt-1">
-                                            <span className={`px-1.5 py-0.5 rounded text-[11px] ${getRiskBadge(comparisonStats.nowRisk).badgeClass}`}>
-                                                {comparisonStats.nowRisk}
-                                            </span>
-                                            <ArrowRight size={12} className="text-slate-400" />
-                                            <span className={`px-1.5 py-0.5 rounded text-[11px] ${getRiskBadge(comparisonStats.futureRisk).badgeClass}`}>
-                                                {comparisonStats.futureRisk}
-                                            </span>
-                                        </div>
-                                        <div className={`text-[10px] font-bold mt-2 ${
-                                            comparisonStats.futureRisk === "HIGH" ? "text-rose-500 dark:text-rose-400" : "text-slate-500"
-                                        }`}>
-                                            {comparisonStats.isSurge ? "Convective Surge Alert" : "No surge"}
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-
-                        <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
-                            <span>Projection Mode: Sub-Daily NWP Continuous</span>
-                            <span className="font-bold text-blue-600 dark:text-blue-400">Telemetry Driven</span>
-                        </div>
-                    </div>
-                </div>
+                <p data-testid="forecast-hourly-note" className="text-sm text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 px-5 py-3.5 shadow-sm">
+                    Hourly forecasts are not available on this page. Calibrated 1–6 h nowcasts:{' '}
+                    <Link to="/nowcast" className="font-bold text-blue-600 dark:text-blue-400 hover:underline">ML Nowcast →</Link>
+                </p>
 
                 {/* AI INSIGHT CARD & RISK INDICATOR BAR */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -1595,7 +816,7 @@ const Forecast = () => {
                             </div>
 
                             <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">
-                                Dynamic reasoning engine driven by active hour telemetry ({TIMELINE_STEPS[timelineHour]}):
+                                Rule-based reading of the current values (Now):
                             </p>
 
                             <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 transition-all duration-300 hover:border-purple-400/60">
@@ -1644,7 +865,7 @@ const Forecast = () => {
                             </div>
 
                             <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">
-                                Dynamic tri-tier hazard assessment for {TIMELINE_STEPS[timelineHour]}: Green (Low) → Yellow (Moderate) → Red (High)
+                                Tri-tier rule-based level for Now: Green (Low) → Yellow (Moderate) → Red (High)
                             </p>
 
                             <div className="mt-2 space-y-2">

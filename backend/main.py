@@ -23,7 +23,7 @@ from pydantic import BaseModel
 import asyncio, time, hashlib
 from typing import Optional, List, Dict, Any, Tuple
 import httpx
-from datetime import datetime
+from datetime import datetime, timezone
 
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(project_root)
@@ -200,6 +200,27 @@ def engineer_features(data: Dict[str, Any]) -> Dict[str, Any]:
     return features
 
 
+def utc_now_iso() -> str:
+    """Current time as a timezone-aware UTC ISO string ending in "Z" (independent of the server's TZ)."""
+    return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+
+
+# The predict_nowcast rules that put a zone at its level, as short labels for the Alerts cards.
+def rules_fired(features: Dict[str, Any], risk_level: str) -> List[str]:
+    rainfall = float(features.get("rainfall", 0.0) or 0.0)
+    humidity = float(features.get("humidity", 0.0) or 0.0)
+    wind_speed = float(features.get("wind_speed", 0.0) or 0.0)
+    risk = str(risk_level).upper()
+    if risk == "HIGH":
+        return (["Rain above 20 mm in the last hour"] if rainfall > 20.0 else []) + (
+            ["Humidity above 90 % with wind above 8 m/s"] if humidity > 90.0 and wind_speed > 8.0 else [])
+    if risk == "MODERATE":
+        return (["Rain above 5 mm in the last hour"] if rainfall > 5.0 else []) + (
+            ["Humidity above 70 %"] if humidity > 70.0 else []) + (
+            ["Wind above 6 m/s"] if wind_speed > 6.0 else [])
+    return []
+
+
 def predict_nowcast(features: Dict[str, Any]) -> Dict[str, Any]:
     """
     Pluggable Nowcast Prediction Pipeline:
@@ -296,7 +317,7 @@ def generate_alerts(cities_data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         rain = float(item.get("rainfall") if item.get("rainfall") is not None else weather.get("rainfall", 0.0))
         wind = float(item.get("wind_speed") if item.get("wind_speed") is not None else weather.get("wind_speed", 0.0))
 
-        now_iso = datetime.now().isoformat()
+        now_iso = utc_now_iso()
         if risk_level == "HIGH":
             alerts.append({
                 "city": city,
@@ -444,7 +465,7 @@ def predict_risk(request: PredictionRequest):
         "humidity": hum,
         "rainfall": rainfall,
         "wind_speed": wind,
-        "timestamp": datetime.now().isoformat(),
+        "timestamp": utc_now_iso(),
         "reason": reason,
         "alert": actionable_alert,
         "explanation": hybrid_pred.get("explanation"),
@@ -560,7 +581,7 @@ async def get_unified_alerts_dataset(limit: int = 380) -> Dict[str, Any]:
                 if chunk_start + chunk_size < len(locations):
                     await asyncio.sleep(0.05)  # slight delay batching between chunks to avoid thread starvation
 
-        current_time_iso = datetime.now().isoformat()
+        current_time_iso = utc_now_iso()
         alerts_list = []
         high_count = 0
         moderate_count = 0
@@ -618,6 +639,7 @@ async def get_unified_alerts_dataset(limit: int = 380) -> Dict[str, Any]:
 
             reason = generate_explainable_reason(rain, hum, wind, risk)
             p_flood, reason, flood_note = flash_flood_gate(rain, p_flood, reason)
+            fired = rules_fired(features, risk)
 
             alert_item = {
                 "id": i,
@@ -634,6 +656,7 @@ async def get_unified_alerts_dataset(limit: int = 380) -> Dict[str, Any]:
                 "message": f"{actionable['type']} in {city} (Rain: {rain:.1f} mm, Wind: {wind:.1f} m/s)",
                 "action": actionable["action"],
                 "reason": reason,
+                "rules_fired": fired,
                 "temperature": round(temp, 1),
                 "humidity": round(hum, 1),
                 "rainfall": round(rain, 1),
@@ -809,7 +832,7 @@ def get_nowcast(city: str):
             wind = float(weather.get("wind_speed", 2.0))
 
         # STEP 3: Standard weather object
-        current_time = datetime.now().isoformat()
+        current_time = utc_now_iso()
         weather_obj = {
             "city": cleaned_city,
             "lat": lat,

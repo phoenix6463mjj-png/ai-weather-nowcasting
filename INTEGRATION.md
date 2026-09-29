@@ -494,8 +494,8 @@ screenshots). It did not recur in later page loads or in the e2e runs.
 **Time labels:**
 - "Last Updated HH:MM:SS" (panel) and "Last updated …" / "Reported: …" (Alerts) became
   "Fetched HH:MM UTC", i.e. when the page fetched the data (browser clock, in UTC).
-- The backend's own timestamps are naive server-local times (no time zone), so they are not used for
-  this label.
+- The backend's timestamps were naive server-local times at the time; fixed in the pre-hosting fix
+  below.
 
 **Tests:** `e2e/calm.spec.js`, with mocked zones:
 - primary-threat card hidden for Moderate, shown for HIGH;
@@ -503,6 +503,62 @@ screenshots). It did not recur in later page loads or in the e2e runs.
 - never "No explanation available" together with "Reason";
 - "Fetched HH:MM UTC" labels;
 - the flash-flood note.
+
+### Pre-hosting fix (30 Sep 2026)
+
+**Alerts card sentence = the rule(s) that fired.**
+- `/alerts` items now carry `rules_fired`: the `predict_nowcast` rules that put the zone at its level
+  (`backend/main.py`, `rules_fired`). The rules and levels themselves are unchanged.
+  - MODERATE: "Rain above 5 mm in the last hour", "Humidity above 70 %", "Wind above 6 m/s".
+  - HIGH: "Rain above 20 mm in the last hour", "Humidity above 90 % with wind above 8 m/s".
+- The card shows them joined with "; " plus " (rule-based).", e.g. "Humidity above 70 % (rule-based).".
+  LOW cards keep "No rule-based hazard flagged for this zone.".
+- This replaces the generic line "Moderate rainfall or wind by the page's rules." and the type-based lines
+  such as "Heavy rainfall may cause flooding in low-lying areas."
+- With Open-Meteo data_time 2026-09-29T19:00Z: 339 zones "Humidity above 70 %", 2 zones "Rain above 5 mm
+  in the last hour; Humidity above 70 %", 39 LOW, 0 HIGH.
+
+**UTC timestamps.**
+- The team backend emits timezone-aware UTC ISO times ending in "Z" (`utc_now_iso()`): `timestamp` and
+  `last_updated` in `/alerts` and `/batch_predict`, `timestamp` in `/predict`, `/nowcast` and the legacy
+  `generate_alerts`.
+- `datetime.now()` is still used only for the month/day inputs of the team predictors and for the
+  sample-data seed hour. These are not emitted as times.
+- Frontend (`parseUtcIso` in `utils/dashboardRisk.js`) reads only timezone-aware times. A naive time
+  falls back to the fetch time instead of being read as browser-local.
+  - Alerts: "Live • N min ago" is computed from each item's `timestamp`, and "Fetched HH:MM UTC" from
+    `last_updated`.
+  - The Dashboard's "Fetched" label still uses the browser fetch time (unchanged page).
+
+**Forecast: hourly outlook removed.**
+- Removed, all synthesized in the browser from one current reading and the flat rule scores:
+  - `normalizeCityForecast`, which invented +1…+4 h rain/humidity/wind/temperature/risk;
+  - the built-in Mumbai 5-hour series;
+  - the timeline slider;
+  - the "Future alert preview" ("High risk expected in +N h" …);
+  - the "Rainfall Trend Chart (0–4h Projection)" with Peak / Average / Baseline / Trajectory;
+  - the "Risk Progression Bar";
+  - the "Now vs +4h Change" card ("Projection Mode: Sub-Daily NWP Continuous").
+- In their place, one line: "Hourly forecasts are not available on this page. Calibrated 1–6 h
+  nowcasts: ML Nowcast →" (link to `/nowcast`).
+- Headings no longer claim a 0–4 h prediction or extrapolation: "Nowcasting Engine (current
+  conditions)", "Now".
+- Still on the page, reported and not changed:
+  - "Score: 90/55/20 %" in the Risk Indicator Bar (a fixed mapping of the level, covered by the
+    rule-score banner);
+  - the AI Insight fixed sentences, whose subtext says "(OpenWeather)" also for Open-Meteo data;
+  - the Risk Indicator footer "Elevated precipitation expected" / "High convective activity expected".
+
+**Tests:**
+- `tests/test_utc_timestamps.py`: the same frozen instant, server in UTC and in India time (TZ
+  `UTC0` / `IST-5:30` on Windows, `UTC` / `Asia/Kolkata` elsewhere), gives identical "…Z" output.
+- `tests/test_rules_fired.py`.
+- `e2e/prehosting.spec.js`, with the browser in Asia/Kolkata:
+  - rule sentences;
+  - "Live • 7 min ago" and "Fetched HH:MM UTC";
+  - a naive time is not read as local;
+  - no hourly outlook on Forecast;
+  - screenshots.
 
 ## 7. Troubleshooting
 
