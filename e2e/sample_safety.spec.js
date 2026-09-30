@@ -16,7 +16,8 @@ function rewrite(item, i, src) {
     const w = { ...(item.weather || {}), source: src, observed_at: null, data_time: src === 'sample' ? null : TIME,
         stale: src !== 'sample', ...(src === 'sample' ? { conditions: null, weather_code: null } : {}) };
     const probs = { flash_flood: 0.85, thunderstorm: 0.8, cloudburst: 0.75 };
-    return { ...item, source: src, weather: w, risk_level: risk, risk, severity: risk, rules_fired: ['Rain at least 20 mm'],
+    const zone_source = src === 'sample' ? 'sample' : 'open_meteo_stale';
+    return { ...item, source: src, zone_source, weather: w, risk_level: risk, risk, severity: risk, rules_fired: ['Rain at least 20 mm'],
         prediction: { ...(item.prediction || {}), risk_level: risk, risk_text: risk, prob_flood: 0.85, prob_thunderstorm: 0.8, prob_cloudburst: 0.75 },
         probabilities: probs };
 }
@@ -36,7 +37,9 @@ async function mockSource(page, src) {
         else {
             const alerts = (body.alerts || []).map((a, i) => rewrite(a, i, src));
             const n = (r) => alerts.filter((a) => a.severity === r).length;
-            out = { ...body, alerts, summary: { ...body.summary, source: src, high: n('HIGH'), moderate: n('MODERATE'), low: n('LOW'),
+            const zk = src === 'sample' ? 'sample' : 'open_meteo_stale';
+            const zone_sources = { openweather: 0, openweather_stale: 0, open_meteo: 0, open_meteo_stale: 0, sample: 0, [zk]: alerts.length };
+            out = { ...body, alerts, summary: { ...body.summary, source: src, zone_sources, source_times: {}, high: n('HIGH'), moderate: n('MODERATE'), low: n('LOW'),
                 latest_observed_at: null, data_time: src === 'sample' ? null : TIME, stale: src !== 'sample' } };
         }
         await route.fulfill({ response: res, json: out }).catch(() => {});

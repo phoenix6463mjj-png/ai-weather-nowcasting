@@ -72,6 +72,7 @@ const Dashboard = () => {
                 risk_level: isUnratedZone(item) ? null : (item.risk_level || item.risk || item.severity || "LOW").toUpperCase(),
                 zone_source: item.zone_source || null,
                 source: item.source || null,
+                rules_fired: Array.isArray(item.rules_fired) ? item.rules_fired : null,   // names a hazard only via its rule
                 weather: item.weather || {
                     temperature: item.temperature,
                     humidity: item.humidity,

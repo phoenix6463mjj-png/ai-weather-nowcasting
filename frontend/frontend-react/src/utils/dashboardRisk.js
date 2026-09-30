@@ -21,33 +21,49 @@ export function riskText(loc) {
     return r in RISK_ORDER ? r : 'LOW';
 }
 
-function scores(loc) {
-    const p = loc?.prediction || {};
-    const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : Number(v) || 0);
-    return {
-        thunderstorm: num(p.prob_thunderstorm ?? p.thunderstorm),
-        cloudburst: num(p.prob_cloudburst ?? p.cloudburst),
-        flood: num(p.prob_flood ?? p.flood),
-    };
+// A hazard is named only when the rule that fired points to it. Of the team's rules (backend
+// rules_fired / predict_nowcast) only the rain rules do: rain above 20 mm in the last hour (HIGH) and above
+// 5 mm (MODERATE) -> flash flood. The humidity and wind rules name no hazard ("Rule-based HIGH: <rule>"),
+// and no rule points to thunderstorm or cloudburst (not rated). The backend's flat per-hazard scores are
+// not used for naming (they made every rated zone's top hazard "Flash Flood").
+export const RAIN_RULE_HIGH = 'Rain above 20 mm in the last hour';
+export const RAIN_RULE_MODERATE = 'Rain above 5 mm in the last hour';
+const RAIN_HIGH_MM = 20;          // the team's thresholds (backend predict_nowcast / rules_fired)
+const RAIN_MODERATE_MM = 5;
+
+export function firedRules(loc) {
+    return Array.isArray(loc?.rules_fired) ? loc.rules_fired.filter(Boolean) : null;
 }
 
-// Per-hazard level from the backend's rule score, using the page's former bar cut-offs (>= 0.70 high,
-// >= 0.40 moderate), and never above the zone's overall risk level.
+// 2 = the HIGH rain rule fired, 1 = the MODERATE rain rule, 0 = neither. Without a rules list (older
+// data), the same team thresholds on the zone's own rain.
+function rainRuleLevel(loc) {
+    const r = firedRules(loc);
+    if (r) return r.includes(RAIN_RULE_HIGH) ? 2 : r.includes(RAIN_RULE_MODERATE) ? 1 : 0;
+    const rain = Number(loc?.weather?.rainfall ?? loc?.rainfall);
+    return rain > RAIN_HIGH_MM ? 2 : rain > RAIN_MODERATE_MM ? 1 : 0;
+}
+
+// Per-hazard level: flash flood from the rain rules (never above the zone's level); thunderstorm and
+// cloudburst null = no rule points to them (not rated).
 export function hazardLevels(loc) {
-    const s = scores(loc);
     const cap = RISK_ORDER[riskText(loc)];
-    const lv = (v) => Math.min(v >= 0.7 ? 2 : v >= 0.4 ? 1 : 0, cap);
-    return Object.fromEntries(HAZARDS.map((h) => [h.key, lv(s[h.key])]));
+    return { thunderstorm: null, cloudburst: null, flood: Math.min(rainRuleLevel(loc), cap) };
 }
 
-// The hazard with the highest rule score, only when the zone's risk is MODERATE or HIGH (so it always
-// agrees with the risk level); null = no primary threat.
+// The named hazard: 'flood' for a HIGH zone whose HIGH rain rule fired, or a MODERATE zone whose rain
+// rule fired; else null (no hazard named).
 export function primaryThreat(loc) {
-    if (riskText(loc) === 'LOW') return null;
-    const s = scores(loc);
-    if (s.flood >= s.thunderstorm && s.flood >= s.cloudburst) return 'flood';
-    if (s.cloudburst >= s.thunderstorm) return 'cloudburst';
-    return 'thunderstorm';
+    const risk = riskText(loc);
+    if (risk === 'HIGH') return rainRuleLevel(loc) === 2 ? 'flood' : null;
+    if (risk === 'MODERATE') return rainRuleLevel(loc) >= 1 ? 'flood' : null;
+    return null;
+}
+
+// "Rule-based HIGH: <fired rule(s)>" (no hazard named)
+export function ruleLevelText(loc) {
+    const r = firedRules(loc);
+    return `Rule-based ${riskText(loc)}: ${r && r.length ? r.join('; ') : 'the rule that fired was not reported'}`;
 }
 
 // Explanation text: never a "stable" sentence on a MODERATE / HIGH zone; none -> NO_EXPLANATION.

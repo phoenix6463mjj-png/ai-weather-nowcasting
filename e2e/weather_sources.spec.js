@@ -19,7 +19,8 @@ function rewrite(item, src) {
     const w = { ...(item.weather || {}), source: src };
     w.observed_at = src === 'openweather' ? TIME : null;
     w.data_time = src === 'sample' ? null : TIME;
-    return { ...item, source: src, weather: w };
+    const zone_source = { sample: 'sample', openweather: 'openweather', 'open-meteo': 'open_meteo' }[src];
+    return { ...item, source: src, zone_source, weather: { ...w, stale: false } };
 }
 
 async function mockSource(page, src) {
@@ -37,7 +38,10 @@ async function mockSource(page, src) {
         if (Array.isArray(body)) out = body.map((a) => rewrite(a, src));
         else {
             out = { ...body, alerts: (body.alerts || []).map((a) => rewrite(a, src)) };
-            out.summary = { ...body.summary, source: src, latest_observed_at: src === 'openweather' ? TIME : null, data_time: src === 'sample' ? null : TIME };
+            const zk = { sample: 'sample', openweather: 'openweather', 'open-meteo': 'open_meteo' }[src];
+            const zone_sources = { openweather: 0, openweather_stale: 0, open_meteo: 0, open_meteo_stale: 0, sample: 0, [zk]: out.alerts.length };
+            out.summary = { ...body.summary, source: src, zone_sources, source_times: {}, latest_observed_at: src === 'openweather' ? TIME : null,
+                data_time: src === 'sample' ? null : TIME, data_time_min: src === 'sample' ? null : TIME, stale: false };
         }
         await route.fulfill({ response: res, json: out }).catch(() => {});
     });

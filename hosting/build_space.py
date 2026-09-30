@@ -9,6 +9,7 @@ The file set was derived by recording every file the one-process app opened duri
 issues of a case study, their rasters read by rasterio). Excluded, with reasons, in MANIFEST.txt.
 """
 import argparse
+import sys
 import fnmatch
 import shutil
 from pathlib import Path
@@ -84,6 +85,19 @@ def _copy_globs(src_root, patterns, excludes, dst_root, log):
         log.append((f"{dst_root.name}/{pat}", n, size, why))
 
 
+def _write_band_npz(nowcast_data, dst_root, log):
+    """Next to every shipped prob_L{L}h.tif, its bands as prob_L{L}h.bands.npz (serve/rasters.py), written
+    here with this machine's rasterio. The host then reads rasters with numpy only: rasterio/GDAL failed
+    in the Linux host container (every map PNG, the missed-cells map and REF051's event check answered
+    HTTP 500), so the host has no rasterio at all (requirements-host.txt)."""
+    sys.path.insert(0, str(nowcast_data))
+    from serve import rasters
+    tifs = sorted(dst_root.rglob("prob_L*h.tif"))
+    size = sum(rasters.write_npz(t).stat().st_size for t in tifs)
+    log.append(("nowcast_data/**/prob_L*h.bands.npz", len(tifs), size,
+                "the GeoTIFF bands for numpy-only reading on the host (built here; rasterio not installed there)"))
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--nowcast-data", default=str(TEAM.parent / "nowcast_data"))
@@ -98,6 +112,7 @@ def main():
     log = []
     _copy_globs(Path(a.nowcast_data), NOWCAST_FILES, NOWCAST_EXCLUDE, out / "nowcast_data", log)
     _copy_globs(TEAM, TEAM_FILES, [], out / "team_app", log)
+    _write_band_npz(Path(a.nowcast_data), out / "nowcast_data", log)
     for f, dst in (("Dockerfile", "Dockerfile"), ("requirements-host.txt", "requirements-host.txt"),
                    ("space_README.md", "README.md"), ("render.yaml", "render.yaml"),
                    ("space.gitignore", ".gitignore"), ("space.dockerignore", ".dockerignore"),

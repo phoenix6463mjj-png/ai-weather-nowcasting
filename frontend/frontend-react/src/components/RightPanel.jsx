@@ -1,6 +1,6 @@
 import React from 'react';
-import { CloudLightning, X, Droplets, Thermometer, Wind, MapPin, AlertTriangle, CloudRain, Sun } from 'lucide-react';
-import { LEVEL_NAMES, NO_EXPLANATION, RULE_LABEL, explanationText, fetchedLabel, hazardLevels, primaryThreat, riskText as zoneRisk, sourceBadge } from '../utils/dashboardRisk';
+import { CloudLightning, X, Droplets, Thermometer, Wind, MapPin, AlertTriangle, CloudRain } from 'lucide-react';
+import { LEVEL_NAMES, NO_EXPLANATION, RULE_LABEL, explanationText, fetchedLabel, hazardLevels, primaryThreat, riskText as zoneRisk, ruleLevelText, sourceBadge } from '../utils/dashboardRisk';
 import OpenMeteoCredit from './OpenMeteoCredit';
 import OpenWeatherCredit from './OpenWeatherCredit';
 
@@ -10,15 +10,17 @@ const LEVEL_STYLE = [
     'bg-red-100 text-red-800 border-red-200 dark:bg-red-900/40 dark:text-red-300 dark:border-red-800',
 ];
 
-// One hazard as a rule-based level (Low / Moderate / High); never a percentage.
+// One hazard as a rule-based level (Low / Moderate / High); never a percentage. level null = no team rule
+// points to this hazard ("No rule").
+const NO_RULE_STYLE = 'bg-slate-100 text-slate-500 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700';
 const HazardLevel = ({ label, level, icon, hazard, note }) => (
-    <div data-testid="hazard-level" data-hazard={hazard} data-level={LEVEL_NAMES[level]} className="flex items-center justify-between text-xs w-full">
+    <div data-testid="hazard-level" data-hazard={hazard} data-level={level == null ? 'Not rated' : LEVEL_NAMES[level]} className="flex items-center justify-between text-xs w-full">
         <div className="flex items-center gap-2 min-w-0">
             <div className="w-5 flex justify-center items-center text-slate-500 dark:text-slate-400">{icon}</div>
             <span className="font-bold text-slate-700 dark:text-slate-300">{label}</span>
             {note && <span data-testid="hazard-note" className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 truncate">({note})</span>}
         </div>
-        <span className={`px-2 py-0.5 rounded-md border text-[11px] font-black ${LEVEL_STYLE[level]}`}>{LEVEL_NAMES[level]}</span>
+        <span className={`px-2 py-0.5 rounded-md border text-[11px] font-black ${level == null ? NO_RULE_STYLE : LEVEL_STYLE[level]}`}>{level == null ? 'No rule' : LEVEL_NAMES[level]}</span>
     </div>
 );
 
@@ -65,15 +67,13 @@ const RightPanel = ({ selectedCity, cityData, onClose, hideRisk = false }) => {
     // only for MODERATE / HIGH zones so that it always agrees with the risk level
     const levels = hazardLevels(cityObj);
     const threatKey = primaryThreat(cityObj);
-    const primaryThreat_ = { flood: 'Flash Flood', cloudburst: 'Cloudburst', thunderstorm: 'Thunderstorm' }[threatKey] || 'No primary threat (low risk)';
+    // a hazard only when the fired rule points to it (the rain rule -> Flash Flood); else the rule itself
+    const primaryThreat_ = { flood: 'Flash Flood' }[threatKey] || null;
 
     // Threat Icon matching primary threat
-    const getThreatIcon = () => {
-        if (primaryThreat_ === "Flash Flood") return <Droplets size={26} className="text-teal-400" />;
-        if (primaryThreat_ === "Cloudburst") return <CloudRain size={26} className="text-blue-400" />;
-        if (primaryThreat_ === "Thunderstorm") return <CloudLightning size={26} className="text-amber-400" />;
-        return <Sun size={26} className="text-emerald-400" />;
-    };
+    const getThreatIcon = () => (primaryThreat_ === "Flash Flood"
+        ? <Droplets size={26} className="text-teal-400" />
+        : <AlertTriangle size={26} className="text-red-400" />);
 
     const coordLat = lat ?? weather?.lat;
     const coordLon = lon ?? weather?.lon;
@@ -157,14 +157,14 @@ const RightPanel = ({ selectedCity, cityData, onClose, hideRisk = false }) => {
 
                 {/* Primary threat: only for HIGH zones; Low / Moderate zones open with the weather tiles */}
                 {riskLabel === 2 && !hideRisk && (
-                    <div data-testid="primary-threat" className="bg-slate-800 dark:bg-slate-800/90 rounded-xl p-4 text-white shadow-md border border-slate-700 flex flex-col relative overflow-hidden shrink-0">
+                    <div data-testid="primary-threat" data-hazard={threatKey || ''} className="bg-slate-800 dark:bg-slate-800/90 rounded-xl p-4 text-white shadow-md border border-slate-700 flex flex-col relative overflow-hidden shrink-0">
                         <div className="flex items-center gap-4">
                             <div className="bg-slate-700/60 p-3 rounded-lg z-10 border border-slate-600 shrink-0">
                                 {getThreatIcon()}
                             </div>
                             <div className="z-10 min-w-0 flex-1">
-                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Primary Threat</p>
-                                <h3 className="text-lg font-black tracking-wide truncate text-white">{primaryThreat_}</h3>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">{primaryThreat_ ? 'Primary Threat (rain rule)' : 'Rule-based level (no hazard named)'}</p>
+                                <h3 data-testid="primary-threat-text" className={primaryThreat_ ? 'text-lg font-black tracking-wide truncate text-white' : 'text-sm font-bold leading-snug text-white'}>{primaryThreat_ || ruleLevelText(cityObj)}</h3>
                             </div>
                         </div>
                     </div>

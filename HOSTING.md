@@ -19,6 +19,12 @@ Vercel (static React build)  --VITE_API_BASE / VITE_ML_API_BASE-->  Render free 
   - RSS 190 MB at start, 271 MB after warm-up, 295 MB at peak. Render free has 512 MB.
   - Startup is almost all libraries: scikit-learn 64 MB, numpy + pandas 58 MB, web stack 24 MB,
     rasterio/pillow/shapely 14 MB. The app code plus `rainfall_model_v2.pkl` add 17 MB.
+  - **1 Oct 2026 (A4):** rasterio is no longer installed on the host (it failed in the Linux container:
+    every map PNG answered 500). GeoTIFF bands ship as `.npz` (+10.8 MB).
+    - Clicking through every ML Nowcast view on the space folder (host env, no rasterio): RSS 181 MB at
+      start, **233 MB peak**.
+    - Slowest request 1.9 s (REF051 event check) at full CPU, about 10× that at Render's 0.1 CPU.
+    - See INTEGRATION.md "A4".
   - Data files are read lazily, on first request, and cached.
   - Measured on Windows. Linux in the container may differ by some tens of MB.
   - On-demand model replay is **off** on the host (`ML_REPLAY_ENABLED=0`). It would add about 1 GB and
@@ -153,6 +159,12 @@ Render redeploys automatically on push. Check `/health` again afterwards.
 - [ ] `https://<service>.onrender.com/health` and `/ml/health` return JSON; `/ml/replay/status` has
       `"enabled": false`.
 - [ ] `https://<vercel-app>/` loads, with no console CORS errors (browser devtools).
+  - CORS check from a terminal: `curl -s -D - -o NUL -H "Origin: https://<vercel-app>" https://<service>.onrender.com/ml/live`
+    must print `access-control-allow-origin: https://<vercel-app>`.
+- [ ] A map layer works on the host: `https://<service>.onrender.com/ml/live/20260926T0330Z/map/1/thunderstorm.png`
+      returns a PNG (was HTTP 500 before A4).
+- [ ] Before pushing: `D:\.venv\Scripts\python.exe -m pytest tests/test_host_parity.py -q` (from `D:\team_app`)
+      checks that every frontend `/ml` path answers the same on `hosting/space` as locally.
   - The weather badge says "Open-Meteo (model data), updated HH:MM UTC", next to the Open-Meteo credit.
     If it says "Sample data — no live weather feed" (no risk indicators are then shown), open
     `https://<service>.onrender.com/weather_source`:

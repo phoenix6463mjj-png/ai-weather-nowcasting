@@ -52,7 +52,7 @@ test('Dashboard: no % for any hazard, rule-based levels, primary threat agrees w
     await expect(page.getByTestId('hazard-level')).toHaveCount(3);
     await expect(page.getByTestId('rule-label')).toHaveText('(rule-based, not the ML model)');
     for (const lv of await page.getByTestId('hazard-level').all()) {
-        expect(['Low', 'Moderate', 'High']).toContain(await lv.getAttribute('data-level'));
+        expect(['Low', 'Moderate', 'High', 'Not rated']).toContain(await lv.getAttribute('data-level'));   // Not rated: no rule points to it
     }
     // the only % left on the page are humidity values
     const body = await page.locator('body').innerText();
@@ -114,13 +114,14 @@ test('Dashboard: View Details goes to /alerts; the timeline card and the ML line
     await expect(page).toHaveURL(/\/nowcast$/);
 });
 
-// primary threat, computed here independently of the page: none for LOW zones, else the highest rule score
+// primary threat, computed here independently of the page: a hazard only when the fired rule points to it
+// (the rain rules -> flood: the HIGH rain rule for a HIGH zone, the MODERATE rain rule for a MODERATE one)
 function threatOf(a) {
-    if (String(a.risk_level).toUpperCase() === 'LOW') return null;
-    const p = a.prediction || {};
-    const [t, c, f] = [p.prob_thunderstorm, p.prob_cloudburst, p.prob_flood].map(Number);
-    if (f >= t && f >= c) return 'flood';
-    return c >= t ? 'cloudburst' : 'thunderstorm';
+    const r = String(a.risk_level).toUpperCase();
+    const rules = a.rules_fired || [];
+    if (r === 'HIGH') return rules.includes('Rain above 20 mm in the last hour') ? 'flood' : null;
+    if (r === 'MODERATE') return rules.includes('Rain above 5 mm in the last hour') ? 'flood' : null;
+    return null;
 }
 
 test('Dashboard: event-layer toggles filter markers by primary threat; low-risk zones stay visible', async ({ page }) => {

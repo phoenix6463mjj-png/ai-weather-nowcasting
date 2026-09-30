@@ -291,18 +291,13 @@ def generate_actionable_alert(risk_level, rainfall, humidity, wind_speed):
                 "severity": "HIGH",
                 "action": "Immediate evacuation of low-lying areas. Activate emergency drainage systems."
             }
-        elif hum > 90.0 and wind > 8.0:
-            return {
-                "type": "Thunderstorm",
-                "severity": "HIGH",
-                "action": "Seek structural indoor shelter immediately. Avoid outdoor activities."
-            }
-        else:
-            return {
-                "type": "High Risk",
-                "severity": "HIGH",
-                "action": "Avoid non-essential travel and monitor emergency civil defense bulletins."
-            }
+        # Only the rain rule points to a hazard (flash flood). The humidity/wind rule names none: the
+        # pages show "Rule-based HIGH: <fired rule>" (team pages, 1 Oct 2026).
+        return {
+            "type": "Rule-based HIGH",
+            "severity": "HIGH",
+            "action": "Avoid non-essential travel and monitor emergency civil defense bulletins."
+        }
     elif risk == "MODERATE":
         if rain > 5.0:
             return {
@@ -312,7 +307,7 @@ def generate_actionable_alert(risk_level, rainfall, humidity, wind_speed):
             }
         elif wind > 6.0:
             return {
-                "type": "Thunderstorm Watch",
+                "type": "Rule-based MODERATE",          # the wind rule names no hazard
                 "severity": "MODERATE",
                 "action": "Secure outdoor objects and monitor convective cloud formations."
             }
@@ -912,8 +907,9 @@ def get_nowcast(city: str):
         prediction = predict_nowcast(features)
         risk = prediction["risk_level"]
 
-        # STEP 6: Actionable alert (reusing generate_actionable_alert)
+        # STEP 6: Actionable alert (reusing generate_actionable_alert) and the rule(s) that fired
         alert = generate_actionable_alert(risk, rainfall, humidity, wind)
+        fired = rules_fired(features, risk)
 
         # STEP 7: Final response format
         return {
@@ -927,6 +923,7 @@ def get_nowcast(city: str):
             "risk_level": risk,
             "prediction": prediction,
             "alert": alert,
+            "rules_fired": fired,
             "source": source,
             "data_time": data_time,
         }

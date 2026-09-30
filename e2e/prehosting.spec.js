@@ -42,7 +42,8 @@ test('Alerts cards: the sentence names the rule(s) that fired, never a generic "
     ], ts);
     await page.goto('/alerts');
     await expect(card(page, 'Mumbai')).toContainText('Humidity above 70 % (rule-based).');
-    await expect(card(page, 'Highville')).toContainText('Humidity above 90 % with wind above 8 m/s (rule-based).');
+    // HIGH from humidity + wind: no hazard named (primary_threat.spec.js)
+    await expect(card(page, 'Highville')).toContainText('Rule-based HIGH: Humidity above 90 % with wind above 8 m/s.');
     await expect(card(page, 'Windpur')).toContainText('Rain above 5 mm in the last hour; Wind above 6 m/s (rule-based).');
     await expect(card(page, 'Calmabad')).toContainText('No rule-based hazard flagged for this zone.');
     const body = page.locator('body');

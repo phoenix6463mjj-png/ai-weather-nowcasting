@@ -845,6 +845,92 @@ OpenWeather path, used when `OPENWEATHER_API_KEY` is set, was made safe for the 
 - Updated: `weather_sources`, `dashboard`, `forecast_leftovers` (new OpenWeather wording, credit),
   `credits` (team list), and `serve/tests/test_credits.py`.
 
+### A4: hosted parity + Primary Threat (1 Oct 2026)
+
+**What was different on the host (Render):**
+- On the deployed API, every endpoint that read a GeoTIFF with rasterio answered **HTTP 500**:
+  - all probability map PNGs (`issues/…/map/…png`, `india/map/…png`, `live/…/map/…png`);
+  - the missed-cells map (`missed_ge30.png`, via `rasterio.features.rasterize`);
+  - REF051's event check (and its timeline, which uses it).
+- Everything else was 200: JSON, alerts, meta, terrain, INSAT, observed PNG, CAP.
+- The Live tab loads its run, alerts and legend from JSON. Its forecast map layers are all these PNGs,
+  so on the host the Live map showed no probability layer.
+- Checked with curl on 1 Oct 2026. The same URLs are 200 locally, including from the space folder on
+  Windows. So rasterio/GDAL fails inside the Linux container.
+  - The exact error is only in Render's log, which I cannot read.
+  - Running the previous host package with rasterio made unimportable reproduces the same 662 of 1,123
+    failing frontend paths. All other paths were identical.
+- No file was missing from the package:
+  - live run, national sample and all case-study issues are shipped;
+  - the excluded national/live `grids.json` are read by no endpoint;
+  - `demo_replays/` is replay-only.
+
+**Fix: the host reads no GeoTIFF with rasterio:**
+- `nowcast_data/serve/rasters.py` `read_bands()`: reads `prob_L{L}h.bands.npz` next to a GeoTIFF when
+  present (numpy only), else the GeoTIFF with rasterio as before.
+  - `render.read_tif_band` and `event_check._nearby_cells` use it.
+- `hosting/build_space.py` writes the `.npz` for all 190 shipped GeoTIFFs with this machine's rasterio:
+  +10.8 MB, host total 131.2 MB, largest file still 5.7 MB.
+- `store.coverage` (missed cells) uses `store.cells_with_centre_in` (shapely, cell centre inside the
+  alert polygon), the same rule as `rasterize(all_touched=False)`.
+- Checked (`serve/tests/test_host_rasters.py`):
+  - identical to rasterize on every demo issue × lead × level × hazard filter;
+  - identical bands and byte-identical PNGs from the `.npz`;
+  - REF051 event check identical without rasterio.
+- `hosting/requirements-host.txt` no longer installs rasterio. That also removes GDAL from the
+  container's memory.
+
+**Replay:** `ML_REPLAY_ENABLED=0` on the host. `/ml/replay/status` says `enabled: false`, and the
+frontend already shows "On-demand replay is disabled in the hosted demo" instead of the button, so no
+view offers something the host cannot do.
+
+**Measured** (space folder, host env `PORT=10000`, `ML_REPLAY_ENABLED=0`, rasterio unimportable; this
+laptop, full CPU):
+- Clicking through every ML Nowcast view:
+  - 130 `/ml` requests on each side, identical statuses (129 × 200, 1 × 404: the REF025 timeline,
+    not available for the in-sample event, on both sides);
+  - RSS 181 MB at start, **233 MB peak** (Render free: 512 MB).
+- Slowest requests:
+  - REF051 event check / timeline ≈ 1.9 s at full CPU (≈ 0.25 s in-process without the browser);
+  - map PNGs ≤ 0.4 s.
+  - At Render's 0.1 CPU these are roughly 10× slower, so ~2–20 s for the first REF051 event check.
+  - Nothing above ~10 s at full CPU; results are cached after the first request.
+
+**Tests:**
+- `tests/test_host_parity.py`: 1,123 frontend `/ml` paths (every endpoint in
+  `services/nowcastApi.js`: all issues, leads, fields, missed maps, INSAT, CAP, national, live) must
+  answer with the same status on the space-folder app (subprocess, host env, no rasterio) as on the
+  full app. Skipped when `hosting/space` is not built.
+- `e2e/host_parity_views.spec.js`: the real frontend clicked through Nowcast map (leads, layers,
+  drawer sections), REF051, REF025, National, Live, Results and Approach, against the full app and
+  against the space-folder app on `:10000`. Every `/ml` status must match. Skipped when `:10000` is
+  not running. Start it with (from `hosting/space/team_app`):
+  `NOWCAST_DATA_ROOT=..\nowcast_data ML_REPLAY_ENABLED=0 python -c "import sys; sys.modules['rasterio']=None; import uvicorn; uvicorn.run('backend.host_app:app', port=10000)"`.
+
+**Primary Threat (team pages):**
+- A hazard is named only when the fired rule points to it: the team's rain rules (above 20 mm in the
+  last hour → HIGH; above 5 mm → MODERATE) → Flash Flood.
+- The humidity + wind rule names no hazard: "/" shows "Rule-based HIGH: Humidity above 90 % with wind
+  above 8 m/s" (label "Rule-based level (no hazard named)").
+- Thunderstorm and cloudburst hazard rows say "No rule" (not rated). Flash flood's level comes from the
+  rain rule.
+- The flat per-hazard scores (flood 0.85 > thunderstorm 0.80 > cloudburst 0.75) are no longer used for
+  naming. They made every rated zone's top hazard "Flash Flood" (e.g. HIGH with 0.4 mm rain).
+- Alerts cards: "Flash Flood: <rain rule> (rule-based)." or "Rule-based HIGH: <rule>.". Details
+  "Hazard: Flash Flood (rain rule)" or "None named (rule-based level)".
+- Forecast summary: the same, instead of the fixed sentences "Flood risk rising due to intense
+  rainfall" / "Severe thunderstorm conditions forming" (the latter used humidity ≥ 90 and wind ≥ 9,
+  not a team rule).
+- Backend (`backend/main.py`):
+  - `generate_actionable_alert` types "Thunderstorm" / "Thunderstorm Watch" / "High Risk" become
+    "Rule-based HIGH" / "Rule-based MODERATE";
+  - `/nowcast` also returns `rules_fired`.
+- Tests:
+  - `tests/test_rules_fired.py`: HIGH from humidity/wind with 0.4 mm rain names no hazard; only the
+    rain rule gives "Flash Flood"; `/nowcast` returns the rules;
+  - `e2e/primary_threat.spec.js`: "/", Alerts and Forecast, plus screenshots `threat_*` at
+    1920×1080 and 1366×768.
+
 ## 7. Troubleshooting
 
 | symptom | cause / fix |
@@ -855,6 +941,8 @@ OpenWeather path, used when `OPENWEATHER_API_KEY` is set, was made safe for the 
 | `503 a replay is already running` | only one replay runs at a time (8 GB laptop) |
 | `npm run dev` fails with an engine or syntax error | the wrong Node is on PATH. Run the PATH line above; `node -v` must print v24.19.0 |
 | tiles missing | the base map uses OpenStreetMap tiles and needs internet access |
+| hosted map layers missing, `/ml/.../map/...png` answers 500 | the host package must contain the `prob_L*h.bands.npz` files (`hosting/build_space.py` writes them; the host has no rasterio). Rebuild and redeploy; `tests/test_host_parity.py` checks it |
+| hosted pages load nothing from `/ml` (blank Live / Nowcast) | CORS: `CORS_ORIGINS` on Render must be exactly the Vercel origin (no trailing slash). Check `curl -s -D - -o NUL -H "Origin: https://<vercel-app>" https://<service>.onrender.com/ml/live` shows `access-control-allow-origin` |
 | badge shows fewer OpenWeather zones than expected | the refresher is still working through the zones (≤ 50/min, ~7.6 min for 380) or is in cooldown: `GET /weather_source` → `openweather.refresh_running`, `last_error`, `cooldown_until` |
 | team pages say "Sample data — no live weather feed" | Open-Meteo failed and nothing was cached. `GET /weather_source` → `open_meteo.last_error` says why (HTTP status or exception); `cooldown_until` says when the next request is allowed |
 

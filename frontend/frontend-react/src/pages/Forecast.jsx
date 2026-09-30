@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { Link, useSearchParams } from 'react-router-dom';
 import { API_BASE } from '../config';
 import { fetchWithWake, WAKE_UNAVAILABLE } from '../utils/serverWake';
-import { isLiveSource, isMixedList, isSampleSource, isUnratedZone, mixedBadge, mixedCounts, sourceBadge, sourceShort, unratedNote, zonesSummary } from '../utils/dashboardRisk';
+import { RAIN_RULE_HIGH, firedRules as rulesOf, isLiveSource, isMixedList, isSampleSource, isUnratedZone, mixedBadge, mixedCounts, primaryThreat, ruleLevelText, sourceBadge, sourceShort, unratedNote, zonesSummary } from '../utils/dashboardRisk';
 import SampleSafetyNotice from '../components/SampleSafetyNotice';
 import OpenMeteoCredit from '../components/OpenMeteoCredit';
 import OpenWeatherCredit from '../components/OpenWeatherCredit';
@@ -354,62 +354,24 @@ const Forecast = () => {
 
     const currentRiskInfo = getRiskBadge(activeNowcast.risk);
 
-    // Rule-based summary of the current values; the subtext names the weather source (backend `source`)
+    // Rule-based summary of the current values; the subtext names the weather source (backend `source`).
+    // A hazard is named only when the fired rule points to it (the HIGH rain rule -> Flash Flood); otherwise
+    // "Rule-based <LEVEL>: <fired rule>" (dashboardRisk.js).
     const aiInsightData = useMemo(() => {
         const evaluated = `Evaluated for ${activeData?.city || "active node"} with fixed rules (${sourceShort(weatherSource)}).`;
-        const rain = activeNowcast.rainfall;
-        const hum = activeNowcast.humidity;
-        const wind = activeNowcast.wind_speed;
-
-        if (isRealtime && realtimeData) {
-            const risk = (realtimeData.risk_level || "LOW").toUpperCase();
-            return {
-                text: realtimeData.alert?.action || (risk === "HIGH" ? "Flood risk rising due to intense rainfall" : risk === "MODERATE" ? "Moderate rainfall and moisture persistence" : "Normal atmospheric conditions across nowcast window"),
-                severity: risk,
-                subtext: `Telemetry: ${realtimeData.rainfall} mm/h rain, ${realtimeData.wind_speed} m/s wind, ${realtimeData.humidity}% humidity. Source: ${sourceBadge(realtimeData.source === 'realtime_api' ? 'openweather' : realtimeData.source === 'open-meteo' ? 'open-meteo' : 'sample', null, realtimeData.data_time)}.`,
-                color: risk === "HIGH" ? "rose" : risk === "MODERATE" ? "amber" : "emerald"
-            };
-        }
-
-        if (rain >= 20) {
-            return {
-                text: "Flood risk rising due to intense rainfall",
-                severity: "HIGH",
-                subtext: evaluated,
-                color: "rose"
-            };
-        }
-        if (hum >= 90 && wind >= 9) {
-            return {
-                text: "Severe thunderstorm conditions forming",
-                severity: "HIGH",
-                subtext: evaluated,
-                color: "rose"
-            };
-        }
-        if (activeData?.reason && typeof activeData.reason === 'string' && activeData.reason.trim()) {
-            return {
-                text: activeData.reason,
-                severity: activeNowcast.risk,
-                subtext: evaluated,
-                color: activeNowcast.risk === "HIGH" ? "rose" : activeNowcast.risk === "MODERATE" ? "amber" : "emerald"
-            };
-        }
-        if (rain >= 10 || hum >= 80) {
-            return {
-                text: "Moderate rainfall and moisture persistence",
-                severity: "MODERATE",
-                subtext: evaluated,
-                color: "amber"
-            };
-        }
-        return {
-            text: "Normal atmospheric conditions across nowcast window",
-            severity: "LOW",
-            subtext: evaluated,
-            color: "emerald"
-        };
-    }, [isRealtime, realtimeData, activeNowcast, activeData?.reason, activeData?.city, weatherSource]);
+        const src = isRealtime && realtimeData ? realtimeData : activeData;
+        const risk = activeNowcast.risk;
+        const zone = { risk, rules_fired: src?.rules_fired, rainfall: activeNowcast.rainfall };
+        const rules = rulesOf(zone) || [];
+        let text;
+        if (risk === "LOW") text = "No rule fired (rule-based LOW)";
+        else if (risk === "HIGH" && primaryThreat(zone) === "flood") text = `Flash Flood: ${rules.length ? rules.join('; ') : RAIN_RULE_HIGH} (rule-based)`;
+        else text = ruleLevelText(zone);
+        const subtext = isRealtime && realtimeData
+            ? `Telemetry: ${realtimeData.rainfall} mm rain in the last hour, ${realtimeData.wind_speed} m/s wind, ${realtimeData.humidity}% humidity. Source: ${sourceBadge(realtimeData.source === 'realtime_api' ? 'openweather' : realtimeData.source === 'open-meteo' ? 'open-meteo' : 'sample', null, realtimeData.data_time)}.`
+            : evaluated;
+        return { text, severity: risk, subtext, color: risk === "HIGH" ? "rose" : risk === "MODERATE" ? "amber" : "emerald" };
+    }, [isRealtime, realtimeData, activeData, activeNowcast, weatherSource]);
 
     // The rule(s) that put the shown location at its level now (backend `rules_fired`, zone data only)
     const firedRules = useMemo(() => {
@@ -849,7 +811,7 @@ const Forecast = () => {
                                         <Sparkles size={16} />
                                     </div>
                                     <div>
-                                        <p className="text-base font-black text-slate-900 dark:text-white leading-snug">
+                                        <p data-testid="forecast-summary-text" className="text-base font-black text-slate-900 dark:text-white leading-snug">
                                             "{aiInsightData.text}"
                                         </p>
                                         <p data-testid="forecast-summary-source" className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">

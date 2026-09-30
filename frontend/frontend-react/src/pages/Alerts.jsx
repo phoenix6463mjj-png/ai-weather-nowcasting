@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { API_BASE } from '../config';
 import { fetchWithWake, WAKE_UNAVAILABLE } from '../utils/serverWake';
-import { fetchedLabel, isLiveSource, isSampleSource, isUnratedZone, mixedCounts, parseUtcIso, sourceBadge, unratedNote } from '../utils/dashboardRisk';
+import { fetchedLabel, isLiveSource, isSampleSource, isUnratedZone, mixedCounts, parseUtcIso, primaryThreat, sourceBadge, unratedNote } from '../utils/dashboardRisk';
 import SampleSafetyNotice from '../components/SampleSafetyNotice';
 import OpenMeteoCredit from '../components/OpenMeteoCredit';
 import OpenWeatherCredit from '../components/OpenWeatherCredit';
@@ -94,12 +94,16 @@ const getSeverityWeight = (sev) => {
     return 0;
 };
 
-// Card sentence: the rule(s) that put the zone at its level, as reported by the backend (rules_fired)
+// Card sentence: the rule(s) that put the zone at its level, as reported by the backend (rules_fired).
+// A HIGH card names a hazard only when the fired rule points to it (the HIGH rain rule -> Flash Flood);
+// otherwise "Rule-based HIGH: <rule>" with no hazard named.
 const resolveShortMessage = (alert) => {
     const sev = normalizeSeverity(alert.severity);
     if (sev === 'LOW') return "No rule-based hazard flagged for this zone.";
     const rules = Array.isArray(alert.rules_fired) ? alert.rules_fired.filter(Boolean) : [];
     if (!rules.length) return "Rule-based level; the rule that fired was not reported.";
+    if (sev === 'HIGH') return primaryThreat(alert) === 'flood' ? `Flash Flood: ${rules.join('; ')} (rule-based).`
+        : `Rule-based HIGH: ${rules.join('; ')}.`;
     return `${rules.join('; ')} (rule-based).`;
 };
 
@@ -592,12 +596,10 @@ const Alerts = () => {
                                         {/* Collapsible Details */}
                                         {isExpanded && (
                                             <div className="mt-3 pt-3 border-t border-gray-100 dark:border-slate-800 text-xs text-gray-600 dark:text-gray-400 space-y-1.5 animate-fadeIn">
-                                                {alert.type && (
-                                                    <div className="flex justify-between">
-                                                        <span className="font-medium text-gray-700 dark:text-gray-300">Hazard Type:</span>
-                                                        <span>{alert.type}</span>
-                                                    </div>
-                                                )}
+                                                <div className="flex justify-between">
+                                                    <span className="font-medium text-gray-700 dark:text-gray-300">Hazard:</span>
+                                                    <span data-testid="alert-card-hazard">{primaryThreat(alert) === 'flood' ? 'Flash Flood (rain rule)' : 'None named (rule-based level)'}</span>
+                                                </div>
                                                 {alert.message && alert.message !== shortMessage && (
                                                     <div>
                                                         <span className="font-medium text-gray-700 dark:text-gray-300 block">Notice:</span>

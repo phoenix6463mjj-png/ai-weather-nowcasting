@@ -37,3 +37,31 @@ def test_every_non_low_level_has_a_rule():
                 f = {"rainfall": rain, "humidity": hum, "wind_speed": wind}
                 risk = M.predict_nowcast(f)["risk_level"]
                 assert bool(M.rules_fired(f, risk)) == (risk != "LOW"), (f, risk)
+
+
+def test_high_from_humidity_and_wind_with_low_rain_names_no_hazard(monkeypatch):
+    # 0.4 mm of rain: the flat scores used to make this zone's top hazard "Flash Flood"
+    d = _zones(monkeypatch, hum=95.0, wind=9.0, rain=0.4)
+    for a in d["alerts"]:
+        assert a["risk_level"] == "HIGH"
+        assert a["rules_fired"] == ["Humidity above 90 % with wind above 8 m/s"]
+        assert a["type"] == a["hazard"] == a["alert"]["type"] == "Rule-based HIGH"
+        assert "Flash Flood" not in a["message"] and "Thunderstorm" not in a["message"]
+
+
+def test_only_the_rain_rule_names_flash_flood(monkeypatch):
+    d = _zones(monkeypatch, hum=60.0, wind=2.0, rain=24.0)
+    assert {(a["risk_level"], a["type"], tuple(a["rules_fired"])) for a in d["alerts"]} == {
+        ("HIGH", "Flash Flood", ("Rain above 20 mm in the last hour",))}
+    d = _zones(monkeypatch, hum=50.0, wind=7.0, rain=0.0)                    # wind rule: no hazard named
+    assert {a["type"] for a in d["alerts"]} == {"Rule-based MODERATE"}
+
+
+def test_nowcast_search_returns_the_fired_rules(monkeypatch):
+    from fastapi.testclient import TestClient
+    monkeypatch.setattr(M, "get_coordinates", lambda c: (26.1, 91.7))
+    monkeypatch.setattr(M, "get_weather_by_coords", lambda la, lo, city_name=None: {
+        "temperature": 27.0, "humidity": 95.0, "rainfall": 0.4, "wind_speed": 9.0, "data_time": "2026-10-01T13:45:00Z"})
+    r = TestClient(M.app).get("/nowcast", params={"city": "Testpur"}).json()
+    assert r["risk_level"] == "HIGH" and r["rules_fired"] == ["Humidity above 90 % with wind above 8 m/s"]
+    assert r["alert"]["type"] == "Rule-based HIGH" and r["data_time"] == "2026-10-01T13:45:00Z"
