@@ -616,6 +616,86 @@ screenshots). It did not recur in later page loads or in the e2e runs.
   - no hourly outlook on Forecast;
   - screenshots.
 
+### Open-Meteo on the free host + sample-data safety net (30 Sep 2026)
+
+**Cause on Render:** `/weather_source` showed `requests 4, errors 4`. All four Open-Meteo batches
+(100 locations each) failed, so all 380 zones fell back to sample values: 39 HIGH zones with no weather
+feed behind them. The old counters did not say why the requests failed. The new `last_error` field
+will show it on the next deploy.
+
+**Backend (`utils/api_fetcher.py`, `backend/main.py`):**
+- **Diagnostics:** `/weather_source` → `open_meteo` now has:
+  - `last_error`: `"HTTP 429: <reason>"` or `"<ExceptionClass>: <message>"`, at most 160 characters,
+    no secrets;
+  - `last_error_at`, `last_success_at`, `cooldown_until` (UTC);
+  - the counters `retries` and `stale_served`.
+  - The server log has one `[OPEN-METEO] batch of N failed (attempt k): …` line per failure.
+- **Timeout** 25 s per request (was 10 s).
+- **Retries:** only after HTTP 429 or a timeout; up to 2 more attempts per batch.
+  - The wait is the `Retry-After` header when present, else 2 s, then 4 s.
+  - If `Retry-After` is over 60 s (e.g. a daily limit), the request is not retried.
+  - Other errors are not retried.
+- **Stale data before sample data:** every successful result stays in memory.
+  - If a batch still fails, each point gets its last successful Open-Meteo values, flagged
+    `weather.stale` / `summary.stale`.
+  - The badge keeps the real model time, "Open-Meteo (model data), updated HH:MM UTC".
+  - Only points that never had Open-Meteo data become sample.
+- **Call limits kept:**
+  - the 60-min fresh cache is unchanged;
+  - after a batch finally fails, the remaining batches of that refresh are not sent;
+  - no new request is sent for 30 min (`OPEN_METEO_COOLDOWN`).
+- **Startup warm-up:** the zone list is fetched once, in the background, at startup. `/health` never
+  waits for it. `WEATHER_WARMUP=0` turns it off. It is skipped when a key is set or Open-Meteo is
+  disabled.
+
+**Safety net (frontend):** when the zone source is `"sample"`, "/", Alerts, Forecast and Analytics
+show `SampleSafetyNotice`:
+- the text: "Sample data — no live weather feed. Risk indicators are not shown on sample data.";
+- the link "Calibrated 1–6 h nowcasts: ML Nowcast →".
+
+What is hidden on sample data:
+- "/":
+  - the High/Moderate banner and info strip;
+  - the header count;
+  - the risk legend and Risk Distribution counts (replaced by "N zones (sample data)");
+  - risk colours in markers and popups (neutral grey);
+  - in the right panel: the risk pill, Primary Threat, hazard levels and rule explanation.
+  - The weather tiles stay, labelled "Sample data — no live weather feed".
+- Alerts: the count cards, filters, alert cards and the "No active alerts" empty state. It shows
+  "N zones loaded (sample data)" instead.
+- Forecast:
+  - the risk pill and the node-list pills;
+  - the Rule-based summary (SEVERITY) and the Risk Indicator Bar.
+  - Current values stay.
+- Analytics:
+  - the risk colours in the bar chart, which is renamed "City Rainfall Comparison (sample data)";
+  - the warning-threshold line;
+  - Risk Distribution, Key Insights and Top Risk Cities.
+  - The averages stay.
+- "mixed" (some zones sample) and the Analytics "built-in example data (server unavailable)" fallback
+  are **not** covered by the net (see §9).
+
+**Tests:**
+- `tests/test_open_meteo.py`, 8 new tests, all HTTP mocked:
+  - 429 → Retry-After waits → success;
+  - backoff without Retry-After, and a long Retry-After is not waited for;
+  - 503 is not retried;
+  - 3 timeouts → stale data with its real time; the 2nd batch is not sent;
+  - the cooldown sends no requests;
+  - everything fails → sample, and `last_error` is exposed on `/weather_source`;
+  - stale flag in the zone list;
+  - the warm-up does not block `/health`.
+- `e2e/sample_safety.spec.js` (6 tests):
+  - sample with HIGH/MODERATE zones injected: the safety net and no risk UI on each of the four pages;
+  - stale Open-Meteo keeps its risk UI with the "updated 06:15 UTC" badge;
+  - screenshots `sample_net_*` at 1920×1080 and 1366×768.
+- Updated for the new behaviour: `weather_sources`, `forecast_leftovers`, `team_pages`,
+  `honesty_batch1`, `dashboard`, `calm`, `prehosting` and `server_wake` specs.
+  - Their sample branches now expect the net.
+  - Three risk-UI Dashboard tests and one Alerts-card test skip on a sample backend.
+  - Also run against a real sample backend (`OPEN_METEO_DISABLED=1`: 380 zones, 39 HIGH): all pass or
+    skip.
+
 ## 7. Troubleshooting
 
 | symptom | cause / fix |
@@ -626,6 +706,7 @@ screenshots). It did not recur in later page loads or in the e2e runs.
 | `503 a replay is already running` | only one replay runs at a time (8 GB laptop) |
 | `npm run dev` fails with an engine or syntax error | the wrong Node is on PATH. Run the PATH line above; `node -v` must print v24.19.0 |
 | tiles missing | the base map uses OpenStreetMap tiles and needs internet access |
+| team pages say "Sample data — no live weather feed" | Open-Meteo failed and nothing was cached. `GET /weather_source` → `open_meteo.last_error` says why (HTTP status or exception); `cooldown_until` says when the next request is allowed |
 
 ## 8. Attributions (all shown in the UI)
 
@@ -675,8 +756,15 @@ screenshots). It did not recur in later page loads or in the e2e runs.
   - Source-driven "Live" / "Real-Time" wording treats Open-Meteo as live. Risk stays "rule-based
     indicator (not the ML model)".
   - The zone list is fetched in batches of 100 (Open-Meteo allows up to 1000 per request) and cached
-    60 min server-side; each request has a 10 s timeout.
-  - Any error means those zones use sample data (labelled as such).
+    60 min server-side; each request has a 25 s timeout.
+  - HTTP 429 and timeouts are retried twice. After a final failure, the last successful Open-Meteo data
+    is served (stale, with its real time), and only zones that never had any use sample data.
+  - On sample data the four team pages show no risk indicators (safety net).
+  - Not covered by the safety net:
+    - a "mixed" list (some zones sample) still shows rule-based risk for the sample zones, labelled
+      "Mixed: some zones use sample data";
+    - the Analytics fallback "built-in example data (server unavailable)" still shows its fixed HIGH
+      example nodes.
   - Measured on 29 Sep 2026: 380 zones = 4 requests in ≈ 2.0 s; a repeat within the cache = 0 requests
     (0.06 s); the Forecast/Analytics list of 100 = 1 request (27 new points, 73 cached).
   - `GET /weather_source` shows the order and the Open-Meteo counters (no secrets).

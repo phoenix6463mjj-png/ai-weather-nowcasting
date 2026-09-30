@@ -2,7 +2,8 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { Link, useSearchParams } from 'react-router-dom';
 import { API_BASE } from '../config';
 import { fetchWithWake, WAKE_UNAVAILABLE } from '../utils/serverWake';
-import { isLiveSource, sourceBadge, sourceShort } from '../utils/dashboardRisk';
+import { isLiveSource, isSampleSource, sourceBadge, sourceShort } from '../utils/dashboardRisk';
+import SampleSafetyNotice from '../components/SampleSafetyNotice';
 import OpenMeteoCredit from '../components/OpenMeteoCredit';
 import HonestyBanner from '../components/HonestyBanner';
 import {
@@ -63,6 +64,8 @@ const Forecast = () => {
     const weatherSource = rawSource === 'openweather' || rawSource === 'realtime_api' ? 'openweather'
         : rawSource === 'open-meteo' ? 'open-meteo' : 'sample';
     const liveWeather = isLiveSource(weatherSource);
+    // sample data: no rule-based level, pill, summary or indicator bar (SampleSafetyNotice instead)
+    const sampleOnly = isSampleSource(weatherSource);
     const sourceText = sourceBadge(weatherSource, isRealtime ? null : currentData?.weather?.observed_at,
         isRealtime ? realtimeData?.data_time : currentData?.weather?.data_time);
 
@@ -474,7 +477,7 @@ const Forecast = () => {
                                 )}
                             </div>
                             <p className="text-sm text-slate-500 dark:text-slate-400">
-                                Current weather and a rule-based risk level
+                                {sampleOnly ? 'Current weather (sample data)' : 'Current weather and a rule-based risk level'}
                             </p>
                             <p data-testid="forecast-source-badge" data-source={weatherSource} className="text-xs font-bold text-amber-700 dark:text-amber-400 mt-0.5">
                                 {sourceText}
@@ -490,6 +493,8 @@ const Forecast = () => {
                         <span>Back to Dashboard</span>
                     </Link>
                 </div>
+
+                {sampleOnly && <SampleSafetyNotice />}
 
                 {/* 4. SAFE SEARCH INPUT UI (Uses Real-Time /nowcast with Node Fallback) */}
                 <div
@@ -550,7 +555,7 @@ const Forecast = () => {
                                                         </span>
                                                     )}
                                                 </span>
-                                                {nodeObj?.risk_level && (
+                                                {nodeObj?.risk_level && !sampleOnly && (
                                                     <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
                                                         nodeObj.risk_level === "HIGH" ? "bg-red-100 text-red-700 dark:bg-red-950/60 dark:text-red-400" :
                                                         nodeObj.risk_level === "MODERATE" ? "bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-400" :
@@ -710,7 +715,7 @@ const Forecast = () => {
                     </div>
                     <p className="text-slate-600 dark:text-slate-400 text-sm mb-6">
                         {liveWeather ? `Current values from ${sourceText}; risk level by fixed rules (not the ML model).`
-                            : 'Current sample weather values; risk level by fixed rules (not the ML model).'}
+                            : 'Current sample weather values (no risk level on sample data).'}
                     </p>
 
                     <div className="grid grid-cols-1 gap-5">
@@ -719,9 +724,11 @@ const Forecast = () => {
                             <div>
                                 <div className="flex items-center justify-between mb-1">
                                     <h3 className="font-bold text-sm">{liveWeather ? 'Live Nowcast Panel' : 'Nowcast Panel (sample data)'}</h3>
-                                    <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${currentRiskInfo.badgeClass}`}>
+                                    {!sampleOnly && (
+                                    <span data-testid="forecast-panel-risk" className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${currentRiskInfo.badgeClass}`}>
                                         {currentRiskInfo.label}
                                     </span>
+                                    )}
                                 </div>
                                 <p className="text-xs text-slate-500 dark:text-slate-400">
                                     {isRealtime ? (
@@ -798,7 +805,7 @@ const Forecast = () => {
                 </p>
 
                 {/* RULE-BASED SUMMARY & RISK INDICATOR BAR */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {!sampleOnly && <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {/* Rule-based summary */}
                     <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm transition-all duration-300 hover:shadow-xl hover:scale-[1.01] flex flex-col justify-between">
                         <div>
@@ -913,7 +920,7 @@ const Forecast = () => {
                             </span>
                         </div>
                     </div>
-                </div>
+                </div>}
             </main>
         </div>
     );

@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { API_BASE } from '../config';
 import { fetchWithWake, isServerUnavailable, WAKE_UNAVAILABLE } from '../utils/serverWake';
-import { RISK_COLOURS, isLiveSource, sourceBadge } from '../utils/dashboardRisk';
+import { RISK_COLOURS, isLiveSource, isSampleSource, sourceBadge } from '../utils/dashboardRisk';
+import SampleSafetyNotice from '../components/SampleSafetyNotice';
 import OpenMeteoCredit from '../components/OpenMeteoCredit';
 import NominatimCredit from '../components/NominatimCredit';
 import { geocode, SupersededError } from '../utils/nominatim';
@@ -257,6 +258,8 @@ const Dashboard = () => {
         }
     };
 
+    // sample data: no rule-based risk anywhere on the page (banner, counts, markers, panel)
+    const sampleOnly = isSampleSource(source.source);
     const selSource = selectedCity?.weather?.source;
     const badgeSource = selSource || source.source;
     const badgeText = badgeSource
@@ -272,7 +275,7 @@ const Dashboard = () => {
                 onSearch={handleSearch}
                 searchLoading={searchLoading}
                 selectedCity={selectedCity?.city}
-                alertCount={summary?.high}
+                alertCount={sampleOnly ? null : summary?.high}
             />
 
             <div className="flex flex-1 overflow-hidden">
@@ -320,7 +323,8 @@ const Dashboard = () => {
                         {/* Alert Banner: Pure component using backend single source of truth summary */}
                         <div className="px-6 pt-4">
                             {/* only for zone data that actually loaded (never a "no high-risk" banner on an error) */}
-                            {source.source && <AlertBanner locations={allCities} summary={summary} sample={!isLiveSource(source.source)} source={source.source} />}
+                            {source.source && (sampleOnly ? <SampleSafetyNotice />
+                                : <AlertBanner locations={allCities} summary={summary} sample={!isLiveSource(source.source)} source={source.source} />)}
                         </div>
 
                         {/* Interactive Main Map & Right Panel */}
@@ -367,11 +371,12 @@ const Dashboard = () => {
                                         onSelectCity={handleSelectCity}
                                         activeLayers={activeLayers}
                                         baseLayer={baseLayer}
+                                        hideRisk={sampleOnly}
                                     />
                                 )}
 
                                 {/* Legend: markers are coloured by the zone's rule-based risk level (no percentages) */}
-                                <div data-testid="dashboard-legend" className="absolute bottom-6 left-6 z-[400] bg-white/90 dark:bg-slate-800/90 backdrop-blur-md rounded-xl p-4 shadow-lg border border-slate-200 dark:border-slate-700 w-64">
+                                {!sampleOnly && <div data-testid="dashboard-legend" className="absolute bottom-6 left-6 z-[400] bg-white/90 dark:bg-slate-800/90 backdrop-blur-md rounded-xl p-4 shadow-lg border border-slate-200 dark:border-slate-700 w-64">
                                     <p className="text-xs font-bold mb-2 uppercase text-slate-500 dark:text-slate-400">Risk level (rule-based)</p>
                                     <div className="flex justify-between text-[11px] font-semibold text-slate-600 dark:text-slate-300">
                                         {[['LOW', 'Low'], ['MODERATE', 'Moderate'], ['HIGH', 'High']].map(([k, label]) => (
@@ -381,7 +386,7 @@ const Dashboard = () => {
                                         ))}
                                     </div>
                                     <p className="mt-1.5 text-[10px] text-slate-500 dark:text-slate-400 leading-snug">Marker colour = the zone&apos;s rule-based risk level (not the ML model).</p>
-                                </div>
+                                </div>}
                             </div>
 
                             {/* Right Panel: Pure component using central selectedCity */}
@@ -390,6 +395,7 @@ const Dashboard = () => {
                                     <RightPanel
                                         selectedCity={selectedCity}
                                         onClose={() => setSelectedCity(null)}
+                                        hideRisk={sampleOnly && (!selSource || isSampleSource(selSource))}
                                     />
                                 </div>
                                 {selectedCity?.geocoder === 'nominatim' && <NominatimCredit className="shrink-0 px-1" />}
@@ -406,7 +412,12 @@ const Dashboard = () => {
                                 <Timeline />
                             </div>
                             <div className="w-[360px] flex-shrink-0">
-                                <RiskDistribution locations={allCities} summary={summary} />
+                                {sampleOnly ? (
+                                    <div data-testid="sample-zone-count" className="h-full bg-white dark:bg-[#111827] rounded-2xl shadow-lg border border-slate-200 dark:border-gray-700 p-5 flex flex-col justify-center text-sm">
+                                        <p className="font-black text-slate-800 dark:text-white">{summary?.total ?? allCities.length} zones (sample data)</p>
+                                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Risk counts are not shown on sample data.</p>
+                                    </div>
+                                ) : <RiskDistribution locations={allCities} summary={summary} />}
                             </div>
                         </div>
                     </div>

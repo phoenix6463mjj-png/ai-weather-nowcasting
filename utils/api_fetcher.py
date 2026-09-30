@@ -497,10 +497,55 @@ OPEN_METEO_URL = "https://api.open-meteo.com/v1/forecast"
 OPEN_METEO_ENABLED = os.getenv("OPEN_METEO_DISABLED", "") != "1"
 OPEN_METEO_BATCH = 100          # locations per request (Open-Meteo accepts up to 1000)
 OPEN_METEO_TTL = 3600.0         # s; >= 30 min keeps 380 zones within the free 10,000 calls/day
-OPEN_METEO_TIMEOUT = 10.0       # s per request
+OPEN_METEO_TIMEOUT = 25.0       # s per request (the free host is slow; 10 s timed out there)
+OPEN_METEO_RETRIES = 2          # extra attempts per batch, only after HTTP 429 or a timeout
+OPEN_METEO_BACKOFF = 2.0        # s; attempt k waits BACKOFF * 2**(k-1) unless Retry-After says otherwise
+OPEN_METEO_MAX_RETRY_AFTER = 60.0   # s; a longer Retry-After (e.g. a daily limit) is not waited for
+OPEN_METEO_COOLDOWN = 1800.0    # s; after a batch finally fails, no new requests for this long
 OPEN_METEO_CURRENT = "temperature_2m,relative_humidity_2m,wind_speed_10m,weather_code,pressure_msl"
+# Every successful result stays here: fresh for OPEN_METEO_TTL, and after that it is still served
+# (flagged stale, with its real model time) when a new request fails, before falling back to sample.
 _OM_CACHE: Dict[Tuple[float, float], Tuple[Dict[str, Any], float]] = {}
-OPEN_METEO_STATS = {"requests": 0, "locations_requested": 0, "cache_hits": 0, "errors": 0}
+OPEN_METEO_STATS = {"requests": 0, "locations_requested": 0, "cache_hits": 0, "errors": 0,
+                    "retries": 0, "stale_served": 0}
+# Diagnostics for /weather_source (no secrets: an HTTP status or exception class plus a short message)
+OPEN_METEO_STATUS: Dict[str, Any] = {"last_error": None, "last_error_at": None, "last_success_at": None,
+                                     "cooldown_until": None}
+_om_sleep = asyncio.sleep         # replaced in tests
+
+
+def _iso(ts: float) -> str:
+    return datetime.fromtimestamp(ts, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _describe_error(e: Exception) -> str:
+    """'HTTP 429: <reason>' or '<ExceptionClass>: <message>', at most 160 characters."""
+    if isinstance(e, httpx.HTTPStatusError):
+        reason = ""
+        try:
+            body = e.response.json()
+            reason = str(body.get("reason", "")) if isinstance(body, dict) else ""
+        except Exception:  # noqa: BLE001 -- body is not JSON
+            reason = e.response.text or ""
+        return f"HTTP {e.response.status_code}: {reason.strip()}"[:160].rstrip(": ")
+    msg = str(e).strip()
+    return f"{type(e).__name__}: {msg}"[:160] if msg else type(e).__name__
+
+
+def _retry_wait(e: Exception, attempt: int) -> Optional[float]:
+    """Seconds to wait before retrying after `e`, or None when it must not be retried."""
+    if isinstance(e, httpx.TimeoutException):
+        return OPEN_METEO_BACKOFF * 2 ** (attempt - 1)
+    if isinstance(e, httpx.HTTPStatusError) and e.response.status_code == 429:
+        ra = e.response.headers.get("Retry-After")
+        if ra is not None:
+            try:
+                wait = float(ra)
+            except ValueError:
+                wait = OPEN_METEO_BACKOFF * 2 ** (attempt - 1)
+            return wait if wait <= OPEN_METEO_MAX_RETRY_AFTER else None
+        return OPEN_METEO_BACKOFF * 2 ** (attempt - 1)
+    return None
 
 # WMO weather interpretation codes (Open-Meteo docs) -> short text
 WMO_TEXT = {
@@ -560,7 +605,10 @@ def parse_open_meteo(item: Dict[str, Any]) -> Optional[Dict[str, Any]]:
 async def async_fetch_open_meteo(points: List[Tuple[float, float]], client: Optional[httpx.AsyncClient] = None,
                                  now: Optional[float] = None) -> List[Optional[Dict[str, Any]]]:
     """Weather for many points: cached (OPEN_METEO_TTL), else batched requests of <= OPEN_METEO_BATCH
-    locations. Any failure leaves those points as None (the caller falls back to sample data)."""
+    locations. HTTP 429 and timeouts are retried (OPEN_METEO_RETRIES, backoff / Retry-After). When a
+    batch still fails, the last successful Open-Meteo result of each point is served (stale, flagged,
+    with its real model time); points with none stay None (the caller falls back to sample data), and
+    no new request is made for OPEN_METEO_COOLDOWN s so the call limits are kept."""
     now = time.time() if now is None else now
     out: List[Optional[Dict[str, Any]]] = [None] * len(points)
     todo = []
@@ -573,32 +621,63 @@ async def async_fetch_open_meteo(points: List[Tuple[float, float]], client: Opti
             todo.append(i)
     if not todo or not OPEN_METEO_ENABLED:
         return out
-    own = client is None
-    cl = client or httpx.AsyncClient(timeout=OPEN_METEO_TIMEOUT)
-    try:
-        for s in range(0, len(todo), OPEN_METEO_BATCH):
-            idx = todo[s:s + OPEN_METEO_BATCH]
-            pts = [points[i] for i in idx]
-            OPEN_METEO_STATS["requests"] += 1
-            OPEN_METEO_STATS["locations_requested"] += len(idx)
-            try:
-                r = await cl.get(OPEN_METEO_URL, params=open_meteo_params(pts), timeout=OPEN_METEO_TIMEOUT)
-                r.raise_for_status()
-                data = r.json()
-                items = data if isinstance(data, list) else [data]
-                if len(items) != len(idx):
-                    raise ValueError(f"{len(items)} results for {len(idx)} locations")
-                for i, it in zip(idx, items):
-                    w = parse_open_meteo(it)
-                    if w:
-                        out[i] = w
-                        _OM_CACHE[_om_key(*points[i])] = (w, now)
-            except Exception as e:  # noqa: BLE001 -- any failure -> sample data for this batch
-                OPEN_METEO_STATS["errors"] += 1
-                print(f"[OPEN-METEO] batch of {len(idx)} failed: {type(e).__name__}")
-    finally:
-        if own:
-            await cl.aclose()
+    failed: List[int] = []
+    cooldown = OPEN_METEO_STATUS.get("cooldown_ts")
+    if cooldown is not None and now < cooldown:
+        failed = list(todo)                    # still cooling down after a failure: no request
+    else:
+        own = client is None
+        cl = client or httpx.AsyncClient(timeout=OPEN_METEO_TIMEOUT)
+        try:
+            for s in range(0, len(todo), OPEN_METEO_BATCH):
+                idx = todo[s:s + OPEN_METEO_BATCH]
+                if failed:                         # an earlier batch failed: don't send the rest
+                    failed.extend(idx)
+                    continue
+                pts = [points[i] for i in idx]
+                attempt = 0
+                while True:
+                    attempt += 1
+                    OPEN_METEO_STATS["requests"] += 1
+                    OPEN_METEO_STATS["locations_requested"] += len(idx)
+                    try:
+                        r = await cl.get(OPEN_METEO_URL, params=open_meteo_params(pts), timeout=OPEN_METEO_TIMEOUT)
+                        r.raise_for_status()
+                        data = r.json()
+                        items = data if isinstance(data, list) else [data]
+                        if len(items) != len(idx):
+                            raise ValueError(f"{len(items)} results for {len(idx)} locations")
+                        for i, it in zip(idx, items):
+                            w = parse_open_meteo(it)
+                            if w:
+                                out[i] = w
+                                _OM_CACHE[_om_key(*points[i])] = (w, now)
+                        OPEN_METEO_STATUS["last_success_at"] = _iso(time.time())
+                        break
+                    except Exception as e:  # noqa: BLE001 -- any failure -> stale, else sample data
+                        OPEN_METEO_STATS["errors"] += 1
+                        desc = _describe_error(e)
+                        OPEN_METEO_STATUS["last_error"] = desc
+                        OPEN_METEO_STATUS["last_error_at"] = _iso(time.time())
+                        wait = _retry_wait(e, attempt) if attempt <= OPEN_METEO_RETRIES else None
+                        print(f"[OPEN-METEO] batch of {len(idx)} failed (attempt {attempt}): {desc}"
+                              + (f"; retrying in {wait:.0f} s" if wait is not None else ""))
+                        if wait is None:
+                            failed.extend(idx)
+                            break
+                        OPEN_METEO_STATS["retries"] += 1
+                        await _om_sleep(wait)
+        finally:
+            if own:
+                await cl.aclose()
+        if failed:
+            OPEN_METEO_STATUS["cooldown_ts"] = now + OPEN_METEO_COOLDOWN
+            OPEN_METEO_STATUS["cooldown_until"] = _iso(now + OPEN_METEO_COOLDOWN)
+    for i in failed:                           # last successful Open-Meteo data, labelled stale
+        hit = _OM_CACHE.get(_om_key(*points[i]))
+        if hit:
+            out[i] = {**hit[0], "stale": True}
+            OPEN_METEO_STATS["stale_served"] += 1
     return out
 
 

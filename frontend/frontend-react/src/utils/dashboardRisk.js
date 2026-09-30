@@ -82,6 +82,11 @@ export function sourceShort(source) {
     return 'sample data';
 }
 
+// "sample" = deterministic sample values, no weather feed at all: the team pages then show no rule-based
+// risk level, count, banner, pill, primary threat or alert card (SampleSafetyNotice instead).
+export const isSampleSource = (source) => source === 'sample';
+export const SAMPLE_SAFETY_TEXT = 'Sample data — no live weather feed. Risk indicators are not shown on sample data.';
+
 // Live weather sources: OpenWeather (observations, needs a key) and Open-Meteo (model data, no key).
 export const LIVE_SOURCES = ['openweather', 'open-meteo'];
 export const isLiveSource = (source) => LIVE_SOURCES.includes(source);

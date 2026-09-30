@@ -151,3 +151,136 @@ def test_identical_open_meteo_weather_gives_identical_rule_risk():
         f = M.engineer_features({**w, "city": name, "lat": 1, "lon": 2})
         res.append((M.predict_nowcast(f), M.generate_explainable_reason(w["rainfall"], w["humidity"], w["wind_speed"])))
     assert res[0] == res[1] == res[2]
+
+
+# ---- retries, stale data, cooldown and diagnostics (Render: 4 requests, 4 errors -> sample) ----
+
+@pytest.fixture
+def no_sleep(monkeypatch):
+    waits = []
+
+    async def fake_sleep(s):
+        waits.append(s)
+    monkeypatch.setattr(A, "_om_sleep", fake_sleep)
+    for k in A.OPEN_METEO_STATUS:
+        A.OPEN_METEO_STATUS[k] = None
+    A.OPEN_METEO_STATUS.pop("cooldown_ts", None)
+    yield waits
+    A.OPEN_METEO_STATUS.pop("cooldown_ts", None)
+
+
+class Script(Recorder):
+    """Answers each request with the next scripted outcome: 'ok', an int status, or 'timeout'."""
+
+    def __init__(self, outcomes, retry_after=None):
+        super().__init__()
+        self.outcomes, self.retry_after = list(outcomes), retry_after
+
+    def __call__(self, request):
+        o = self.outcomes.pop(0) if self.outcomes else "ok"
+        if o == "timeout":
+            self.calls.append({"n": 0})
+            raise httpx.ReadTimeout("timed out", request=request)
+        if o == "ok":
+            return super().__call__(request)
+        self.calls.append({"n": 0})
+        h = {"Retry-After": str(self.retry_after)} if self.retry_after is not None else {}
+        return httpx.Response(o, headers=h, json={"error": True, "reason": "Minutely API request limit exceeded"})
+
+
+def test_timeout_is_25_s_and_429_is_retried_with_retry_after_then_succeeds(no_sleep):
+    assert A.OPEN_METEO_TIMEOUT == 25.0 and A.OPEN_METEO_RETRIES == 2
+    rec = Script([429, 429, "ok"], retry_after=7)
+    out = run(pts(20), rec)
+    assert len(rec.calls) == 3 and no_sleep == [7.0, 7.0]         # Retry-After respected
+    assert all(o and o["source"] == "open-meteo" and not o.get("stale") for o in out)
+    assert A.OPEN_METEO_STATUS["last_error"] == "HTTP 429: Minutely API request limit exceeded"
+    assert A.OPEN_METEO_STATUS["last_success_at"] and A.OPEN_METEO_STATUS["cooldown_until"] is None
+
+
+def test_429_without_retry_after_uses_backoff_and_a_long_retry_after_is_not_waited(no_sleep):
+    run(pts(5), Script([429, "ok"]))
+    assert no_sleep == [A.OPEN_METEO_BACKOFF]
+    no_sleep.clear()
+    rec = Script([429], retry_after=3600)                        # daily limit: give up at once
+    other = [(20.0 + i * 0.1, 80.0) for i in range(5)]           # not cached by the call above
+    assert run(other, rec) == [None] * 5 and len(rec.calls) == 1 and no_sleep == []
+
+
+def test_other_http_errors_are_not_retried(no_sleep):
+    rec = Script([503])
+    assert run(pts(5), rec) == [None] * 5 and len(rec.calls) == 1
+    assert A.OPEN_METEO_STATUS["last_error"].startswith("HTTP 503")
+
+
+def test_timeouts_keep_the_last_successful_data_labelled_stale_with_its_real_time(no_sleep):
+    P = pts(120)
+    run(P, Recorder())                                           # fresh data at T0
+    rec = Script(["timeout"] * 3)
+    out = run(P, rec, now=T0 + A.OPEN_METEO_TTL + 5)             # expired -> refetch -> times out 3x
+    assert len(rec.calls) == 3                                   # 1 + 2 retries; the 2nd batch is not sent
+    assert no_sleep == [A.OPEN_METEO_BACKOFF, 2 * A.OPEN_METEO_BACKOFF]
+    assert all(o and o["source"] == "open-meteo" and o["stale"] is True for o in out)
+    assert out[0]["data_time"] == "2026-09-29T13:45Z"            # the real model time, not "now"
+    assert A.OPEN_METEO_STATUS["last_error"].startswith("ReadTimeout")
+    assert A.OPEN_METEO_STATUS["cooldown_until"]
+
+
+def test_cooldown_after_a_failure_sends_no_requests(no_sleep):
+    run(pts(5), Script([503]))
+    rec = Recorder()
+    assert run(pts(5), rec, now=T0 + 60) == [None] * 5 and rec.calls == []
+    run(pts(5), rec, now=T0 + A.OPEN_METEO_COOLDOWN + 1)
+    assert len(rec.calls) == 1
+
+
+def test_everything_fails_zone_list_is_sample_and_weather_source_exposes_last_error(no_sleep, monkeypatch):
+    import backend.main as M
+    from fastapi.testclient import TestClient
+    monkeypatch.setattr(M, "API_KEY", None)
+    real = A.async_fetch_open_meteo
+
+    async def failing(points, client=None, now=None):
+        async with httpx.AsyncClient(transport=httpx.MockTransport(Script(["timeout"] * 9))) as c:
+            return await real(points, client=c, now=T0)
+    monkeypatch.setattr(M, "async_fetch_open_meteo", failing)
+    M._UNIFIED_ALERTS_CACHE.clear()
+    d = asyncio.run(M.get_unified_alerts_dataset(limit=50))
+    assert d["summary"]["source"] == "sample" and d["summary"]["stale"] is False
+    om = TestClient(M.app).get("/weather_source").json()["open_meteo"]
+    assert om["last_error"] == "ReadTimeout: timed out" and om["last_error_at"].endswith("Z")
+    assert om["errors"] >= 3 and "cooldown_ts" not in om
+    M._UNIFIED_ALERTS_CACHE.clear()
+
+
+def test_zone_list_marks_stale_open_meteo_data(monkeypatch):
+    import backend.main as M
+    monkeypatch.setattr(M, "API_KEY", None)
+
+    async def stale(points, client=None, now=None):
+        return [{**A.parse_open_meteo(om_item(la, lo)), "stale": True} for la, lo in points]
+    monkeypatch.setattr(M, "async_fetch_open_meteo", stale)
+    M._UNIFIED_ALERTS_CACHE.clear()
+    d = asyncio.run(M.get_unified_alerts_dataset(limit=50))
+    assert d["summary"]["source"] == "open-meteo" and d["summary"]["stale"] is True
+    assert d["summary"]["data_time"] == "2026-09-29T13:45Z" and d["alerts"][0]["weather"]["stale"] is True
+    M._UNIFIED_ALERTS_CACHE.clear()
+
+
+def test_startup_warmup_runs_in_the_background_and_health_does_not_wait(monkeypatch):
+    import backend.main as M
+    from fastapi.testclient import TestClient
+    monkeypatch.setattr(M, "API_KEY", None)
+    monkeypatch.setenv("WEATHER_WARMUP", "1")
+    started = []
+
+    async def slow(limit=380):
+        started.append(limit)
+        await asyncio.sleep(30)
+    monkeypatch.setattr(M, "get_unified_alerts_dataset", slow)
+    with TestClient(M.app) as c:
+        import time as _t
+        t = _t.time()
+        assert c.get("/health").json()["status"] == "ok"
+        assert _t.time() - t < 5
+    assert started == [380]

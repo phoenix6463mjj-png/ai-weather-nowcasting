@@ -41,7 +41,8 @@ test('team backend down for ~7 s (real 5 s retry): "Starting the server" notice,
     await expect(notice).toHaveAttribute('data-state', 'starting');
     await expect(page.getByTestId('server-wake-text')).toHaveText(STARTING);
     await noRawErrors(page);
-    await expect(page.getByTestId('alert-card-source').first()).toBeVisible({ timeout: 30_000 });
+    // alert cards, or the safety net when the backend serves sample data
+    await expect(page.getByTestId('alert-card-source').first().or(page.getByTestId('sample-safety-net'))).toBeVisible({ timeout: 30_000 });
     await expect(notice).toHaveCount(0);
     await expect(page.getByTestId('alerts-error')).toHaveCount(0);
     expect(hits.blocked).toBeGreaterThanOrEqual(2);          // first try + one retry 5 s later, both blocked

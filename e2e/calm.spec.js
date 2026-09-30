@@ -120,7 +120,7 @@ test('calm-down screenshots of / and /alerts at 1920x1080 and 1366x768 (live bac
         await page.setViewportSize({ width: w, height: h });
         await page.goto('/');
         await expect(page.getByTestId('dashboard-source-badge')).not.toHaveText('Loading weather source…');
-        await expect(page.getByTestId('rule-explanation')).toBeVisible();
+        await expect(page.getByTestId('rule-explanation').or(page.getByTestId('sample-safety-net'))).toBeVisible();
         await page.screenshot({ path: path.join(SHOTS, `calm_dashboard_${w}x${h}.png`) });
         await page.goto('/alerts');
         await expect(page.getByText(/^Fetched \d\d:\d\d UTC$/).first()).toBeVisible();

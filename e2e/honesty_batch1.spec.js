@@ -36,11 +36,16 @@ test('Analytics: rule-based labels, no validation/XGBoost/94.6%, donut draws wit
     page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
     const src = await zoneSource(page);
     await page.goto('/analytics');
+    if (src === 'sample') {                     // safety net: no summary, donut or ranking on sample data
+        await expect(page.getByTestId('sample-safety-net')).toBeVisible();
+        await expect(page.locator('body')).not.toContainText('Real-Time');
+        await expectNoBanned(page);
+        return;
+    }
     await expect(page.getByTestId('analytics-model-label')).toHaveText('Rule-based indicator (not the ML model)');
     const label = { openweather: 'OpenWeather data', 'open-meteo': 'Open-Meteo data (model data)' }[src] || 'sample data';
     await expect(page.getByTestId('analytics-summary-source')).toHaveText(`Rule-based summary of ${label}`);
     await expect(page.getByText('Rule-based summary', { exact: true })).toBeVisible();
-    if (src === 'sample') await expect(page.locator('body')).not.toContainText('Real-Time');
     await expect(page.locator('body')).not.toContainText('94.6');
     await expect(page.locator('body')).not.toContainText('live sensor');
     await expectNoBanned(page);
@@ -99,6 +104,7 @@ test('Forecast with the backend down: "Server unavailable", no built-in Mumbai r
 
 test('Alerts: official-advisory line instead of action advice; no evacuation / stable text', async ({ page }) => {
     await stubImages(page);
+    test.skip(await zoneSource(page) === 'sample', 'risk UI is hidden on sample data (safety net, sample_safety.spec.js)');
     await page.goto('/alerts');
     await expect(page.getByText(OFFICIAL_ADVICE).first()).toBeVisible();
     await expect(page.locator('body')).not.toContainText('drainage');
@@ -123,8 +129,11 @@ test('Dashboard banner: "(sample data, rule-based)" on sample data; backend down
     // HIGH zones: warning banner; none: the neutral info strip (calm-down fix)
     const summary = (await (await page.request.get(`${API}/alerts?limit=380`)).json()).summary;
     const banner = page.getByTestId(summary.high > 0 ? 'alert-banner-text' : 'info-strip-text');
-    if (src === 'sample') await expect(banner).toContainText(summary.high > 0 ? '(sample data, rule-based)' : '(sample data)');
-    else await expect(banner).not.toContainText('sample data');
+    if (src === 'sample') {                     // safety net: no banner or strip on sample data
+        await expect(page.getByTestId('sample-safety-net')).toBeVisible();
+        await expect(page.getByTestId('alert-banner-text')).toHaveCount(0);
+        await expect(page.getByTestId('info-strip')).toHaveCount(0);
+    } else await expect(banner).not.toContainText('sample data');
     const p2 = await page.context().newPage();
     await stubImages(p2);
     await abortBackend(p2, '**/alerts?limit=380');

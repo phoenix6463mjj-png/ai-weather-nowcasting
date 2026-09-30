@@ -54,7 +54,11 @@ for (const src of ['sample', 'openweather', 'open-meteo']) {
         await expect(page.getByTestId('sidebar-live')).toHaveCount(e.live ? 1 : 0);
         if (src === 'open-meteo') await expect(page.getByTestId('open-meteo-credit').first()).toBeVisible();
         else await expect(page.getByTestId('open-meteo-credit')).toHaveCount(0);
-        await expect(page.getByTestId('rule-label')).toHaveText('(rule-based, not the ML model)');
+        // sample data: the safety net replaces every rule-based indicator (sample_safety.spec.js)
+        if (src === 'sample') {
+            await expect(page.getByTestId('sample-safety-net')).toBeVisible();
+            await expect(page.getByTestId('rule-label')).toHaveCount(0);
+        } else await expect(page.getByTestId('rule-label')).toHaveText('(rule-based, not the ML model)');
         if (src !== 'openweather') await expect(page.locator('body')).not.toContainText('observed');
         // Alerts
         await page.goto('/alerts');
@@ -79,10 +83,15 @@ for (const src of ['sample', 'openweather', 'open-meteo']) {
         // Analytics
         await page.goto('/analytics');
         const label = { sample: 'sample data', openweather: 'OpenWeather data', 'open-meteo': 'Open-Meteo data (model data)' }[src];
-        await expect(page.getByTestId('analytics-summary-source')).toHaveText(`Rule-based summary of ${label}`);
         await expect(page.getByTestId('open-meteo-credit')).toHaveCount(e.credit);
         await expect(page.locator('body')).not.toContainText('convective probability');
-        await expect(page.getByTestId('analytics-model-label')).toHaveText('Rule-based indicator (not the ML model)');
+        if (src === 'sample') {
+            await expect(page.getByTestId('sample-safety-net')).toBeVisible();
+            await expect(page.getByTestId('analytics-summary-source')).toHaveCount(0);
+        } else {
+            await expect(page.getByTestId('analytics-summary-source')).toHaveText(`Rule-based summary of ${label}`);
+            await expect(page.getByTestId('analytics-model-label')).toHaveText('Rule-based indicator (not the ML model)');
+        }
     });
 }
 

@@ -46,7 +46,7 @@ for (const [risk, rules, level, fired] of [
     });
 }
 
-for (const [source, name] of [['open-meteo', 'Open-Meteo model data'], ['openweather', 'OpenWeather observations'], ['sample', 'sample data']]) {
+for (const [source, name] of [['open-meteo', 'Open-Meteo model data'], ['openweather', 'OpenWeather observations']]) {
     test(`"Rule-based summary" names the weather source: ${source}`, async ({ page }) => {
         await open(page, [zone('Mumbai', 'MODERATE', ['Humidity above 70 %'], source)]);
         await expect(page.getByTestId('forecast-summary-title')).toHaveText('Rule-based summary');
@@ -58,13 +58,22 @@ for (const [source, name] of [['open-meteo', 'Open-Meteo model data'], ['openwea
     });
 }
 
+// sample data: no rule-based summary at all (safety net, sample_safety.spec.js)
+test('"Rule-based summary" is not shown on sample data', async ({ page }) => {
+    await open(page, [zone('Mumbai', 'MODERATE', ['Humidity above 70 %'], 'sample')]);
+    await expect(page.getByTestId('sample-safety-net')).toBeVisible();
+    await expect(page.getByTestId('forecast-summary-title')).toHaveCount(0);
+    await expect(page.getByTestId('forecast-risk-level')).toHaveCount(0);
+});
+
 test('Forecast leftovers screenshots at 1920x1080 and 1366x768 (live backend data)', async ({ page }) => {
     await page.route('https://images.unsplash.com/**', (r) => r.fulfill({ body: PNG, contentType: 'image/png' }));
     for (const [w, h] of [[1920, 1080], [1366, 768]]) {
         await page.setViewportSize({ width: w, height: h });
         await page.goto('/forecast');
-        await expect(page.getByTestId('forecast-risk-level')).toBeVisible();
-        await page.getByTestId('forecast-risk-level').scrollIntoViewIfNeeded();
+        const end = page.getByTestId('forecast-risk-level').or(page.getByTestId('sample-safety-net'));   // sample: safety net
+        await expect(end).toBeVisible();
+        await end.scrollIntoViewIfNeeded();
         await page.screenshot({ path: path.join(SHOTS, `forecast_leftovers_${w}x${h}.png`) });
     }
 });

@@ -2,7 +2,8 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { API_BASE } from '../config';
 import { fetchWithWake, WAKE_UNAVAILABLE } from '../utils/serverWake';
-import { fetchedLabel, isLiveSource, parseUtcIso, sourceBadge } from '../utils/dashboardRisk';
+import { fetchedLabel, isLiveSource, isSampleSource, parseUtcIso, sourceBadge } from '../utils/dashboardRisk';
+import SampleSafetyNotice from '../components/SampleSafetyNotice';
 import OpenMeteoCredit from '../components/OpenMeteoCredit';
 import {
     ArrowLeft,
@@ -114,6 +115,8 @@ const Alerts = () => {
     const [summary, setSummary] = useState({ total: 0, high: 0, moderate: 0, low: 0 });
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    // sample data: no counts, filters or alert cards (no rule-based alarms on sample values)
+    const sampleOnly = isSampleSource(weatherSource) && !error;
     const [filter, setFilter] = useState('ALL'); // 'ALL' | 'HIGH' | 'MODERATE' | 'LOW'
     const [sortBy, setSortBy] = useState('severity'); // 'severity' | 'latest'
     const [searchQuery, setSearchQuery] = useState('');
@@ -230,7 +233,7 @@ const Alerts = () => {
     return (
         <div className="min-h-screen bg-slate-50 dark:bg-[#0b0f19] text-gray-900 dark:text-gray-100 flex flex-col font-sans transition-colors duration-200">
             {/* Top Navigation Header (matches existing Dashboard/Forecast) */}
-            <TopHeader showCredits onSearch={() => {}} searchLoading={false} selectedCity="All India" alertCount={highCount} />
+            <TopHeader showCredits onSearch={() => {}} searchLoading={false} selectedCity="All India" alertCount={sampleOnly ? null : highCount} />
 
             <main className="flex-1 p-4 sm:p-6 md:p-8 max-w-7xl mx-auto w-full space-y-6">
 
@@ -292,7 +295,15 @@ const Alerts = () => {
                     </div>
                 </div>
 
+                {sampleOnly && (
+                    <div className="space-y-2">
+                        <SampleSafetyNotice />
+                        <p data-testid="alerts-sample-zones" className="text-xs text-gray-500 dark:text-gray-400 px-1">{totalCount} zones loaded (sample data).</p>
+                    </div>
+                )}
+
                 {/* 2. TOP SUMMARY CARDS (FLAT WHITE CARDS, NO GRADIENTS) */}
+                {!sampleOnly && <>
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                     {/* Zones monitored */}
                     <div data-testid="alerts-card-total" className="bg-white dark:bg-[#111827] border border-gray-200 dark:border-gray-700 rounded-lg p-4 shadow-sm flex items-center justify-between transition-all duration-200 hover:shadow-md">
@@ -450,6 +461,8 @@ const Alerts = () => {
                     </div>
                 </div>
 
+                </>}
+
                 {/* Error Banner */}
                 {error && (
                     <div className="p-3 rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/40 text-red-700 dark:text-red-300 text-xs flex items-center justify-between">
@@ -464,7 +477,7 @@ const Alerts = () => {
                 )}
 
                 {/* Empty State */}
-                {!loading && !error && filteredAndSortedAlerts.length === 0 && (
+                {!loading && !error && !sampleOnly && filteredAndSortedAlerts.length === 0 && (
                     <div className="bg-white dark:bg-[#111827] border border-gray-200 dark:border-gray-700 rounded-lg p-10 text-center my-6 shadow-sm flex flex-col items-center justify-center">
                         <ShieldCheck size={28} className="text-emerald-500 mb-2" />
                         <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
@@ -487,7 +500,7 @@ const Alerts = () => {
                 )}
 
                 {/* 4. ALERT CARDS GRID (3 COLS DESKTOP, 1 COL MOBILE, GAP-5) */}
-                {filteredAndSortedAlerts.length > 0 && (
+                {!sampleOnly && filteredAndSortedAlerts.length > 0 && (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                         {filteredAndSortedAlerts.map((alert, idx) => {
                             const norm = normalizeSeverity(alert.severity);

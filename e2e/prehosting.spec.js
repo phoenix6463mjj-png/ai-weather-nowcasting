@@ -90,7 +90,7 @@ test('pre-hosting screenshots of /alerts and /forecast at 1920x1080 and 1366x768
     for (const [w, h] of [[1920, 1080], [1366, 768]]) {
         await page.setViewportSize({ width: w, height: h });
         await page.goto('/alerts');
-        await expect(page.getByTestId('alert-card-source').first()).toBeVisible();
+        await expect(page.getByTestId('alert-card-source').first().or(page.getByTestId('sample-safety-net'))).toBeVisible();
         await page.screenshot({ path: path.join(SHOTS, `prehost_alerts_${w}x${h}.png`) });
         await page.goto('/forecast');
         await expect(page.getByTestId('forecast-hourly-note')).toBeVisible();

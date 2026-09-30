@@ -149,8 +149,14 @@ Render redeploys automatically on push. Check `/health` again afterwards.
 - [ ] `https://<service>.onrender.com/health` and `/ml/health` return JSON; `/ml/replay/status` has
       `"enabled": false`.
 - [ ] `https://<vercel-app>/` loads, with no console CORS errors (browser devtools).
-  - The weather badge says "Open-Meteo (model data), updated HH:MM UTC" (or "Sample data — no live
-    weather feed" if Open-Meteo is unreachable), next to the Open-Meteo credit.
+  - The weather badge says "Open-Meteo (model data), updated HH:MM UTC", next to the Open-Meteo credit.
+    If it says "Sample data — no live weather feed" (no risk indicators are then shown), open
+    `https://<service>.onrender.com/weather_source`:
+    - `open_meteo.last_error` is the HTTP status or exception class of the last failure, with
+      `last_error_at`;
+    - `cooldown_until` is when the next request is allowed.
+    - The Render log has one `[OPEN-METEO] … failed (attempt k)` line per failure.
+    - The zone list is warmed once in the background at startup.
 - [ ] Deep links: open `https://<vercel-app>/nowcast/results` and `/nowcast/approach` directly (not by
       clicking): they load.
 - [ ] `/nowcast`:
@@ -204,7 +210,10 @@ host folder still works on a Space (it listens on 7860 when `PORT` is unset).
     sustained traffic use a tile provider.
   - NASA GIBS needs no key.
 - **Open-Meteo.** Free non-commercial use: < 10,000 calls/day. The backend's 60-min cache keeps one
-  demo well inside that. Credit "Weather data by Open-Meteo.com" (CC BY 4.0) is shown next to its
+  demo well inside that.
+  - HTTP 429 and timeouts (25 s) are retried twice, respecting `Retry-After`.
+  - After a final failure, the last successful data is served (stale, with its real time) and no
+    request is sent for 30 min. Credit "Weather data by Open-Meteo.com" (CC BY 4.0) is shown next to its
   data.
 - **Local development is unchanged:** `start_demo.ps1` still runs the two APIs separately with the
   `/ml` proxy.

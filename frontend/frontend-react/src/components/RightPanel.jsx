@@ -21,7 +21,7 @@ const HazardLevel = ({ label, level, icon, hazard, note }) => (
     </div>
 );
 
-const RightPanel = ({ selectedCity, cityData, onClose }) => {
+const RightPanel = ({ selectedCity, cityData, onClose, hideRisk = false }) => {
     // Single source of truth: selectedCity prop
     const cityObj = selectedCity || cityData;
 
@@ -138,10 +138,14 @@ const RightPanel = ({ selectedCity, cityData, onClose }) => {
                     )}
                 </div>
                 <div className="mt-3 flex items-center justify-between gap-2">
+                    {hideRisk ? (
+                        <span data-testid="panel-no-risk" className="text-[11px] font-bold text-amber-700 dark:text-amber-400">Risk not shown on sample data</span>
+                    ) : (
                     <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-md border text-xs font-black tracking-wider ${badgeClass}`}>
                         <AlertTriangle size={14} className={riskLabel === 2 ? "text-red-600 dark:text-red-400" : (riskLabel === 1 ? "text-orange-600 dark:text-orange-400" : "text-emerald-600 dark:text-emerald-400")} />
                         {badgeText}
                     </div>
+                    )}
                     <span data-testid="panel-fetched" className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
                         {fetched}
                     </span>
@@ -151,7 +155,7 @@ const RightPanel = ({ selectedCity, cityData, onClose }) => {
             <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-5">
 
                 {/* Primary threat: only for HIGH zones; Low / Moderate zones open with the weather tiles */}
-                {riskLabel === 2 && (
+                {riskLabel === 2 && !hideRisk && (
                     <div data-testid="primary-threat" className="bg-slate-800 dark:bg-slate-800/90 rounded-xl p-4 text-white shadow-md border border-slate-700 flex flex-col relative overflow-hidden shrink-0">
                         <div className="flex items-center gap-4">
                             <div className="bg-slate-700/60 p-3 rounded-lg z-10 border border-slate-600 shrink-0">
@@ -164,7 +168,7 @@ const RightPanel = ({ selectedCity, cityData, onClose }) => {
                         </div>
                     </div>
                 )}
-                {riskLabel === 2 && explanationCard}
+                {riskLabel === 2 && !hideRisk && explanationCard}
 
                 {/* 4 Required Weather Metrics */}
                 <div>
@@ -230,7 +234,7 @@ const RightPanel = ({ selectedCity, cityData, onClose }) => {
                 </div>
 
                 {/* Hazard indicators: levels only, rule-based (no percentages on this page) */}
-                <div data-testid="hazard-levels">
+                {!hideRisk && <div data-testid="hazard-levels">
                     <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider mb-3">
                         Hazard indicators{' '}
                         <span data-testid="rule-label" className="normal-case tracking-normal text-[10px] font-semibold text-slate-500 dark:text-slate-400">({RULE_LABEL})</span>
@@ -243,9 +247,9 @@ const RightPanel = ({ selectedCity, cityData, onClose }) => {
                         <HazardLevel hazard="flood" label="Flash Flood" level={levels.flood} note={prediction?.flood_note}
                             icon={<Droplets size={16} className="text-teal-500" />} />
                     </div>
-                </div>
+                </div>}
 
-                {riskLabel !== 2 && explanationCard}
+                {riskLabel !== 2 && !hideRisk && explanationCard}
 
             </div>
         </div>

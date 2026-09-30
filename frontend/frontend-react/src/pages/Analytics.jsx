@@ -29,6 +29,7 @@ import {
     CartesianGrid,
     Tooltip
 } from 'recharts';
+import SampleSafetyNotice from '../components/SampleSafetyNotice';
 import TopHeader from '../components/TopHeader';
 
 // Rich fallback dataset for all-India meteorological telemetry
@@ -75,6 +76,8 @@ const Analytics = () => {
     const srcOf = (d) => d.source || d.weather?.source;
     const liveWeather = dataOrigin === "backend" && data.length > 0 && data.every((d) => ["openweather", "open-meteo"].includes(srcOf(d)));
     const openMeteo = liveWeather && data.every((d) => srcOf(d) === "open-meteo");
+    // backend sample data (no weather feed): no risk distribution, insights, ranking or risk colours
+    const sampleOnly = dataOrigin === "backend" && data.length > 0 && data.every((d) => (srcOf(d) || "sample") === "sample");
     const dataLabel = dataOrigin === "fallback" ? "built-in example data (server unavailable)"
         : openMeteo ? "Open-Meteo data (model data)" : liveWeather ? "OpenWeather data" : "sample data";
 
@@ -248,10 +251,10 @@ const Analytics = () => {
                 rainfall: +rain.toFixed(1),
                 wind: +wind.toFixed(1),
                 risk: risk,
-                fill: risk === "HIGH" ? "#ef4444" : risk === "MODERATE" ? "#f59e0b" : "#10b981"
+                fill: sampleOnly ? "#64748b" : risk === "HIGH" ? "#ef4444" : risk === "MODERATE" ? "#f59e0b" : "#10b981"
             };
         });
-    }, [filteredDataset, data]);
+    }, [filteredDataset, data, sampleOnly]);
 
     // 2C. Risk Distribution Pie / Doughnut Chart Data
     const pieChartData = useMemo(() => {
@@ -332,7 +335,7 @@ const Analytics = () => {
                                 Meteorological Analytics Dashboard
                             </h1>
                             <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
-                                {liveWeather ? 'Real-Time Atmospheric Telemetry, Predictive Risk Stratification & Trends' : 'Atmospheric Summary, Rule-based Risk Stratification & Trends'}
+                                {sampleOnly ? 'Atmospheric Summary & Trends (sample data)' : liveWeather ? 'Real-Time Atmospheric Telemetry, Predictive Risk Stratification & Trends' : 'Atmospheric Summary, Rule-based Risk Stratification & Trends'}
                             </p>
                         </div>
                     </div>
@@ -422,6 +425,8 @@ const Analytics = () => {
                         </div>
                     </div>
                 </div>
+
+                {sampleOnly && <SampleSafetyNotice className="mb-6" />}
 
                 {/* 3. EXISTING METRIC CARDS (IMPROVED STYLING) */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
@@ -534,7 +539,7 @@ const Analytics = () => {
                                         activeDot={{ r: 6, fill: '#2563eb' }}
                                         name="Rainfall"
                                     />
-                                    <Line
+                                    {!sampleOnly && <Line
                                         type="monotone"
                                         dataKey="threshold"
                                         stroke="#ef4444"
@@ -542,7 +547,7 @@ const Analytics = () => {
                                         strokeDasharray="4 4"
                                         dot={false}
                                         name="Warning Threshold"
-                                    />
+                                    />}
                                 </LineChart>
                             </ResponsiveContainer>
                         </div>
@@ -553,7 +558,7 @@ const Analytics = () => {
                         <div className="flex items-center justify-between mb-4">
                             <div>
                                 <h3 className="font-bold text-base text-slate-900 dark:text-white">
-                                    City Risk Comparison
+                                    {sampleOnly ? 'City Rainfall Comparison (sample data)' : 'City Risk Comparison'}
                                 </h3>
                                 <p className="text-xs text-slate-500 dark:text-slate-400">
                                     Top 5 monitored cities by precipitation load
@@ -590,7 +595,7 @@ const Analytics = () => {
                                             fontWeight: 'bold'
                                         }}
                                         formatter={(val, name, item) => [
-                                            `${val} mm (${item.payload.risk})`,
+                                            sampleOnly ? `${val} mm` : `${val} mm (${item.payload.risk})`,
                                             'Precipitation'
                                         ]}
                                     />
@@ -606,6 +611,7 @@ const Analytics = () => {
                 </div>
 
                 {/* 2C. PIE CHART + 4. INSIGHTS PANEL (2 COLUMNS) */}
+                {!sampleOnly && <>
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
                     {/* Chart C: Pie / Doughnut Chart - Risk Distribution */}
                     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-xs flex flex-col justify-between">
@@ -734,6 +740,7 @@ const Analytics = () => {
                         })}
                     </div>
                 </div>
+                </>}
             </main>
         </div>
     );

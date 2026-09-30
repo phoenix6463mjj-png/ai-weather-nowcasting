@@ -41,12 +41,14 @@ test('Dashboard: source badge follows the backend weather source; no LIVE badge 
     }
     await expect(page.getByText('Live AI Nowcasting')).toHaveCount(0);
     await expect(page.getByText('AI Decision Transparency')).toHaveCount(0);
-    await expect(page.getByText('Rule-based explanation')).toBeVisible();
+    if (src === 'sample') await expect(page.getByText('Rule-based explanation')).toHaveCount(0);      // safety net
+    else await expect(page.getByText('Rule-based explanation')).toBeVisible();
     await expect(page.getByText('Partly Cloudy')).toHaveCount(0);
 });
 
 test('Dashboard: no % for any hazard, rule-based levels, primary threat agrees with the risk level, no Safe / All Clear', async ({ page }) => {
     const data = await openDashboard(page);
+    test.skip(data.summary.source === 'sample', 'risk UI is hidden on sample data (safety net, sample_safety.spec.js)');
     await expect(page.getByTestId('hazard-level')).toHaveCount(3);
     await expect(page.getByTestId('rule-label')).toHaveText('(rule-based, not the ML model)');
     for (const lv of await page.getByTestId('hazard-level').all()) {
@@ -98,7 +100,8 @@ test('Dashboard: tile switch requests OSM (single host), NASA GIBS VIIRS yesterd
 });
 
 test('Dashboard: View Details goes to /alerts; the timeline card and the ML line go to /nowcast', async ({ page }) => {
-    await openDashboard(page);
+    const data = await openDashboard(page);
+    test.skip(data.summary.source === 'sample', 'risk UI is hidden on sample data (safety net, sample_safety.spec.js)');
     const meta = await (await page.request.get(`${API}/ml/india/meta`)).json();
     await expect(page.getByTestId('dashboard-timeline-text')).toHaveText(`Per-lead forecasts (${meta.leads_available.join(', ')} h) → ML Nowcast`);
     await expect(page.getByTestId('dashboard-timeline-card')).toHaveAttribute('href', '/nowcast');
@@ -122,6 +125,7 @@ function threatOf(a) {
 
 test('Dashboard: event-layer toggles filter markers by primary threat; low-risk zones stay visible', async ({ page }) => {
     const data = await openDashboard(page);
+    test.skip(data.summary.source === 'sample', 'risk UI is hidden on sample data (safety net, sample_safety.spec.js)');
     const zones = data.alerts;
     const low = zones.filter((a) => threatOf(a) == null).length;
     const markers = page.getByTestId('dashboard-markers');

@@ -64,7 +64,9 @@ test('/alerts: "Live" only for OpenWeather; sample badge otherwise', async ({ pa
         return;
     }
     await expect(badge).toHaveText(SAMPLE);
-    await expect(page.getByTestId('alert-card-source').first()).toHaveText(SAMPLE);
+    // sample data: no alert cards at all (safety net)
+    await expect(page.getByTestId('sample-safety-net')).toBeVisible();
+    await expect(page.getByTestId('alert-card-source')).toHaveCount(0);
     const text = await bodyText(page);
     expect(text).not.toMatch(/Live Feed|Live •/);
     expect(text).not.toMatch(/real-time/i);

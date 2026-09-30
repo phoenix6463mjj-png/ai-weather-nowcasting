@@ -36,7 +36,7 @@ load_dotenv()
 from utils.api_fetcher import (
     get_coordinates, get_weather_by_coords, get_fallback_mock,
     fetch_weather, async_fetch_weather, _GEO_CACHE, API_KEY, is_valid_api_key,
-    async_fetch_open_meteo, fetch_open_meteo_point, OPEN_METEO_STATS,
+    async_fetch_open_meteo, fetch_open_meteo_point, OPEN_METEO_STATS, OPEN_METEO_STATUS, OPEN_METEO_ENABLED,
 )
 from utils.locations_manager import (
     get_india_locations, get_sampled_locations, find_location_by_name,
@@ -97,8 +97,30 @@ def health_check():
 @app.get("/weather_source")
 def weather_source():
     """Which weather source the backend uses and Open-Meteo request counters (no secrets)."""
-    return {"order": ["openweather (OPENWEATHER_API_KEY set)", "open-meteo", "sample"],
-            "openweather_key_set": is_valid_api_key(API_KEY), "open_meteo": dict(OPEN_METEO_STATS)}
+    om = dict(OPEN_METEO_STATS)
+    # last_error: HTTP status or exception class + a short message; times are UTC
+    om.update({k: OPEN_METEO_STATUS.get(k) for k in ("last_error", "last_error_at", "last_success_at", "cooldown_until")})
+    return {"order": ["openweather (OPENWEATHER_API_KEY set)", "open-meteo", "open-meteo (stale)", "sample"],
+            "openweather_key_set": is_valid_api_key(API_KEY), "open_meteo": om}
+
+
+_WARMUP_TASKS: List[Any] = []
+
+
+@app.on_event("startup")
+async def warm_weather_cache():
+    """Fill the zone list once, in the background, at startup (never blocks /health).
+    WEATHER_WARMUP=0 turns it off (tests)."""
+    if os.environ.get("WEATHER_WARMUP", "1") == "0" or is_valid_api_key(API_KEY) or not OPEN_METEO_ENABLED:
+        return
+
+    async def run():
+        try:
+            d = await get_unified_alerts_dataset(limit=380)
+            print(f"[WARMUP] zone list ready: source={d['summary'].get('source')}")
+        except Exception as e:  # noqa: BLE001
+            print(f"[WARMUP] failed: {type(e).__name__}")
+    _WARMUP_TASKS.append(asyncio.create_task(run()))
 
 
 @app.get("/locations")
@@ -602,6 +624,7 @@ async def get_unified_alerts_dataset(limit: int = 380) -> Dict[str, Any]:
             w_source = w.get("source", "sample")
             w_observed = w.get("observed_at")
             w_time = w.get("data_time") or w_observed
+            w_stale = bool(w.get("stale"))
 
             weather_obj = {
                 "city": city,
@@ -673,6 +696,7 @@ async def get_unified_alerts_dataset(limit: int = 380) -> Dict[str, Any]:
                     "observed_at": w_observed,
                     "data_time": w_time,
                     "conditions": w.get("conditions"),
+                    "stale": w_stale,
                 },
                 "source": w_source,
                 "prediction": {
@@ -714,6 +738,8 @@ async def get_unified_alerts_dataset(limit: int = 380) -> Dict[str, Any]:
         summary["latest_observed_at"] = max(observed) if observed else None
         times = [a["weather"]["data_time"] for a in alerts_list if a["weather"].get("data_time")]
         summary["data_time"] = max(times) if times else None
+        # some zones carry the last successful Open-Meteo data because the latest request failed
+        summary["stale"] = any(a["weather"].get("stale") for a in alerts_list)
 
         dataset = {
             "summary": summary,

@@ -47,6 +47,7 @@ const MapController = ({ selectedCity }) => {
 
 // Marker colours = the zone's rule-based risk level (same colours as the legend)
 const getColor = riskColour;
+const NEUTRAL = riskColour(null);       // grey: sample data carries no risk level
 
 // Base maps. Satellite: NASA GIBS VIIRS SNPP true colour of yesterday (UTC; today's tiles may be
 // incomplete), no key. Terrain: OSM + our Copernicus DEM hillshade through the team backend's /ml proxy.
@@ -105,10 +106,11 @@ const MapSection = ({
     onCitySelect,
     activeLayers = { thunderstorm: true, cloudburst: true, flood: true },
     baseLayer = 'map',
+    hideRisk = false,       // sample data: neutral markers, no risk level or rule reason anywhere
 }) => {
     // Event-layer toggles filter markers by their primary threat; zones with none (low risk) always show
     const locations = (allCities.length > 0 ? allCities : (locationsProp || [])).filter((loc) => {
-        const t = primaryThreat(loc);
+        const t = hideRisk ? null : primaryThreat(loc);
         return t == null || activeLayers[t] !== false;
     });
     const hill = useNationalHillshade(baseLayer === 'terrain');
@@ -150,13 +152,13 @@ const MapSection = ({
             >
                 {locations.length > 0 && locations.map((loc, idx) => {
                     if (!loc.lat || !loc.lon) return null;
-                    const color = getColor(loc.risk);
+                    const color = hideRisk ? NEUTRAL : getColor(loc.risk);
 
                     return (
                         <Marker
                             key={loc.city ? `marker-${loc.city}` : `marker-${loc.id ?? idx}`}
                             position={[loc.lat, loc.lon]}
-                            icon={createStationIcon(loc.risk)}
+                            icon={createStationIcon(hideRisk ? null : loc.risk)}
                             eventHandlers={{
                                 click: () => {
                                     if (handleCitySelect) handleCitySelect(loc);
@@ -165,19 +167,25 @@ const MapSection = ({
                         >
                             <Tooltip direction="top" offset={[0, -8]} opacity={0.95}>
                                 <div className="text-xs font-sans">
-                                    <span className="font-bold">{loc.city}</span>: <span className="font-black" style={{ color }}>{loc.risk || "LOW"}</span>
+                                    <span className="font-bold">{loc.city}</span>
+                                    {hideRisk ? <span data-testid="marker-sample"> (sample data)</span>
+                                        : <>: <span className="font-black" style={{ color }}>{loc.risk || "LOW"}</span></>}
                                 </div>
                             </Tooltip>
                             <Popup>
                                 <div className="p-1 font-sans">
                                     <div className="flex items-center justify-between gap-3 border-b border-slate-200 pb-1 mb-1.5">
                                         <h4 className="text-sm font-black text-slate-900">{loc.city}</h4>
+                                        {hideRisk ? (
+                                            <span className="text-[10px] font-bold text-slate-500">Sample data</span>
+                                        ) : (
                                         <span
                                             className="text-[10px] font-bold px-1.5 py-0.5 rounded text-white"
                                             style={{ backgroundColor: color }}
                                         >
                                             {loc.risk || "LOW"}
                                         </span>
+                                        )}
                                     </div>
                                     <div className="text-[11px] text-slate-600 space-y-0.5 mb-2">
                                         {loc.weather?.temperature != null && (
@@ -190,7 +198,7 @@ const MapSection = ({
                                             <div>Humidity: <strong>{Math.round(loc.weather.humidity)}%</strong></div>
                                         )}
                                     </div>
-                                    {loc.reason && (
+                                    {loc.reason && !hideRisk && (
                                         <div className="text-[10px] font-medium text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 p-1.5 rounded mb-2 leading-tight">
                                             <span className="font-bold text-slate-800 dark:text-slate-100">Reason: </span>
                                             {loc.reason}
@@ -213,7 +221,7 @@ const MapSection = ({
             {activeCity && activeCity.lat != null && activeCity.lon != null && (
                 <Marker
                     position={[activeCity.lat, activeCity.lon]}
-                    icon={createSelectedIcon(getColor(activeCity.risk))}
+                    icon={createSelectedIcon(hideRisk ? NEUTRAL : getColor(activeCity.risk))}
                     interactive={false}
                 />
             )}
