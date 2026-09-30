@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 
-const RiskDistribution = ({ locations = [], allCitiesData = [], summary = null }) => {
+const RiskDistribution = ({ locations = [], allCitiesData = [], summary = null, unrated = 0 }) => {
     let high = 0, medium = 0, low = 0, total = 0;
 
     if (summary != null) {
@@ -9,7 +9,8 @@ const RiskDistribution = ({ locations = [], allCitiesData = [], summary = null }
         high = summary.high ?? 0;
         medium = summary.moderate ?? 0;
         low = summary.low ?? 0;
-        total = summary.total ?? (high + medium + low);
+        // rated zones only (sample-data zones carry no level)
+        total = summary.n_rated ?? summary.total ?? (high + medium + low);
     } else {
         const list = locations.length > 0 ? locations : allCitiesData;
         list.forEach(city => {
@@ -28,7 +29,9 @@ const RiskDistribution = ({ locations = [], allCitiesData = [], summary = null }
     return (
         <div className="h-full bg-white dark:bg-[#111827] rounded-2xl shadow-lg border border-slate-200 dark:border-gray-700 p-5 flex flex-col justify-between">
             <div className="flex items-center justify-between">
-                <h3 className="text-sm font-black text-slate-800 dark:text-white">Risk Distribution <span className="text-slate-400 font-bold text-xs ml-1">({total} Zones)</span></h3>
+                <h3 className="text-sm font-black text-slate-800 dark:text-white">Risk Distribution <span className="text-slate-400 font-bold text-xs ml-1">({total} Zones)</span>
+                    {unrated > 0 && <span data-testid="risk-unrated" className="block text-[10px] font-semibold text-amber-700 dark:text-amber-400">+{unrated} with sample data (risk not shown)</span>}
+                </h3>
                 <Link to="/alerts" data-testid="risk-view-details" className="text-blue-600 dark:text-blue-400 text-[11px] font-black hover:underline tracking-wide">View Details ➔</Link>
             </div>
 

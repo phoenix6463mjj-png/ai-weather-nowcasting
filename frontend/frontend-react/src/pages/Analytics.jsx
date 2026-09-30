@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { API_BASE } from '../config';
-import { fetchWithWake } from '../utils/serverWake';
+import { fetchWithWake, WAKE_UNAVAILABLE } from '../utils/serverWake';
+import { isMixedList, isUnratedZone, mixedBadge, unratedNote, zonesSummary } from '../utils/dashboardRisk';
 import HonestyBanner from '../components/HonestyBanner';
 import DonutChart from '../components/DonutChart';
 import OpenMeteoCredit from '../components/OpenMeteoCredit';
@@ -32,25 +33,6 @@ import {
 import SampleSafetyNotice from '../components/SampleSafetyNotice';
 import TopHeader from '../components/TopHeader';
 
-// Rich fallback dataset for all-India meteorological telemetry
-const FALLBACK_NODES = [
-    { city: "Vizianagaram", state: "Andhra Pradesh", rainfall: 38.4, wind_speed: 11.2, humidity: 94, risk_level: "HIGH", hazard: "Flash Flood" },
-    { city: "Ratnagiri", state: "Maharashtra", rainfall: 29.2, wind_speed: 14.1, humidity: 88, risk_level: "HIGH", hazard: "Severe Squall" },
-    { city: "Anantapur", state: "Andhra Pradesh", rainfall: 22.0, wind_speed: 12.8, humidity: 86, risk_level: "HIGH", hazard: "Thunderstorm" },
-    { city: "Nagpur", state: "Maharashtra", rainfall: 18.5, wind_speed: 9.4, humidity: 78, risk_level: "MODERATE", hazard: "Convective Rain" },
-    { city: "Hyderabad", state: "Telangana", rainfall: 16.2, wind_speed: 8.6, humidity: 82, risk_level: "MODERATE", hazard: "Urban Runoff" },
-    { city: "Kozhikode", state: "Kerala", rainfall: 21.0, wind_speed: 7.2, humidity: 89, risk_level: "MODERATE", hazard: "Monsoon Surge" },
-    { city: "Pune", state: "Maharashtra", rainfall: 14.0, wind_speed: 6.8, humidity: 74, risk_level: "MODERATE", hazard: "Rain Shower" },
-    { city: "Shimla", state: "Himachal Pradesh", rainfall: 15.5, wind_speed: 10.1, humidity: 81, risk_level: "MODERATE", hazard: "Slope Runoff" },
-    { city: "Bengaluru", state: "Karnataka", rainfall: 7.2, wind_speed: 5.4, humidity: 68, risk_level: "LOW", hazard: "Light Shower" },
-    { city: "Chennai", state: "Tamil Nadu", rainfall: 5.0, wind_speed: 6.2, humidity: 72, risk_level: "LOW", hazard: "Nominal" },
-    { city: "Delhi NCR", state: "Delhi NCR", rainfall: 2.1, wind_speed: 4.8, humidity: 55, risk_level: "LOW", hazard: "Nominal" },
-    { city: "Jaipur", state: "Rajasthan", rainfall: 0.5, wind_speed: 5.0, humidity: 42, risk_level: "LOW", hazard: "Dry" },
-    { city: "Kolkata", state: "West Bengal", rainfall: 8.4, wind_speed: 6.0, humidity: 76, risk_level: "LOW", hazard: "Intermittent Rain" },
-    { city: "Mumbai", state: "Maharashtra", rainfall: 24.5, wind_speed: 10.5, humidity: 85, risk_level: "HIGH", hazard: "Coastal Downpour" },
-    { city: "Surat", state: "Gujarat", rainfall: 12.0, wind_speed: 7.5, humidity: 70, risk_level: "MODERATE", hazard: "Tidal Surge" }
-];
-
 const POPULAR_STATES = [
     "All India",
     "Andhra Pradesh",
@@ -68,7 +50,7 @@ const POPULAR_STATES = [
 
 const Analytics = () => {
     const [data, setData] = useState([]);
-    // "backend" = /batch_predict answered; "fallback" = the page's built-in example nodes
+    // "backend" = /batch_predict answered; "fallback" = server unavailable (no figures are shown then)
     const [dataOrigin, setDataOrigin] = useState(null);
     const [loading, setLoading] = useState(true);
     const [, setError] = useState(null);
@@ -78,7 +60,12 @@ const Analytics = () => {
     const openMeteo = liveWeather && data.every((d) => srcOf(d) === "open-meteo");
     // backend sample data (no weather feed): no risk distribution, insights, ranking or risk colours
     const sampleOnly = dataOrigin === "backend" && data.length > 0 && data.every((d) => (srcOf(d) || "sample") === "sample");
-    const dataLabel = dataOrigin === "fallback" ? "built-in example data (server unavailable)"
+    const unavailable = dataOrigin === "fallback";
+    // mixed list: every figure and risk chart uses only the zones with weather data (sample zones: no risk)
+    const mixed = dataOrigin === "backend" && isMixedList(data);
+    const nUnrated = mixed ? data.filter(isUnratedZone).length : 0;
+    const base = useMemo(() => (mixed ? data.filter((d) => !isUnratedZone(d)) : data), [data, mixed]);
+    const dataLabel = mixed ? `${mixedBadge(zonesSummary(data), data)}; ${unratedNote(nUnrated)}`
         : openMeteo ? "Open-Meteo data (model data)" : liveWeather ? "OpenWeather data" : "sample data";
 
     // 1. FILTER BAR STATE
@@ -100,12 +87,12 @@ const Analytics = () => {
                 setData(json);
                 setDataOrigin("backend");
             } else {
-                setData(FALLBACK_NODES);
+                setData([]);
                 setDataOrigin("fallback");
             }
         } catch (err) {
-            console.warn("Analytics fetch error, falling back to cached nodes:", err);
-            setData(FALLBACK_NODES);
+            console.warn("Analytics fetch error (no figures shown):", err);
+            setData([]);
             setDataOrigin("fallback");
         } finally {
             setLoading(false);
@@ -133,7 +120,7 @@ const Analytics = () => {
 
     // Active dataset filtered by Region & Hazard Type
     const filteredDataset = useMemo(() => {
-        const raw = data.length > 0 ? data : FALLBACK_NODES;
+        const raw = base;
 
         return raw.filter(item => {
             // Region filter
@@ -161,11 +148,11 @@ const Analytics = () => {
 
             return true;
         });
-    }, [data, selectedRegion, hazardType]);
+    }, [base, selectedRegion, hazardType]);
 
     // Compute key telemetry summary metrics
     const { avgRain, avgWind, avgHum, highCount, modCount, lowCount, totalNodes } = useMemo(() => {
-        const dataset = filteredDataset.length > 0 ? filteredDataset : (data.length > 0 ? data : FALLBACK_NODES);
+        const dataset = filteredDataset.length > 0 ? filteredDataset : base;
         let tRain = 0, tWind = 0, tHum = 0;
         let hCount = 0, mCount = 0, lCount = 0;
 
@@ -194,48 +181,48 @@ const Analytics = () => {
             lowCount: lCount,
             totalNodes: dataset.length
         };
-    }, [filteredDataset, data]);
+    }, [filteredDataset, base]);
 
     // 2A. Rainfall Trend Line Chart Data (dynamically structured by Time Range)
     const lineChartData = useMemo(() => {
-        const base = parseFloat(avgRain) || 16.5;
+        const baseRain = parseFloat(avgRain) || 16.5;
         if (timeRange === "Today") {
             return [
-                { time: "00:00", rainfall: +(base * 0.4).toFixed(1), threshold: 15.0 },
-                { time: "04:00", rainfall: +(base * 0.6).toFixed(1), threshold: 15.0 },
-                { time: "08:00", rainfall: +(base * 0.9).toFixed(1), threshold: 15.0 },
-                { time: "12:00", rainfall: +(base * 1.3).toFixed(1), threshold: 15.0 },
-                { time: "16:00", rainfall: +(base * 1.5).toFixed(1), threshold: 15.0 },
-                { time: "20:00", rainfall: +(base * 1.1).toFixed(1), threshold: 15.0 },
-                { time: "Now",   rainfall: +(base * 1.0).toFixed(1), threshold: 15.0 }
+                { time: "00:00", rainfall: +(baseRain * 0.4).toFixed(1), threshold: 15.0 },
+                { time: "04:00", rainfall: +(baseRain * 0.6).toFixed(1), threshold: 15.0 },
+                { time: "08:00", rainfall: +(baseRain * 0.9).toFixed(1), threshold: 15.0 },
+                { time: "12:00", rainfall: +(baseRain * 1.3).toFixed(1), threshold: 15.0 },
+                { time: "16:00", rainfall: +(baseRain * 1.5).toFixed(1), threshold: 15.0 },
+                { time: "20:00", rainfall: +(baseRain * 1.1).toFixed(1), threshold: 15.0 },
+                { time: "Now",   rainfall: +(baseRain * 1.0).toFixed(1), threshold: 15.0 }
             ];
         } else if (timeRange === "7 Days") {
             return [
-                { time: "Mon", rainfall: +(base * 0.7).toFixed(1), threshold: 15.0 },
-                { time: "Tue", rainfall: +(base * 0.9).toFixed(1), threshold: 15.0 },
-                { time: "Wed", rainfall: +(base * 1.4).toFixed(1), threshold: 15.0 },
-                { time: "Thu", rainfall: +(base * 1.6).toFixed(1), threshold: 15.0 },
-                { time: "Fri", rainfall: +(base * 1.2).toFixed(1), threshold: 15.0 },
-                { time: "Sat", rainfall: +(base * 1.0).toFixed(1), threshold: 15.0 },
-                { time: "Sun", rainfall: +(base * 0.8).toFixed(1), threshold: 15.0 }
+                { time: "Mon", rainfall: +(baseRain * 0.7).toFixed(1), threshold: 15.0 },
+                { time: "Tue", rainfall: +(baseRain * 0.9).toFixed(1), threshold: 15.0 },
+                { time: "Wed", rainfall: +(baseRain * 1.4).toFixed(1), threshold: 15.0 },
+                { time: "Thu", rainfall: +(baseRain * 1.6).toFixed(1), threshold: 15.0 },
+                { time: "Fri", rainfall: +(baseRain * 1.2).toFixed(1), threshold: 15.0 },
+                { time: "Sat", rainfall: +(baseRain * 1.0).toFixed(1), threshold: 15.0 },
+                { time: "Sun", rainfall: +(baseRain * 0.8).toFixed(1), threshold: 15.0 }
             ];
         } else {
             // 30 Days
             return [
-                { time: "Day 1",  rainfall: +(base * 0.6).toFixed(1), threshold: 15.0 },
-                { time: "Day 5",  rainfall: +(base * 0.8).toFixed(1), threshold: 15.0 },
-                { time: "Day 10", rainfall: +(base * 1.2).toFixed(1), threshold: 15.0 },
-                { time: "Day 15", rainfall: +(base * 1.7).toFixed(1), threshold: 15.0 },
-                { time: "Day 20", rainfall: +(base * 1.3).toFixed(1), threshold: 15.0 },
-                { time: "Day 25", rainfall: +(base * 1.0).toFixed(1), threshold: 15.0 },
-                { time: "Day 30", rainfall: +(base * 0.9).toFixed(1), threshold: 15.0 }
+                { time: "Day 1",  rainfall: +(baseRain * 0.6).toFixed(1), threshold: 15.0 },
+                { time: "Day 5",  rainfall: +(baseRain * 0.8).toFixed(1), threshold: 15.0 },
+                { time: "Day 10", rainfall: +(baseRain * 1.2).toFixed(1), threshold: 15.0 },
+                { time: "Day 15", rainfall: +(baseRain * 1.7).toFixed(1), threshold: 15.0 },
+                { time: "Day 20", rainfall: +(baseRain * 1.3).toFixed(1), threshold: 15.0 },
+                { time: "Day 25", rainfall: +(baseRain * 1.0).toFixed(1), threshold: 15.0 },
+                { time: "Day 30", rainfall: +(baseRain * 0.9).toFixed(1), threshold: 15.0 }
             ];
         }
     }, [avgRain, timeRange]);
 
     // 2B. City Risk Comparison Bar Chart Data (Top 5 cities by rainfall / intensity)
     const barChartData = useMemo(() => {
-        const dataset = filteredDataset.length > 0 ? filteredDataset : (data.length > 0 ? data : FALLBACK_NODES);
+        const dataset = filteredDataset.length > 0 ? filteredDataset : base;
         const sorted = [...dataset].sort((a, b) => {
             const rA = Number(a.rainfall ?? a.weather?.rainfall ?? 0);
             const rB = Number(b.rainfall ?? b.weather?.rainfall ?? 0);
@@ -254,7 +241,7 @@ const Analytics = () => {
                 fill: sampleOnly ? "#64748b" : risk === "HIGH" ? "#ef4444" : risk === "MODERATE" ? "#f59e0b" : "#10b981"
             };
         });
-    }, [filteredDataset, data, sampleOnly]);
+    }, [filteredDataset, base, sampleOnly]);
 
     // 2C. Risk Distribution Pie / Doughnut Chart Data
     const pieChartData = useMemo(() => {
@@ -267,7 +254,7 @@ const Analytics = () => {
 
     // 5. TOP RISK CITIES (Ranked List)
     const topRiskCities = useMemo(() => {
-        const dataset = filteredDataset.length > 0 ? filteredDataset : (data.length > 0 ? data : FALLBACK_NODES);
+        const dataset = filteredDataset.length > 0 ? filteredDataset : base;
 
         // Priority sort: HIGH -> MODERATE -> LOW, then rainfall
         const sorted = [...dataset].sort((a, b) => {
@@ -286,7 +273,7 @@ const Analytics = () => {
         });
 
         return sorted.slice(0, 6);
-    }, [filteredDataset, data]);
+    }, [filteredDataset, base]);
 
     // 4. KEY INSIGHTS (AI Generated Synthesis)
     const keyInsights = useMemo(() => {
@@ -335,7 +322,7 @@ const Analytics = () => {
                                 Meteorological Analytics Dashboard
                             </h1>
                             <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
-                                {sampleOnly ? 'Atmospheric Summary & Trends (sample data)' : liveWeather ? 'Real-Time Atmospheric Telemetry, Predictive Risk Stratification & Trends' : 'Atmospheric Summary, Rule-based Risk Stratification & Trends'}
+                                {unavailable ? 'Atmospheric Summary & Trends' : sampleOnly ? 'Atmospheric Summary & Trends (sample data)' : liveWeather ? 'Real-Time Atmospheric Telemetry, Predictive Risk Stratification & Trends' : 'Atmospheric Summary, Rule-based Risk Stratification & Trends'}
                             </p>
                         </div>
                     </div>
@@ -360,6 +347,19 @@ const Analytics = () => {
                     </div>
                 </div>
 
+                {unavailable ? (
+                    <div className="space-y-2">
+                        <SampleSafetyNotice />
+                        <p data-testid="analytics-unavailable" className="text-xs text-slate-500 dark:text-slate-400 px-1">{WAKE_UNAVAILABLE}</p>
+                    </div>
+                ) : dataOrigin === null ? (
+                    <p data-testid="analytics-loading" className="text-sm text-slate-500 dark:text-slate-400">Loading analytics…</p>
+                ) : (<>
+                {mixed && (
+                    <p data-testid="analytics-mixed-note" className="mb-4 text-xs font-semibold text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg px-3 py-2">
+                        {mixedBadge(zonesSummary(data), data)}. {unratedNote(nUnrated)}; figures and charts below use the {base.length} zones with weather data.
+                    </p>
+                )}
                 {/* 1. FILTER BAR (TOP - HORIZONTALLY ALIGNED) */}
                 <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3.5 mb-6 shadow-xs flex flex-wrap items-center justify-between gap-4">
                     <div className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
@@ -648,7 +648,7 @@ const Analytics = () => {
 
                             <p className="text-xs text-slate-500 dark:text-slate-400 mb-3.5">
                                 <span data-testid="analytics-summary-source">Rule-based summary of {dataLabel}</span> for {selectedRegion}:
-                                {openMeteo && <><br /><OpenMeteoCredit /></>}
+                                {(openMeteo || (mixed && data.some((d) => srcOf(d) === "open-meteo"))) && <><br /><OpenMeteoCredit /></>}
                             </p>
 
                             <div className="space-y-2.5">
@@ -741,6 +741,7 @@ const Analytics = () => {
                     </div>
                 </div>
                 </>}
+                </>)}
             </main>
         </div>
     );

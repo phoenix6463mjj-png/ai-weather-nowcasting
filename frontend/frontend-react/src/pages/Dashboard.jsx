@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { API_BASE } from '../config';
 import { fetchWithWake, isServerUnavailable, WAKE_UNAVAILABLE } from '../utils/serverWake';
-import { RISK_COLOURS, isLiveSource, isSampleSource, sourceBadge } from '../utils/dashboardRisk';
+import { RISK_COLOURS, isLiveSource, isSampleSource, isUnratedZone, mixedCounts, sourceBadge } from '../utils/dashboardRisk';
 import SampleSafetyNotice from '../components/SampleSafetyNotice';
 import OpenMeteoCredit from '../components/OpenMeteoCredit';
 import NominatimCredit from '../components/NominatimCredit';
@@ -66,8 +66,11 @@ const Dashboard = () => {
                 state: item.state,
                 lat: item.lat,
                 lon: item.lon,
-                risk: (item.risk_level || item.risk || item.severity || "LOW").toUpperCase(),
-                risk_level: (item.risk_level || item.risk || item.severity || "LOW").toUpperCase(),
+                // sample-data zones carry no risk level (grey marker, no risk in the panel)
+                risk: isUnratedZone(item) ? null : (item.risk_level || item.risk || item.severity || "LOW").toUpperCase(),
+                risk_level: isUnratedZone(item) ? null : (item.risk_level || item.risk || item.severity || "LOW").toUpperCase(),
+                zone_source: item.zone_source || null,
+                source: item.source || null,
                 weather: item.weather || {
                     temperature: item.temperature,
                     humidity: item.humidity,
@@ -260,11 +263,14 @@ const Dashboard = () => {
 
     // sample data: no rule-based risk anywhere on the page (banner, counts, markers, panel)
     const sampleOnly = isSampleSource(source.source);
+    const mixed = source.source === 'mixed';
+    const nUnrated = mixed ? mixedCounts(summary, allCities).sample : 0;
     const selSource = selectedCity?.weather?.source;
-    const badgeSource = selSource || source.source;
+    // a mixed list states its real counts; otherwise the selected zone's own source
+    const badgeSource = mixed ? 'mixed' : (selSource || source.source);
     const badgeText = badgeSource
-        ? sourceBadge(badgeSource, (selSource && selectedCity.weather.observed_at) || source.observedAt,
-            (selSource && selectedCity.weather.data_time) || source.dataTime)
+        ? sourceBadge(badgeSource, (!mixed && selSource && selectedCity.weather.observed_at) || source.observedAt,
+            (!mixed && selSource && selectedCity.weather.data_time) || source.dataTime, summary, allCities)
         : 'Loading weather source…';
 
     return (
@@ -318,13 +324,13 @@ const Dashboard = () => {
                         )}
 
                         {/* Top Hero Banner */}
-                        <HeroBanner cityData={selectedCity} sample={!isLiveSource(source.source)} />
+                        <HeroBanner cityData={selectedCity} sample={mixed ? isUnratedZone(selectedCity) : !isLiveSource(source.source)} />
 
                         {/* Alert Banner: Pure component using backend single source of truth summary */}
                         <div className="px-6 pt-4">
                             {/* only for zone data that actually loaded (never a "no high-risk" banner on an error) */}
                             {source.source && (sampleOnly ? <SampleSafetyNotice />
-                                : <AlertBanner locations={allCities} summary={summary} sample={!isLiveSource(source.source)} source={source.source} />)}
+                                : <AlertBanner locations={allCities} summary={summary} sample={!isLiveSource(source.source)} source={source.source} unrated={nUnrated} />)}
                         </div>
 
                         {/* Interactive Main Map & Right Panel */}
@@ -353,7 +359,7 @@ const Dashboard = () => {
                                             <span data-testid="dashboard-source-badge" data-source={badgeSource || ''} className="text-sm font-bold text-slate-800 dark:text-slate-100">
                                                 {loading && allCities.length > 0 ? "Updating…" : badgeText}
                                             </span>
-                                            {badgeSource === 'open-meteo' && <OpenMeteoCredit />}
+                                            {(badgeSource === 'open-meteo' || (mixed && mixedCounts(summary, allCities).openMeteo > 0)) && <OpenMeteoCredit />}
                                         </span>
                                     </div>
                                 </div>
@@ -385,6 +391,11 @@ const Dashboard = () => {
                                             </span>
                                         ))}
                                     </div>
+                                    {mixed && (
+                                        <p data-testid="legend-unrated" className="mt-1.5 flex items-center gap-1.5 text-[11px] font-semibold text-slate-600 dark:text-slate-300">
+                                            <span className="w-3 h-3 rounded-full border-2 border-white shadow" style={{ background: RISK_COLOURS.NONE }} />Grey: sample data — risk not shown
+                                        </p>
+                                    )}
                                     <p className="mt-1.5 text-[10px] text-slate-500 dark:text-slate-400 leading-snug">Marker colour = the zone&apos;s rule-based risk level (not the ML model).</p>
                                 </div>}
                             </div>
@@ -395,7 +406,7 @@ const Dashboard = () => {
                                     <RightPanel
                                         selectedCity={selectedCity}
                                         onClose={() => setSelectedCity(null)}
-                                        hideRisk={sampleOnly && (!selSource || isSampleSource(selSource))}
+                                        hideRisk={(sampleOnly && (!selSource || isSampleSource(selSource))) || isUnratedZone(selectedCity)}
                                     />
                                 </div>
                                 {selectedCity?.geocoder === 'nominatim' && <NominatimCredit className="shrink-0 px-1" />}
@@ -417,7 +428,7 @@ const Dashboard = () => {
                                         <p className="font-black text-slate-800 dark:text-white">{summary?.total ?? allCities.length} zones (sample data)</p>
                                         <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Risk counts are not shown on sample data.</p>
                                     </div>
-                                ) : <RiskDistribution locations={allCities} summary={summary} />}
+                                ) : <RiskDistribution locations={allCities} summary={summary} unrated={nUnrated} />}
                             </div>
                         </div>
                     </div>

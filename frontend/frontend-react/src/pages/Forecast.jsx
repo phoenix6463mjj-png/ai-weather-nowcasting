@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { Link, useSearchParams } from 'react-router-dom';
 import { API_BASE } from '../config';
 import { fetchWithWake, WAKE_UNAVAILABLE } from '../utils/serverWake';
-import { isLiveSource, isSampleSource, sourceBadge, sourceShort } from '../utils/dashboardRisk';
+import { isLiveSource, isMixedList, isSampleSource, isUnratedZone, mixedBadge, mixedCounts, sourceBadge, sourceShort, unratedNote, zonesSummary } from '../utils/dashboardRisk';
 import SampleSafetyNotice from '../components/SampleSafetyNotice';
 import OpenMeteoCredit from '../components/OpenMeteoCredit';
 import HonestyBanner from '../components/HonestyBanner';
@@ -66,6 +66,8 @@ const Forecast = () => {
     const liveWeather = isLiveSource(weatherSource);
     // sample data: no rule-based level, pill, summary or indicator bar (SampleSafetyNotice instead)
     const sampleOnly = isSampleSource(weatherSource);
+    // node list with both sample-data and weather-data zones: state the real counts
+    const listMixed = isMixedList(citiesList);
     const sourceText = sourceBadge(weatherSource, isRealtime ? null : currentData?.weather?.observed_at,
         isRealtime ? realtimeData?.data_time : currentData?.weather?.data_time);
 
@@ -483,6 +485,11 @@ const Forecast = () => {
                                 {sourceText}
                             </p>
                             {weatherSource === 'open-meteo' && <OpenMeteoCredit />}
+                            {listMixed && (
+                                <p data-testid="forecast-list-source" className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 mt-0.5">
+                                    Node list: {mixedBadge(zonesSummary(citiesList), citiesList)}; {unratedNote(mixedCounts(null, citiesList).sample)}.
+                                </p>
+                            )}
                         </div>
                     </div>
                     <Link
@@ -555,7 +562,7 @@ const Forecast = () => {
                                                         </span>
                                                     )}
                                                 </span>
-                                                {nodeObj?.risk_level && !sampleOnly && (
+                                                {nodeObj?.risk_level && !sampleOnly && !isUnratedZone(nodeObj) && (
                                                     <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
                                                         nodeObj.risk_level === "HIGH" ? "bg-red-100 text-red-700 dark:bg-red-950/60 dark:text-red-400" :
                                                         nodeObj.risk_level === "MODERATE" ? "bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-400" :

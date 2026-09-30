@@ -672,8 +672,7 @@ What is hidden on sample data:
   - the warning-threshold line;
   - Risk Distribution, Key Insights and Top Risk Cities.
   - The averages stay.
-- "mixed" (some zones sample) and the Analytics "built-in example data (server unavailable)" fallback
-  are **not** covered by the net (see §9).
+- Mixed lists and the Analytics server-unavailable fallback: closed in A2 (next section).
 
 **Tests:**
 - `tests/test_open_meteo.py`, 8 new tests, all HTTP mocked:
@@ -695,6 +694,62 @@ What is hidden on sample data:
   - Three risk-UI Dashboard tests and one Alerts-card test skip on a sample backend.
   - Also run against a real sample backend (`OPEN_METEO_DISABLED=1`: 380 zones, 39 HIGH): all pass or
     skip.
+
+### A2: mixed zone lists and the Analytics fallback (1 Oct 2026)
+
+**Per-zone source (backend, `backend/main.py`):**
+- Every zone in `/alerts`, `/zones`, `/dashboard`, `/analytics` and `/batch_predict` carries
+  `zone_source`: `openweather`, `open_meteo`, `open_meteo_stale` or `sample`. `source` and
+  `weather.source` are unchanged.
+- **A `sample` zone carries no risk** (`risk_level`, `risk`, `severity`, `type` are null, `prediction`,
+  `probabilities` and `alert` are null, `rules_fired` is `[]`). Its `message` is
+  "Sample data — risk not shown". It is listed after every rated zone.
+  - This holds for all-sample lists too. The safety net stays as before.
+- **Summary:**
+  - `high` / `moderate` / `low` count rated zones only; `n_rated` is their sum;
+  - `total` is still every zone;
+  - `zone_sources` gives the count per source;
+  - `data_time_min` is next to `data_time`.
+
+**Pages (mixed list = some zones sample, some with weather data):**
+- **Badge** (from the real counts): "Open-Meteo (model data) for N of 380 zones, updated HH:MM UTC".
+  - When the zones' model times differ, it shows the range, "updated HH:MM–HH:MM UTC".
+  - For OpenWeather: "OpenWeather for N of T zones, observed HH:MM UTC".
+  - The Open-Meteo credit is shown next to it.
+- **"/":**
+  - the banner counts rated zones only ("(rule-based, zones with weather data only)");
+  - the neutral strip says "(zones with weather data only; S zones with sample data: risk not shown)";
+  - Risk Distribution shows rated zones with "+S with sample data (risk not shown)";
+  - sample markers are grey, their tooltip and popup read "Sample data — risk not shown", and the
+    legend adds "Grey: sample data — risk not shown";
+  - a selected sample zone shows "Sample data — risk not shown" in the right panel: no pill, Primary
+    Threat, hazard levels or explanation.
+- **Alerts:**
+  - no card for sample zones;
+  - "All (N)" and the High/Moderate/Low cards count rated zones;
+  - the "Zones monitored" caption says "S zones with sample data: risk not shown".
+- **Forecast:**
+  - a sample node shows the safety-net notice; a rated node shows its level;
+  - "Node list: <badge>; S zones with sample data: risk not shown."
+- **Analytics:**
+  - every figure and risk chart (averages, bar chart, Risk Distribution, Key Insights, Top Risk
+    Cities) uses only the zones with weather data;
+  - a note states the counts.
+- **Analytics server unavailable:** the built-in example cities are removed. The page shows the
+  safety-net notice (with the ML Nowcast link) and "Server unavailable — please refresh in a minute.",
+  and no figures. While loading it shows "Loading analytics…" (it used to show the example figures).
+
+**Tests:**
+- `tests/test_open_meteo.py`:
+  - mixed list: sample zones carry no risk and are left out of the counts;
+  - all-sample list: no risk at all.
+- `e2e/mixed_zones.spec.js` (8 tests). Sample zones keep HIGH fields in the mock, so the pages are shown
+  to hide them by zone source.
+  - Mixed case on all four pages; an Open-Meteo HIGH zone keeps its risk.
+  - The neutral strip counts.
+  - Analytics server-unavailable.
+  - Screenshots `mixed_*` at 1920×1080 and 1366×768, and `analytics_unavailable_1600x1000.png`.
+- `honesty_batch1` (backend-down Analytics) and `sample_safety` (panel wording) updated.
 
 ## 7. Troubleshooting
 
@@ -760,11 +815,14 @@ What is hidden on sample data:
   - HTTP 429 and timeouts are retried twice. After a final failure, the last successful Open-Meteo data
     is served (stale, with its real time), and only zones that never had any use sample data.
   - On sample data the four team pages show no risk indicators (safety net).
-  - Not covered by the safety net:
-    - a "mixed" list (some zones sample) still shows rule-based risk for the sample zones, labelled
-      "Mixed: some zones use sample data";
-    - the Analytics fallback "built-in example data (server unavailable)" still shows its fixed HIGH
-      example nodes.
+  - In a mixed list, each sample zone carries no risk. It is grey on the map, has no card, and is left
+    out of every count and chart; the badge states the real counts.
+  - With the server unavailable, Analytics shows no figures (the built-in example cities are gone).
+  - Still rule-based text on the pages with weather data:
+    - the Analytics Key Insights sentences are fixed templates, e.g. "…with precipitation exceeding
+      20 mm/hr" whenever a HIGH zone is listed (not checked against the zone's rain);
+    - the Rainfall Trend chart is illustrative (multiples of the average; banner "Illustrative
+      figures").
   - Measured on 29 Sep 2026: 380 zones = 4 requests in ≈ 2.0 s; a repeat within the cache = 0 requests
     (0.06 s); the Forecast/Analytics list of 100 = 1 request (27 new points, 73 cached).
   - `GET /weather_source` shows the order and the Open-Meteo counters (no secrets).

@@ -139,7 +139,7 @@ const RightPanel = ({ selectedCity, cityData, onClose, hideRisk = false }) => {
                 </div>
                 <div className="mt-3 flex items-center justify-between gap-2">
                     {hideRisk ? (
-                        <span data-testid="panel-no-risk" className="text-[11px] font-bold text-amber-700 dark:text-amber-400">Risk not shown on sample data</span>
+                        <span data-testid="panel-no-risk" className="text-[11px] font-bold text-amber-700 dark:text-amber-400">Sample data — risk not shown</span>
                     ) : (
                     <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-md border text-xs font-black tracking-wider ${badgeClass}`}>
                         <AlertTriangle size={14} className={riskLabel === 2 ? "text-red-600 dark:text-red-400" : (riskLabel === 1 ? "text-orange-600 dark:text-orange-400" : "text-emerald-600 dark:text-emerald-400")} />

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { MapContainer, TileLayer, ImageOverlay, Marker, Popup, Tooltip, useMap } from 'react-leaflet';
-import { primaryThreat, riskColour } from '../utils/dashboardRisk';
+import { SAMPLE_ZONE_TEXT, isUnratedZone, primaryThreat, riskColour } from '../utils/dashboardRisk';
 import { getTerrain, terrainUrl } from '../services/nowcastApi';
 import MarkerClusterGroup from 'react-leaflet-cluster';
 import 'leaflet/dist/leaflet.css';
@@ -110,7 +110,7 @@ const MapSection = ({
 }) => {
     // Event-layer toggles filter markers by their primary threat; zones with none (low risk) always show
     const locations = (allCities.length > 0 ? allCities : (locationsProp || [])).filter((loc) => {
-        const t = hideRisk ? null : primaryThreat(loc);
+        const t = hideRisk || isUnratedZone(loc) ? null : primaryThreat(loc);
         return t == null || activeLayers[t] !== false;
     });
     const hill = useNationalHillshade(baseLayer === 'terrain');
@@ -152,13 +152,14 @@ const MapSection = ({
             >
                 {locations.length > 0 && locations.map((loc, idx) => {
                     if (!loc.lat || !loc.lon) return null;
-                    const color = hideRisk ? NEUTRAL : getColor(loc.risk);
+                    const noRisk = hideRisk || isUnratedZone(loc);      // sample-data zone: grey, no level
+                    const color = noRisk ? NEUTRAL : getColor(loc.risk);
 
                     return (
                         <Marker
                             key={loc.city ? `marker-${loc.city}` : `marker-${loc.id ?? idx}`}
                             position={[loc.lat, loc.lon]}
-                            icon={createStationIcon(hideRisk ? null : loc.risk)}
+                            icon={createStationIcon(noRisk ? null : loc.risk)}
                             eventHandlers={{
                                 click: () => {
                                     if (handleCitySelect) handleCitySelect(loc);
@@ -168,7 +169,7 @@ const MapSection = ({
                             <Tooltip direction="top" offset={[0, -8]} opacity={0.95}>
                                 <div className="text-xs font-sans">
                                     <span className="font-bold">{loc.city}</span>
-                                    {hideRisk ? <span data-testid="marker-sample"> (sample data)</span>
+                                    {noRisk ? <span data-testid="marker-sample"> — {SAMPLE_ZONE_TEXT}</span>
                                         : <>: <span className="font-black" style={{ color }}>{loc.risk || "LOW"}</span></>}
                                 </div>
                             </Tooltip>
@@ -176,8 +177,8 @@ const MapSection = ({
                                 <div className="p-1 font-sans">
                                     <div className="flex items-center justify-between gap-3 border-b border-slate-200 pb-1 mb-1.5">
                                         <h4 className="text-sm font-black text-slate-900">{loc.city}</h4>
-                                        {hideRisk ? (
-                                            <span className="text-[10px] font-bold text-slate-500">Sample data</span>
+                                        {noRisk ? (
+                                            <span data-testid="popup-sample" className="text-[10px] font-bold text-slate-500">{SAMPLE_ZONE_TEXT}</span>
                                         ) : (
                                         <span
                                             className="text-[10px] font-bold px-1.5 py-0.5 rounded text-white"
@@ -198,7 +199,7 @@ const MapSection = ({
                                             <div>Humidity: <strong>{Math.round(loc.weather.humidity)}%</strong></div>
                                         )}
                                     </div>
-                                    {loc.reason && !hideRisk && (
+                                    {loc.reason && !noRisk && (
                                         <div className="text-[10px] font-medium text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 p-1.5 rounded mb-2 leading-tight">
                                             <span className="font-bold text-slate-800 dark:text-slate-100">Reason: </span>
                                             {loc.reason}
@@ -221,14 +222,15 @@ const MapSection = ({
             {activeCity && activeCity.lat != null && activeCity.lon != null && (
                 <Marker
                     position={[activeCity.lat, activeCity.lon]}
-                    icon={createSelectedIcon(hideRisk ? NEUTRAL : getColor(activeCity.risk))}
+                    icon={createSelectedIcon(hideRisk || isUnratedZone(activeCity) ? NEUTRAL : getColor(activeCity.risk))}
                     interactive={false}
                 />
             )}
         </MapContainer>
         {/* test hook: markers handed to the cluster layer after the event-layer filter */}
         <span hidden data-testid="dashboard-markers" data-count={locations.length}
-            data-low={locations.filter((l) => primaryThreat(l) == null).length} />
+            data-low={locations.filter((l) => primaryThreat(l) == null).length}
+            data-unrated={locations.filter((l) => isUnratedZone(l)).length} />
         </>
     );
 };

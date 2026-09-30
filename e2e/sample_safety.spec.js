@@ -68,7 +68,7 @@ test('everything fails -> sample: "/" shows the safety net, weather tiles labell
     await expect(page.getByTestId('sample-zone-count')).toContainText('zones (sample data)');
     // right panel: weather tiles with the sample label; no risk pill, primary threat or hazard levels
     await expect(page.getByTestId('panel-weather-source')).toHaveText('Sample data — no live weather feed');
-    await expect(page.getByTestId('panel-no-risk')).toHaveText('Risk not shown on sample data');
+    await expect(page.getByTestId('panel-no-risk')).toHaveText('Sample data — risk not shown');
     await expect(page.getByTestId('primary-threat')).toHaveCount(0);
     await expect(page.getByTestId('hazard-levels')).toHaveCount(0);
     await expect(page.getByTestId('rule-explanation')).toHaveCount(0);

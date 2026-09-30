@@ -2,7 +2,7 @@
 // The backend gives each zone a risk level (LOW / MODERATE / HIGH) from fixed weather rules, plus
 // per-hazard rule scores. The page shows levels only, never a percentage.
 
-export const RISK_COLOURS = { HIGH: '#ef4444', MODERATE: '#f59e0b', LOW: '#10b981' };
+export const RISK_COLOURS = { HIGH: '#ef4444', MODERATE: '#f59e0b', LOW: '#10b981', NONE: '#6b7280' };
 export const RISK_ORDER = { LOW: 0, MODERATE: 1, HIGH: 2 };
 export const LEVEL_NAMES = ['Low', 'Moderate', 'High'];
 export const RULE_LABEL = 'rule-based, not the ML model';
@@ -14,7 +14,7 @@ export const HAZARDS = [
     { key: 'flood', name: 'Flash Flood', layer: 'flood' },
 ];
 
-export const riskColour = (risk) => RISK_COLOURS[risk] || '#6b7280';
+export const riskColour = (risk) => (risk && risk !== 'NONE' && RISK_COLOURS[risk]) || RISK_COLOURS.NONE;
 
 export function riskText(loc) {
     const r = String(loc?.risk || loc?.prediction?.risk_text || loc?.prediction?.risk_level || 'LOW').toUpperCase();
@@ -91,10 +91,73 @@ export const SAMPLE_SAFETY_TEXT = 'Sample data — no live weather feed. Risk in
 export const LIVE_SOURCES = ['openweather', 'open-meteo'];
 export const isLiveSource = (source) => LIVE_SOURCES.includes(source);
 
-// Weather source badge text ("sample" = deterministic sample values; Open-Meteo = model data, never "observed").
-export function sourceBadge(source, observedAt, dataTime) {
-    if (source === 'openweather') return observedAt ? `OpenWeather, observed ${hhmmUtc(observedAt)}` : 'OpenWeather';
-    if (source === 'open-meteo') return dataTime ? `Open-Meteo (model data), updated ${hhmmUtc(dataTime)}` : 'Open-Meteo (model data)';
-    if (source === 'mixed') return 'Mixed: some zones use sample data (no live weather feed)';
+// Per-zone weather source (backend `zone_source`: openweather | open_meteo | open_meteo_stale | sample).
+// A zone is "unrated" when any of its source fields says sample: it then shows no risk level, hazard
+// level, primary threat or alert card, and is left out of every risk count and chart.
+export const SAMPLE_ZONE_TEXT = 'Sample data — risk not shown';
+export function zoneSource(loc) {
+    if (!loc) return null;
+    if ([loc.zone_source, loc.source, loc.weather?.source].includes('sample')) return 'sample';
+    if (loc.zone_source) return loc.zone_source;
+    const s = loc.weather?.source || loc.source;
+    if (s === 'open-meteo') return loc.weather?.stale ? 'open_meteo_stale' : 'open_meteo';
+    return s === 'openweather' ? 'openweather' : null;
+}
+export const isUnratedZone = (loc) => zoneSource(loc) === 'sample';
+
+// Real counts of a mixed zone list: from the backend summary (zone_sources), else counted from the zones.
+export function mixedCounts(summary, zones = []) {
+    const zs = summary?.zone_sources;
+    const c = zs ? { ...zs } : zones.reduce((acc, z) => {
+        const k = zoneSource(z) || 'sample';
+        acc[k] = (acc[k] || 0) + 1;
+        return acc;
+    }, {});
+    const openMeteo = (c.open_meteo || 0) + (c.open_meteo_stale || 0);
+    const openWeather = c.openweather || 0;
+    const sample = c.sample || 0;
+    const total = summary?.total ?? (openMeteo + openWeather + sample);
+    return { openMeteo, openWeather, sample, total };
+}
+
+const timeRange = (lo, hi) => (lo && hi && hhmmUtc(lo) !== hhmmUtc(hi) ? `${hhmmUtc(lo).slice(0, 5)}–${hhmmUtc(hi)}` : hhmmUtc(hi || lo));
+
+// "Open-Meteo (model data) for N of T zones, updated HH:MM UTC" (a range when the zones' times differ)
+export function mixedBadge(summary, zones = []) {
+    const m = mixedCounts(summary, zones);
+    const hi = summary?.data_time || null;
+    const lo = summary?.data_time_min || null;
+    if (m.openMeteo > 0) return `Open-Meteo (model data) for ${m.openMeteo} of ${m.total} zones` + (hi || lo ? `, updated ${timeRange(lo, hi)}` : '');
+    if (m.openWeather > 0) {
+        const obs = summary?.latest_observed_at;
+        return `OpenWeather for ${m.openWeather} of ${m.total} zones` + (obs ? `, observed ${hhmmUtc(obs)}` : '');
+    }
     return 'Sample data — no live weather feed';
 }
+
+// Weather source badge text ("sample" = deterministic sample values; Open-Meteo = model data, never "observed").
+// For "mixed", pass the zone-list summary (and zones) to state the real counts.
+export function sourceBadge(source, observedAt, dataTime, summary = null, zones = []) {
+    if (source === 'openweather') return observedAt ? `OpenWeather, observed ${hhmmUtc(observedAt)}` : 'OpenWeather';
+    if (source === 'open-meteo') return dataTime ? `Open-Meteo (model data), updated ${hhmmUtc(dataTime)}` : 'Open-Meteo (model data)';
+    if (source === 'mixed') return (summary || zones.length) ? mixedBadge(summary, zones) : 'Mixed: some zones use sample data (no live weather feed)';
+    return 'Sample data — no live weather feed';
+}
+
+// Summary of a plain zone array (/batch_predict has no summary): total, times of the zones with weather data
+export function zonesSummary(zones = []) {
+    const live = zones.filter((z) => !isUnratedZone(z));
+    const times = live.map((z) => z.weather?.data_time).filter(Boolean).sort();
+    const obs = live.map((z) => z.weather?.observed_at).filter(Boolean).sort();
+    return { total: zones.length, data_time: times.at(-1) || null, data_time_min: times[0] || null,
+        latest_observed_at: obs.at(-1) || null };
+}
+
+// A zone list is mixed when it has both sample-data zones and zones with weather data
+export function isMixedList(zones = []) {
+    const m = mixedCounts(null, zones);
+    return m.sample > 0 && m.openMeteo + m.openWeather > 0;
+}
+
+// "S sample-data zones: risk not shown" line for mixed lists
+export const unratedNote = (n) => `${n} zone${n === 1 ? '' : 's'} with sample data: risk not shown`;

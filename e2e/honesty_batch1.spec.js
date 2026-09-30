@@ -56,11 +56,13 @@ test('Analytics: rule-based labels, no validation/XGBoost/94.6%, donut draws wit
     expect(errors, errors.join('\n')).toEqual([]);
 });
 
-test('Analytics with the backend down: says the data is the built-in example', async ({ page }) => {
+test('Analytics with the backend down: no example figures, the safety-net notice instead', async ({ page }) => {
     await stubImages(page);
     await abortBackend(page, '**/batch_predict**');
     await page.goto('/analytics');
-    await expect(page.getByTestId('analytics-summary-source')).toHaveText('Rule-based summary of built-in example data (server unavailable)');
+    await expect(page.getByTestId('sample-safety-net')).toBeVisible();
+    await expect(page.getByTestId('analytics-unavailable')).toHaveText(UNAVAILABLE);
+    await expect(page.getByTestId('analytics-summary-source')).toHaveCount(0);
 });
 
 test('Reports: every card labelled as an example; no official/Doppler/accuracy/Confidential claims; export footer honest', async ({ page }) => {

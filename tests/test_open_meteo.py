@@ -284,3 +284,54 @@ def test_startup_warmup_runs_in_the_background_and_health_does_not_wait(monkeypa
         assert c.get("/health").json()["status"] == "ok"
         assert _t.time() - t < 5
     assert started == [380]
+
+
+# ---- mixed zone lists: sample zones carry no risk and are left out of the counts ----
+
+def test_mixed_list_sample_zones_have_no_risk_and_are_excluded_from_counts(monkeypatch):
+    import backend.main as M
+    monkeypatch.setattr(M, "API_KEY", None)
+
+    async def mixed(points, client=None, now=None):
+        out = []
+        for k, (la, lo) in enumerate(points):
+            w = A.parse_open_meteo(om_item(la, lo, hum=95.0, wind=9.0, rain=24.0))     # HIGH weather everywhere
+            out.append(None if k % 3 == 0 else ({**w, "stale": True} if k % 3 == 1 else w))
+        return out
+    monkeypatch.setattr(M, "async_fetch_open_meteo", mixed)
+    M._UNIFIED_ALERTS_CACHE.clear()
+    d = asyncio.run(M.get_unified_alerts_dataset(limit=60))
+    M._UNIFIED_ALERTS_CACHE.clear()
+    s, alerts = d["summary"], d["alerts"]
+    sample = [a for a in alerts if a["zone_source"] == "sample"]
+    rated = [a for a in alerts if a["zone_source"] != "sample"]
+    assert len(sample) == 20 and len(rated) == 40
+    for a in sample:                                   # the sample fallback gives ~13 % HIGH values: none shown
+        assert a["source"] == "sample" and a["weather"]["source"] == "sample"
+        assert a["risk_level"] is None and a["risk"] is None and a["severity"] is None
+        assert a["prediction"] is None and a["probabilities"] is None and a["alert"] is None
+        assert a["rules_fired"] == [] and a["reason"] is None and a["type"] is None
+        assert a["message"] == "Sample data — risk not shown"
+    assert {a["risk_level"] for a in rated} == {"HIGH"}
+    assert s["source"] == "mixed" and s["total"] == 60
+    assert s["high"] == 40 and s["moderate"] == 0 and s["low"] == 0 and s["n_rated"] == 40
+    assert s["n_sample"] == 20
+    assert s["zone_sources"] == {"openweather": 0, "open_meteo": 20, "open_meteo_stale": 20, "sample": 20}
+    assert all(a["zone_source"] == "sample" for a in alerts[-20:])      # listed after every rated zone
+    assert s["data_time"] == s["data_time_min"] == "2026-09-29T13:45Z"
+
+
+def test_all_sample_list_has_no_risk_at_all(monkeypatch):
+    import backend.main as M
+    monkeypatch.setattr(M, "API_KEY", None)
+
+    async def failing(points, client=None, now=None):
+        return [None] * len(points)
+    monkeypatch.setattr(M, "async_fetch_open_meteo", failing)
+    M._UNIFIED_ALERTS_CACHE.clear()
+    d = asyncio.run(M.get_unified_alerts_dataset(limit=380))
+    M._UNIFIED_ALERTS_CACHE.clear()
+    s = d["summary"]
+    assert s["source"] == "sample" and s["total"] == 380 and s["n_rated"] == 0
+    assert s["high"] == s["moderate"] == s["low"] == 0
+    assert all(a["risk_level"] is None and a["prediction"] is None for a in d["alerts"])

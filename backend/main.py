@@ -530,6 +530,19 @@ def predict_risk(request: PredictionRequest):
 # UNIFIED ALERTS ENGINE — SINGLE SOURCE OF TRUTH (5-MIN CACHE)
 # ============================================================
 
+# Per-zone weather source: which data the zone's values came from
+ZONE_SOURCES = ("openweather", "open_meteo", "open_meteo_stale", "sample")
+SAMPLE_ZONE_NOTE = "Sample data — risk not shown"
+
+
+def zone_source_of(source: Optional[str], stale: bool = False) -> str:
+    if source == "open-meteo":
+        return "open_meteo_stale" if stale else "open_meteo"
+    if source == "openweather":
+        return "openweather"
+    return "sample"
+
+
 _UNIFIED_ALERTS_CACHE: Dict[int, Tuple[Dict[str, Any], float]] = {}
 # >= 30 min with a real OpenWeather key (free-tier call limits: 380 zones per refresh), else 5 min
 UNIFIED_CACHE_TTL = 1800.0 if is_valid_api_key(API_KEY) else 300.0
@@ -637,6 +650,27 @@ async def get_unified_alerts_dataset(limit: int = 380) -> Dict[str, Any]:
                 "pressure": round(pressure, 1),
                 "timestamp": current_time_iso,
             }
+            zone_source = zone_source_of(w_source, w_stale)
+            weather_block = {
+                "temperature": round(temp, 1), "humidity": round(hum, 1), "rainfall": round(rain, 1),
+                "wind_speed": round(wind, 1), "wind": round(wind, 1), "pressure": round(pressure, 1),
+                "source": w_source, "observed_at": w_observed, "data_time": w_time,
+                "conditions": w.get("conditions"), "stale": w_stale,
+            }
+
+            if zone_source == "sample":
+                # sample values are not weather: no rule-based risk, hazard scores, alert or reason, and
+                # the zone is left out of the High / Moderate / Low counts
+                alerts_list.append({
+                    "id": i, "city": city, "fullName": city, "state": state, "lat": lat, "lon": lon,
+                    "zone_source": zone_source, "risk_level": None, "risk": None, "severity": None,
+                    "type": None, "hazard": None, "message": SAMPLE_ZONE_NOTE, "action": None, "reason": None,
+                    "rules_fired": [], "temperature": round(temp, 1), "humidity": round(hum, 1),
+                    "rainfall": round(rain, 1), "wind_speed": round(wind, 1), "timestamp": current_time_iso,
+                    "weather": weather_block, "source": w_source,
+                    "prediction": None, "probabilities": None, "alert": None,
+                })
+                continue
 
             # Pipeline step 1: Engineer features
             features = engineer_features(weather_obj)
@@ -685,20 +719,9 @@ async def get_unified_alerts_dataset(limit: int = 380) -> Dict[str, Any]:
                 "rainfall": round(rain, 1),
                 "wind_speed": round(wind, 1),
                 "timestamp": current_time_iso,
-                "weather": {
-                    "temperature": round(temp, 1),
-                    "humidity": round(hum, 1),
-                    "rainfall": round(rain, 1),
-                    "wind_speed": round(wind, 1),
-                    "wind": round(wind, 1),
-                    "pressure": round(pressure, 1),
-                    "source": w_source,
-                    "observed_at": w_observed,
-                    "data_time": w_time,
-                    "conditions": w.get("conditions"),
-                    "stale": w_stale,
-                },
+                "weather": weather_block,
                 "source": w_source,
+                "zone_source": zone_source,
                 "prediction": {
                     "risk_level": risk,
                     "risk_label": 2 if risk == "HIGH" else (1 if risk == "MODERATE" else 0),
@@ -719,9 +742,9 @@ async def get_unified_alerts_dataset(limit: int = 380) -> Dict[str, Any]:
             }
             alerts_list.append(alert_item)
 
-        # Sort results: HIGH risk first, then MODERATE, then LOW
+        # Sort results: HIGH risk first, then MODERATE, then LOW, then sample zones (no risk)
         alerts_list.sort(key=lambda x: (
-            2 if x["severity"] == "HIGH" else (1 if x["severity"] == "MODERATE" else 0),
+            2 if x["severity"] == "HIGH" else (1 if x["severity"] == "MODERATE" else (0 if x["severity"] else -1)),
             x["rainfall"]
         ), reverse=True)
 
@@ -735,9 +758,13 @@ async def get_unified_alerts_dataset(limit: int = 380) -> Dict[str, Any]:
         observed = [a["weather"]["observed_at"] for a in alerts_list if a["weather"].get("observed_at")]
         summary["source"] = sources.pop() if len(sources) == 1 else ("mixed" if sources else "sample")
         summary["n_sample"] = sum(a["source"] == "sample" for a in alerts_list)
+        # zones with a rule-based level (= high + moderate + low); sample zones are not rated
+        summary["n_rated"] = high_count + moderate_count + low_count
+        summary["zone_sources"] = {k: sum(a["zone_source"] == k for a in alerts_list) for k in ZONE_SOURCES}
         summary["latest_observed_at"] = max(observed) if observed else None
         times = [a["weather"]["data_time"] for a in alerts_list if a["weather"].get("data_time")]
         summary["data_time"] = max(times) if times else None
+        summary["data_time_min"] = min(times) if times else None
         # some zones carry the last successful Open-Meteo data because the latest request failed
         summary["stale"] = any(a["weather"].get("stale") for a in alerts_list)
 

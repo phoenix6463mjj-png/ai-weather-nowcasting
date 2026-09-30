@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { API_BASE } from '../config';
 import { fetchWithWake, WAKE_UNAVAILABLE } from '../utils/serverWake';
-import { fetchedLabel, isLiveSource, isSampleSource, parseUtcIso, sourceBadge } from '../utils/dashboardRisk';
+import { fetchedLabel, isLiveSource, isSampleSource, isUnratedZone, mixedCounts, parseUtcIso, sourceBadge, unratedNote } from '../utils/dashboardRisk';
 import SampleSafetyNotice from '../components/SampleSafetyNotice';
 import OpenMeteoCredit from '../components/OpenMeteoCredit';
 import {
@@ -189,13 +189,18 @@ const Alerts = () => {
     // Metrics for the 4 summary cards — SINGLE SOURCE OF TRUTH FROM BACKEND
     // DO NOT recalculate with alerts.filter on client side
     const totalCount = summary.total ?? alerts.length;
+    // mixed list: sample-data zones get no card and are not in the counts
+    const mixed = weatherSource === 'mixed';
+    const nUnrated = mixed ? mixedCounts(summary, alerts).sample : 0;
+    const ratedCount = summary.n_rated ?? (totalCount - nUnrated);
+    const ratedAlerts = useMemo(() => alerts.filter((a) => !isUnratedZone(a)), [alerts]);
     const highCount = summary.high ?? 0;
     const modCount = summary.moderate ?? 0;
     const lowCount = summary.low ?? 0;
 
     // Filter and Sort Alerts
     const filteredAndSortedAlerts = useMemo(() => {
-        let result = alerts.filter(alert => {
+        let result = ratedAlerts.filter(alert => {
             const norm = normalizeSeverity(alert.severity);
             if (filter === 'HIGH' && norm !== 'HIGH') return false;
             if (filter === 'MODERATE' && norm !== 'MODERATE') return false;
@@ -228,7 +233,7 @@ const Alerts = () => {
         }
 
         return result;
-    }, [alerts, filter, sortBy, searchQuery]);
+    }, [ratedAlerts, filter, sortBy, searchQuery]);
 
     return (
         <div className="min-h-screen bg-slate-50 dark:bg-[#0b0f19] text-gray-900 dark:text-gray-100 flex flex-col font-sans transition-colors duration-200">
@@ -265,9 +270,12 @@ const Alerts = () => {
                                     {weatherSource === 'open-meteo' && <OpenMeteoCredit className="mt-0.5" />}
                                 </span>
                             ) : (
+                                <span className="inline-flex flex-col items-end">
                                 <span data-testid="alerts-source-badge" data-source={weatherSource || ''} className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
                                     <span className="w-2 h-2 rounded-full bg-amber-500"></span>
-                                    {error ? 'Server unavailable' : weatherSource ? sourceBadge(weatherSource) : 'Loading…'}
+                                    {error ? 'Server unavailable' : weatherSource ? sourceBadge(weatherSource, null, dataTime, summary, alerts) : 'Loading…'}
+                                </span>
+                                {mixed && !error && mixedCounts(summary, alerts).openMeteo > 0 && <OpenMeteoCredit className="mt-0.5" />}
                                 </span>
                             )}
                             <span className="text-xs text-gray-500 dark:text-gray-400 hidden sm:inline whitespace-nowrap">
@@ -314,8 +322,8 @@ const Alerts = () => {
                             <div className="text-2xl font-bold text-blue-600 dark:text-blue-400 mt-0.5">
                                 {totalCount}
                             </div>
-                            <span className="text-xs text-gray-500 dark:text-gray-400">
-                                rule-based indicators from current weather
+                            <span data-testid="alerts-total-caption" className={`text-xs ${mixed ? 'text-amber-700 dark:text-amber-400' : 'text-gray-500 dark:text-gray-400'}`}>
+                                {mixed ? unratedNote(nUnrated) : 'rule-based indicators from current weather'}
                             </span>
                         </div>
                         <div className="p-2.5 rounded-lg bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400">
@@ -390,7 +398,7 @@ const Alerts = () => {
                                     : 'bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-950/40 hover:text-blue-600 dark:hover:text-blue-400'
                             }`}
                         >
-                            All ({totalCount})
+                            All ({ratedCount})
                         </button>
                         <button
                             onClick={() => setFilter('HIGH')}
@@ -564,8 +572,8 @@ const Alerts = () => {
                                         <div className="flex items-center justify-between pt-2.5 border-t border-gray-100 dark:border-slate-800 text-xs">
                                             {/* 5. Left: "Live • Just now" with pulsing green dot */}
                                             <span className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 font-medium">
-                                                <div className={`w-2 h-2 rounded-full shrink-0 ${live ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`}></div>
-                                                <span data-testid="alert-card-source">{live ? `Live • ${timeAgo}` : sourceBadge('sample')}</span>
+                                                <div className={`w-2 h-2 rounded-full shrink-0 ${isLiveSource(alert.source) ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`}></div>
+                                                <span data-testid="alert-card-source">{isLiveSource(alert.source) ? `Live • ${timeAgo}` : sourceBadge('sample')}</span>
                                             </span>
 
                                             {/* 2. Right: "View Details →" (blue link style with hover underline + color shift) */}
