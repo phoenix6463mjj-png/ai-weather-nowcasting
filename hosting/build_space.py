@@ -25,6 +25,7 @@ NOWCAST_FILES = [
     ("docs/sample_output_india/**/*", "national sample (probability rasters, manifest)"),
     ("docs/live_output/**/*", "the one live run (20260926T0330Z)"),
     ("docs/LIVE_PIPELINE.md", "quoted by the case-study paragraph (IMERG Early latency)"),
+    ("docs/latency_benchmark.json", "Approach page: measured compute time of one all-India nowcast"),
     ("catalog/documented_event_times.csv", "documented-event check"),
     ("catalog/selected_episodes.csv", "episode metadata"),
     ("models/v0/scores_test.csv", "Results page"),

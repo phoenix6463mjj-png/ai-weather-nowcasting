@@ -931,6 +931,40 @@ laptop, full CPU):
   - `e2e/primary_threat.spec.js`: "/", Alerts and Forecast, plus screenshots `threat_*` at
     1920×1080 and 1366×768.
 
+### A5: compute-time benchmark (1 Oct 2026)
+
+- **Script:** `nowcast_data/tools/latency_benchmark.py` times one all-India nowcast with the frozen
+  lgbm_v0 live pipeline. It calls `nowcast.live.ingest` / `nowcast.inference` unchanged.
+- **Inputs:** the 2026-09-26 03:30Z live-run inputs already on disk. No download, no credentials.
+- **Runs:** 3, each in a fresh process. Every run reproduced the committed `docs/live_output/20260926T0330Z/`
+  exactly (bands and alerts).
+- **Machine:** 11th Gen Intel(R) Core(TM) i5-1135G7 @ 2.40GHz, 4 cores / 8
+  threads, 7.7 GB RAM.
+- **Size:** 93,000 cells × 5 leads = 465,000 rows per
+  threshold model.
+- **Results** (median, range):
+  - per issue with the model loaded: **14.0 s** (12.8–18.2);
+  - cold run including imports and model load: 17.1 s (16.1–21.9);
+  - peak memory 640 MB.
+- **Largest stages:** inference 8.4 s and output writing 3.9 s.
+  - Inputs 1.2 s; features 0.20 s (optical flow
+    0.02 s).
+  - Calibration 0.22 s; alerts + SHAP 0.09 s (8 alerts; more on
+    busy issues).
+- **Files:**
+  - `nowcast_data/docs/latency_benchmark.md`: method, machine, stage table, caveats;
+  - `nowcast_data/docs/latency_benchmark.json`: machine-readable. Shipped to the host (`build_space.py`)
+    and served as `compute` in `/ml/approach`.
+- **Approach page, Live readiness card:** one line, "Our compute time (measured): …". Every number
+  comes from the JSON, plus the quoted IMERG Early age: "Data latency dominates: IMERG Early is 5.3 h
+  old at our first live poll (~4 h typical)."
+  - No NWP comparison (no cited source is stored) and no "real-time" wording.
+- **Tests:**
+  - `nowcast_data/serve/tests/test_latency.py`: the JSON is complete and consistent; every number in
+    the line is from the JSON; no forbidden words.
+  - `e2e/latency.spec.js`: the line is shown verbatim after the data-latency arithmetic; screenshots
+    `approach_latency_*` at 1920×1080 and 1366×768.
+
 ## 7. Troubleshooting
 
 | symptom | cause / fix |

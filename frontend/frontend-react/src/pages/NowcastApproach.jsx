@@ -78,6 +78,12 @@ const NowcastApproach = () => {
                                     at the ~{lat.imerg_early_typical_h} h typical latency LIVE_PIPELINE.md also notes ≈ <b>{lat.real_warning_imerg_typical_h} h</b>.</p>
                                 <p>On ~{lat.insat_age_h} h-old INSAT data ≈ <b>{lat.real_warning_insat_h} h</b>.</p>
                             </div>
+                            {a.compute && (
+                                <p data-testid="approach-compute-latency" className="text-xs mb-2">
+                                    <span className="font-black">Our compute time (measured): </span>{a.compute.text}{' '}
+                                    <span className="text-[10px] text-slate-500 dark:text-slate-400">Source: {a.compute.method}.</span>
+                                </p>
+                            )}
                             <p className="text-[11px] font-black uppercase text-slate-500 mb-1">What INSAT access unlocks</p>
                             <ul className="text-xs space-y-0.5 mb-2 list-disc ml-4">
                                 <li>Cloud-top temperature drop rate: convection seen before it rains hard.</li>
