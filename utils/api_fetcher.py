@@ -1,10 +1,12 @@
 from dotenv import load_dotenv
 import os
-import requests
 import httpx
 import asyncio
 import time
 import hashlib
+import re
+import threading
+from collections import deque
 from datetime import datetime, timezone
 from typing import Tuple, Optional, Dict, Any, List
 
@@ -37,13 +39,9 @@ def is_valid_api_key(key: Optional[str]) -> bool:
 # Key: normalized city name (lowercase stripped), Value: (lat, lon)
 _GEO_CACHE: Dict[str, Tuple[Optional[float], Optional[float]]] = {}
 
-# Global in-memory weather cache (300 seconds / 5 minutes TTL)
+# Per-place cache of fetch_weather results (5 min); OpenWeather points have their own 60-min cache below
 weather_cache: Dict[str, Dict[str, Any]] = {}
 CACHE_EXPIRY = 300  # 300 seconds
-
-# Backward-compatibility alias
-_WEATHER_CACHE = weather_cache
-WEATHER_CACHE_TTL = CACHE_EXPIRY
 
 FALLBACK_WEATHER = {
     "temperature": 30.0,
@@ -108,7 +106,8 @@ def get_fallback_mock(city: str, lat: float, lon: float) -> Dict[str, Any]:
 
 def fetch_weather(lat: Any = 22.0, lon: Any = 79.0, city: Optional[str] = None) -> Dict[str, Any]:
     """
-    Fetch real-time weather data with in-memory caching and safe fallback mock.
+    Weather for one point (the /predict search): OpenWeather when a key is set, else (or when it
+    fails) Open-Meteo, else sample values. Cached per point.
     """
     if isinstance(lat, str):
         city = lat
@@ -127,137 +126,11 @@ def fetch_weather(lat: Any = 22.0, lon: Any = 79.0, city: Optional[str] = None) 
         if now - entry.get("timestamp", 0) < CACHE_EXPIRY:
             return dict(entry.get("data", {}))
 
-    weather_res = None
-    if not is_valid_api_key(API_KEY):
-        # no OpenWeather key: Open-Meteo model data, else sample data
+    weather_res = fetch_openweather_point(lat_f, lon_f) if is_valid_api_key(API_KEY) else None
+    if weather_res is None:
         weather_res = fetch_open_meteo_point(lat_f, lon_f) or get_fallback_mock(c_name, lat_f, lon_f)
-    else:
-        url = f"https://api.openweathermap.org/data/2.5/weather?lat={lat_f}&lon={lon_f}&appid={API_KEY}&units=metric"
-        try:
-            response = requests.get(url, timeout=3.5)
-            if response.status_code == 200:
-                data = response.json()
-                main = data.get("main", {})
-                wind = data.get("wind", {})
-                rain = data.get("rain", {})
 
-                temperature = float(main.get("temp", 30.0))
-                humidity = float(main.get("humidity", 70.0))
-                wind_speed = float(wind.get("speed", 2.0))
-                pressure = float(main.get("pressure", 1010.0))
-
-                rainfall = 0.0
-                if isinstance(rain, dict):
-                    rainfall = float(rain.get("1h", rain.get("3h", 0.0)))
-
-                weather_res = {
-                    "temperature": round(temperature, 1),
-                    "humidity": round(humidity, 1),
-                    "rainfall": round(rainfall, 1),
-                    "wind_speed": round(wind_speed, 1),
-                    "wind": round(wind_speed, 1),
-                    "pressure": round(pressure, 1),
-                    "source": "openweather",
-                    "observed_at": observed_at(data),
-                }
-        except Exception:
-            weather_res = None
-
-    if weather_res is None:
-        weather_res = get_fallback_mock(c_name, lat_f, lon_f)
-
-    rainfall = weather_res.get("rainfall", 0.0)
-    humidity = weather_res.get("humidity", 0.0)
-    wind = weather_res.get("wind_speed", 0.0)
-    print(f"[FETCH] {c_name} | Rain:{rainfall} | Hum:{humidity} | Wind:{wind}")
-
-    weather_cache[cache_key] = {
-        "data": weather_res,
-        "timestamp": now,
-    }
-    return dict(weather_res)
-
-
-async def async_fetch_weather(
-    city: Any = "Location",
-    lat: Optional[float] = 22.0,
-    lon: Optional[float] = 79.0,
-    client: Optional[httpx.AsyncClient] = None
-) -> Dict[str, Any]:
-    """
-    Asynchronously fetch real-time weather with in-memory caching and safe fallback mock.
-    Supports flexible signatures:
-      - async_fetch_weather(city, lat, lon)
-      - async_fetch_weather(city, lat, lon, client=client)
-      - async_fetch_weather(client, lat, lon)
-    """
-    if isinstance(city, httpx.AsyncClient):
-        actual_client = city
-        actual_lat = float(lat) if lat is not None else 22.0
-        actual_lon = float(lon) if lon is not None else 79.0
-        actual_city = "Location"
-    else:
-        actual_client = client
-        actual_city = str(city).strip() if city else "Location"
-        actual_lat = float(lat) if lat is not None else 22.0
-        actual_lon = float(lon) if lon is not None else 79.0
-
-    cache_key = f"{actual_city.lower()}_{round(actual_lat, 2)}_{round(actual_lon, 2)}"
-    now = time.time()
-
-    if cache_key in weather_cache:
-        entry = weather_cache[cache_key]
-        if now - entry.get("timestamp", 0) < CACHE_EXPIRY:
-            return dict(entry.get("data", {}))
-
-    weather_res = None
-    if not is_valid_api_key(API_KEY):
-        print("[WARNING] No API key found, using fallback data")
-        weather_res = get_fallback_mock(actual_city, actual_lat, actual_lon)
-    else:
-        url = f"https://api.openweathermap.org/data/2.5/weather?lat={actual_lat}&lon={actual_lon}&appid={API_KEY}&units=metric"
-        try:
-            if actual_client is not None:
-                response = await actual_client.get(url, timeout=2.5)
-            else:
-                async with httpx.AsyncClient(timeout=2.5) as temp_client:
-                    response = await temp_client.get(url)
-
-            if response.status_code == 200:
-                data = response.json()
-                main = data.get("main", {})
-                wind = data.get("wind", {})
-                rain = data.get("rain", {})
-
-                temperature = float(main.get("temp", 30.0))
-                humidity = float(main.get("humidity", 70.0))
-                wind_speed = float(wind.get("speed", 2.0))
-                pressure = float(main.get("pressure", 1010.0))
-
-                rainfall = 0.0
-                if isinstance(rain, dict):
-                    rainfall = float(rain.get("1h", rain.get("3h", 0.0)))
-
-                weather_res = {
-                    "temperature": round(temperature, 1),
-                    "humidity": round(humidity, 1),
-                    "rainfall": round(rainfall, 1),
-                    "wind_speed": round(wind_speed, 1),
-                    "wind": round(wind_speed, 1),
-                    "pressure": round(pressure, 1),
-                    "source": "openweather",
-                    "observed_at": observed_at(data),
-                }
-        except Exception:
-            weather_res = None
-
-    if weather_res is None:
-        weather_res = get_fallback_mock(actual_city, actual_lat, actual_lon)
-
-    rainfall = weather_res.get("rainfall", 0.0)
-    humidity = weather_res.get("humidity", 0.0)
-    wind = weather_res.get("wind_speed", 0.0)
-    print(f"[FETCH] {actual_city} | Rain:{rainfall} | Hum:{humidity} | Wind:{wind}")
+    print(f"[FETCH] {c_name} | source:{weather_res.get('source')}")
 
     weather_cache[cache_key] = {
         "data": weather_res,
@@ -268,13 +141,8 @@ async def async_fetch_weather(
 
 def get_coordinates(city: str) -> Tuple[Optional[float], Optional[float]]:
     """
-    Dynamically resolves latitude and longitude for any city or place using OpenWeather Geo API.
-
-    Endpoint:
-    https://api.openweathermap.org/geo/1.0/direct?q={city},IN&limit=1&appid={API_KEY}
-
-    Returns:
-        (lat, lon) as floats if found, otherwise (None, None).
+    Resolves a place name to (lat, lon) with the OpenWeather Geocoding API (throttled, like every
+    OpenWeather call); first "<name>,IN", then "<name>". (None, None) if not found or no key.
     """
     if not city or not isinstance(city, str):
         return None, None
@@ -287,204 +155,41 @@ def get_coordinates(city: str) -> Tuple[Optional[float], Optional[float]]:
     if cache_key in _GEO_CACHE:
         return _GEO_CACHE[cache_key]
 
-    if not is_valid_api_key(API_KEY):
+    if not is_valid_api_key(API_KEY) or _ow_cooling_down(_ow_clock()):
         return None, None
 
     try:
-        # 1. Primary lookup: query with ',IN' for India location coverage
-        geo_url = f"https://api.openweathermap.org/geo/1.0/direct?q={cleaned_city},IN&limit=1&appid={API_KEY}"
-        response = requests.get(geo_url, timeout=4)
+        for q in (f"{cleaned_city},IN", cleaned_city):
+            data = _ow_request_sync(OPENWEATHER_GEO_URL, {"q": q, "limit": 1})
+            if data and isinstance(data, list) and "lat" in data[0] and "lon" in data[0]:
+                _GEO_CACHE[cache_key] = (float(data[0]["lat"]), float(data[0]["lon"]))
+                return _GEO_CACHE[cache_key]
+    except _OWFailed:
+        return None, None                 # not cached: a later search may succeed
 
-        if response.status_code == 200:
-            data = response.json()
-            if data and len(data) > 0 and "lat" in data[0] and "lon" in data[0]:
-                lat = float(data[0]["lat"])
-                lon = float(data[0]["lon"])
-                _GEO_CACHE[cache_key] = (lat, lon)
-                return lat, lon
-
-        # 2. Fallback lookup: query without ',IN' in case of regional differences
-        geo_url_fb = f"https://api.openweathermap.org/geo/1.0/direct?q={cleaned_city}&limit=1&appid={API_KEY}"
-        response_fb = requests.get(geo_url_fb, timeout=4)
-        if response_fb.status_code == 200:
-            data_fb = response_fb.json()
-            if data_fb and len(data_fb) > 0 and "lat" in data_fb[0] and "lon" in data_fb[0]:
-                lat = float(data_fb[0]["lat"])
-                lon = float(data_fb[0]["lon"])
-                _GEO_CACHE[cache_key] = (lat, lon)
-                return lat, lon
-
-    except Exception as e:
-        print(f"[Geo API Error] Failed to resolve coordinates for '{cleaned_city}': {e}")
-
-    # Not found or error occurred
     _GEO_CACHE[cache_key] = (None, None)
     return None, None
 
 
-async def async_get_weather_by_coords(
-    client: httpx.AsyncClient,
-    lat: float,
-    lon: float,
-    city_name: Optional[str] = None
-) -> Optional[Dict[str, Any]]:
-    """
-    Asynchronously fetches weather data from OpenWeather using httpx with TTL caching.
-    Safely times out and catches errors to prevent blocking.
-    """
-    if lat is None or lon is None or not is_valid_api_key(API_KEY):
-        return None
-
-    cache_key = f"{round(lat, 2)},{round(lon, 2)}"
-    now = time.time()
-
-    # Check cache
-    if cache_key in _WEATHER_CACHE:
-        cached_data, timestamp = _WEATHER_CACHE[cache_key]
-        if now - timestamp < WEATHER_CACHE_TTL:
-            return cached_data
-
-    url = f"https://api.openweathermap.org/data/2.5/weather?lat={lat}&lon={lon}&appid={API_KEY}&units=metric"
-    try:
-        response = await client.get(url, timeout=2.5)
-        if response.status_code == 200:
-            data = response.json()
-            temperature = float(data["main"]["temp"])
-            humidity = float(data["main"]["humidity"])
-            wind_speed = float(data["wind"]["speed"])
-            pressure = float(data["main"].get("pressure", 1010))
-
-            rainfall = 0.0
-            if "rain" in data and isinstance(data["rain"], dict) and "1h" in data["rain"]:
-                rainfall = float(data["rain"]["1h"])
-
-            coord = data.get("coord", {})
-            res_lat = float(coord.get("lat", lat))
-            res_lon = float(coord.get("lon", lon))
-            res_name = data.get("name") or city_name or "Unknown"
-
-            weather_dict = {
-                "temperature": temperature,
-                "humidity": humidity,
-                "wind_speed": wind_speed,
-                "pressure": pressure,
-                "rainfall": rainfall,
-                "lat": res_lat,
-                "lon": res_lon,
-                "city_name": res_name
-            }
-            _WEATHER_CACHE[cache_key] = (weather_dict, now)
-            return weather_dict
-    except Exception:
-        pass
-
-    return None
-
-
 def get_weather_by_coords(lat: float, lon: float, city_name: Optional[str] = None) -> Optional[Dict[str, Any]]:
-    """
-    Synchronously fetches live weather data from OpenWeather using coordinates with TTL caching.
-    """
+    """OpenWeather current weather for one point (the /nowcast search), or None."""
     if lat is None or lon is None or not is_valid_api_key(API_KEY):
         return None
-
-    cache_key = f"{round(lat, 2)},{round(lon, 2)}"
-    now = time.time()
-    if cache_key in _WEATHER_CACHE:
-        cached_data, timestamp = _WEATHER_CACHE[cache_key]
-        if now - timestamp < WEATHER_CACHE_TTL:
-            return cached_data
-
-    url = f"https://api.openweathermap.org/data/2.5/weather?lat={lat}&lon={lon}&appid={API_KEY}&units=metric"
-    try:
-        response = requests.get(url, timeout=4)
-        if response.status_code == 200:
-            data = response.json()
-            temperature = float(data["main"]["temp"])
-            humidity = float(data["main"]["humidity"])
-            wind_speed = float(data["wind"]["speed"])
-            pressure = float(data["main"].get("pressure", 1010))
-
-            rainfall = 0.0
-            if "rain" in data and isinstance(data["rain"], dict) and "1h" in data["rain"]:
-                rainfall = float(data["rain"]["1h"])
-
-            coord = data.get("coord", {})
-            res_lat = float(coord.get("lat", lat))
-            res_lon = float(coord.get("lon", lon))
-            res_name = data.get("name") or city_name or "Unknown"
-
-            weather_dict = {
-                "temperature": temperature,
-                "humidity": humidity,
-                "wind_speed": wind_speed,
-                "pressure": pressure,
-                "rainfall": rainfall,
-                "lat": res_lat,
-                "lon": res_lon,
-                "city_name": res_name
-            }
-            _WEATHER_CACHE[cache_key] = (weather_dict, now)
-            return weather_dict
-    except Exception as e:
-        print(f"[Weather API Coords Error] lat={lat}, lon={lon}: {e}")
-
-    return None
+    w = fetch_openweather_point(lat, lon)
+    if w is None:
+        return None
+    return {**w, "lat": float(lat), "lon": float(lon), "city_name": city_name or "Unknown"}
 
 
 def get_weather_data(city_name: str) -> Optional[Dict[str, Any]]:
-    """
-    Fetches weather data for a given city name.
-    1. First resolves coordinates dynamically via get_coordinates(city_name).
-    2. If coordinates are found, fetches weather via coordinates.
-    3. If coordinates are not found, falls back to direct city-name query.
-    """
+    """Weather for a place name (utils/run_pipeline.py): geocode, then OpenWeather for that point."""
     if not city_name or not city_name.strip() or not is_valid_api_key(API_KEY):
         return None
-
     cleaned_name = city_name.strip()
-
-    # 1. Dynamic Geolocation
     lat, lon = get_coordinates(cleaned_name)
-    if lat is not None and lon is not None:
-        weather = get_weather_by_coords(lat, lon, city_name=cleaned_name)
-        if weather:
-            return weather
-
-    # 2. Fallback to direct query by city name
-    url = f"https://api.openweathermap.org/data/2.5/weather?q={cleaned_name}&appid={API_KEY}&units=metric"
-    try:
-        response = requests.get(url, timeout=4)
-        if response.status_code == 200:
-            data = response.json()
-            temperature = float(data["main"]["temp"])
-            humidity = float(data["main"]["humidity"])
-            wind_speed = float(data["wind"]["speed"])
-            pressure = float(data["main"].get("pressure", 1010))
-
-            rainfall = 0.0
-            if "rain" in data and isinstance(data["rain"], dict) and "1h" in data["rain"]:
-                rainfall = float(data["rain"]["1h"])
-
-            coord = data.get("coord", {})
-            res_lat = float(coord.get("lat")) if coord.get("lat") is not None else lat
-            res_lon = float(coord.get("lon")) if coord.get("lon") is not None else lon
-            res_name = data.get("name", cleaned_name)
-
-            return {
-                "temperature": temperature,
-                "humidity": humidity,
-                "wind_speed": wind_speed,
-                "pressure": pressure,
-                "rainfall": rainfall,
-                "lat": res_lat,
-                "lon": res_lon,
-                "city_name": res_name
-            }
-    except Exception as e:
-        print(f"[Weather API Name Error] Failed to fetch weather for '{cleaned_name}': {e}")
-
-    return None
+    if lat is None or lon is None:
+        return None
+    return get_weather_by_coords(lat, lon, city_name=cleaned_name)
 
 
 # ============================================================
@@ -524,7 +229,7 @@ def _describe_error(e: Exception) -> str:
         reason = ""
         try:
             body = e.response.json()
-            reason = str(body.get("reason", "")) if isinstance(body, dict) else ""
+            reason = str(body.get("reason") or body.get("message") or "") if isinstance(body, dict) else ""
         except Exception:  # noqa: BLE001 -- body is not JSON
             reason = e.response.text or ""
         return f"HTTP {e.response.status_code}: {reason.strip()}"[:160].rstrip(": ")
@@ -687,3 +392,249 @@ def fetch_open_meteo_point(lat: float, lon: float) -> Optional[Dict[str, Any]]:
         return asyncio.run(async_fetch_open_meteo([(lat, lon)]))[0]
     except RuntimeError:          # called inside a running loop: skip rather than block it
         return None
+
+
+# ============================================================
+# OpenWeather (OPENWEATHER_API_KEY set): Current Weather API 2.5, one call per point
+# (https://api.openweathermap.org/data/2.5/weather); place search uses the Geocoding API (geo/1.0/direct).
+# Free tier: 60 calls/minute, 1,000,000 calls/month (backend/assets/openweather_terms.json).
+# - Every call goes through one throttle: at most OPENWEATHER_MAX_PER_MIN in any rolling 60 s.
+# - Results are cached OPENWEATHER_TTL per point. The zone lists never wait for the network: they read
+#   this cache, and a background refresher fetches missing/expired points under the throttle.
+# - HTTP 429 and timeouts are retried like Open-Meteo; a final failure stops the refresh and starts a
+#   cooldown. Expired data is then served flagged stale; points with none fall back to Open-Meteo, then
+#   sample.
+# - The key goes only into the request parameters. It is never logged or returned: every error text is
+#   redacted before it is printed or stored.
+# ============================================================
+OPENWEATHER_URL = "https://api.openweathermap.org/data/2.5/weather"
+OPENWEATHER_GEO_URL = "https://api.openweathermap.org/geo/1.0/direct"
+OPENWEATHER_MAX_PER_MIN = 50       # the free tier allows 60/min
+OPENWEATHER_TTL = 3600.0           # s per point
+OPENWEATHER_TIMEOUT = 25.0
+OPENWEATHER_RETRIES = 2
+OPENWEATHER_COOLDOWN = 1800.0
+_OW_CACHE: Dict[Tuple[float, float], Tuple[Dict[str, Any], float]] = {}
+_OW_WANTED: Dict[Tuple[float, float], Tuple[float, float]] = {}      # points the zone lists need
+OPENWEATHER_STATS = {"requests": 0, "errors": 0, "retries": 0, "cache_hits": 0, "stale_served": 0}
+OPENWEATHER_STATUS: Dict[str, Any] = {"last_error": None, "last_error_at": None, "last_success_at": None,
+                                      "cooldown_until": None, "refresh_running": False}
+_ow_clock = time.time              # replaced in tests
+_ow_sleep = asyncio.sleep
+_ow_sleep_sync = time.sleep
+_ow_client_factory = lambda: httpx.AsyncClient(timeout=OPENWEATHER_TIMEOUT)   # noqa: E731
+_OW_TASK: Dict[str, Any] = {"task": None}
+
+
+class _OWFailed(Exception):
+    """An OpenWeather request failed after its retries (message already redacted)."""
+
+
+class CallThrottle:
+    """At most `n` calls in any rolling `window` seconds. reserve() books the earliest allowed slot and
+    returns how long to wait for it; thread-safe, so sync and async callers share one budget."""
+
+    def __init__(self, n: int, window: float = 60.0):
+        self.n, self.window = n, window
+        self.slots: deque = deque()
+        self.lock = threading.Lock()
+
+    def reserve(self, now: float) -> float:
+        with self.lock:
+            while self.slots and self.slots[0] <= now - self.window:
+                self.slots.popleft()
+            t = now if len(self.slots) < self.n else max(now, self.slots[-self.n] + self.window)
+            self.slots.append(t)
+            return t - now
+
+
+OW_THROTTLE = CallThrottle(OPENWEATHER_MAX_PER_MIN, 60.0)
+
+
+def _redact(text: str) -> str:
+    if is_valid_api_key(API_KEY):
+        text = text.replace(API_KEY.strip(), "***")
+    return re.sub(r"(appid=)[^&\s'\"]+", r"\1***", text)
+
+
+def _ow_cooling_down(now: float) -> bool:
+    until = OPENWEATHER_STATUS.get("cooldown_ts")
+    return until is not None and now < until
+
+
+def _ow_fail(desc: str) -> None:
+    now = _ow_clock()
+    OPENWEATHER_STATUS["cooldown_ts"] = now + OPENWEATHER_COOLDOWN
+    OPENWEATHER_STATUS["cooldown_until"] = _iso(now + OPENWEATHER_COOLDOWN)
+    raise _OWFailed(desc)
+
+
+def _ow_error(e: Exception, attempt: int) -> Optional[float]:
+    """Record one failed attempt; return the wait before retrying, or None when it must not be retried."""
+    OPENWEATHER_STATS["errors"] += 1
+    desc = _redact(_describe_error(e))
+    OPENWEATHER_STATUS["last_error"] = desc
+    OPENWEATHER_STATUS["last_error_at"] = _iso(time.time())
+    wait = _retry_wait(e, attempt) if attempt <= OPENWEATHER_RETRIES else None
+    print(f"[OPENWEATHER] request failed (attempt {attempt}): {desc}"
+          + (f"; retrying in {wait:.0f} s" if wait is not None else ""))
+    return wait
+
+
+def _ow_params(params: Dict[str, Any]) -> Dict[str, Any]:
+    return {**params, "appid": API_KEY.strip(), "units": "metric"}
+
+
+async def _ow_request(client: httpx.AsyncClient, url: str, params: Dict[str, Any]) -> Any:
+    attempt = 0
+    while True:
+        attempt += 1
+        wait = OW_THROTTLE.reserve(_ow_clock())
+        if wait > 0:
+            await _ow_sleep(wait)
+        OPENWEATHER_STATS["requests"] += 1
+        try:
+            r = await client.get(url, params=_ow_params(params), timeout=OPENWEATHER_TIMEOUT)
+            r.raise_for_status()
+            data = r.json()
+            OPENWEATHER_STATUS["last_success_at"] = _iso(time.time())
+            return data
+        except Exception as e:  # noqa: BLE001
+            wait = _ow_error(e, attempt)
+            if wait is None:
+                _ow_fail(OPENWEATHER_STATUS["last_error"])
+            OPENWEATHER_STATS["retries"] += 1
+            await _ow_sleep(wait)
+
+
+def _ow_request_sync(url: str, params: Dict[str, Any]) -> Any:
+    attempt = 0
+    while True:
+        attempt += 1
+        wait = OW_THROTTLE.reserve(_ow_clock())
+        if wait > 0:
+            _ow_sleep_sync(wait)
+        OPENWEATHER_STATS["requests"] += 1
+        try:
+            r = httpx.get(url, params=_ow_params(params), timeout=OPENWEATHER_TIMEOUT)
+            r.raise_for_status()
+            data = r.json()
+            OPENWEATHER_STATUS["last_success_at"] = _iso(time.time())
+            return data
+        except Exception as e:  # noqa: BLE001
+            wait = _ow_error(e, attempt)
+            if wait is None:
+                _ow_fail(OPENWEATHER_STATUS["last_error"])
+            OPENWEATHER_STATS["retries"] += 1
+            _ow_sleep_sync(wait)
+
+
+def parse_openweather(data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """One Current Weather response -> the inputs the rules use; None if incomplete.
+    Rain: `rain.1h` (mm in the last hour); the key is absent when there is no rain (-> 0.0). A response
+    with only `rain.3h` (a 3-hour sum) is not used as a one-hour value."""
+    try:
+        main, wind = data["main"], data.get("wind") or {}
+        temp, hum, ws = main.get("temp"), main.get("humidity"), wind.get("speed")
+        if temp is None or hum is None or ws is None:
+            return None
+        rain_obj = data.get("rain") or {}
+        if "1h" in rain_obj:
+            rain = float(rain_obj["1h"])
+        elif rain_obj:
+            return None
+        else:
+            rain = 0.0
+        t = observed_at(data)
+        desc = ((data.get("weather") or [{}])[0] or {}).get("description")
+        out = {
+            "temperature": round(float(temp), 1), "humidity": round(float(hum), 1), "rainfall": round(rain, 1),
+            "wind_speed": round(float(ws), 1), "wind": round(float(ws), 1),
+            "conditions": desc[:1].upper() + desc[1:] if desc else None,
+            "source": "openweather", "observed_at": t, "data_time": t,
+        }
+        if main.get("pressure") is not None:
+            out["pressure"] = round(float(main["pressure"]), 1)
+        return out
+    except (KeyError, TypeError, ValueError, IndexError, AttributeError):
+        return None
+
+
+def fetch_openweather_point(lat: float, lon: float) -> Optional[Dict[str, Any]]:
+    """One point, synchronously (searches): cache, else one throttled request; None on failure,
+    in cooldown, or without a key (the caller then uses Open-Meteo, then sample)."""
+    if not is_valid_api_key(API_KEY):
+        return None
+    key = _om_key(lat, lon)
+    now = _ow_clock()
+    hit = _OW_CACHE.get(key)
+    if hit and now - hit[1] < OPENWEATHER_TTL:
+        OPENWEATHER_STATS["cache_hits"] += 1
+        return dict(hit[0])
+    if not _ow_cooling_down(now):
+        try:
+            w = parse_openweather(_ow_request_sync(OPENWEATHER_URL, {"lat": float(lat), "lon": float(lon)}))
+            if w:
+                _OW_CACHE[key] = (w, _ow_clock())
+                return dict(w)
+        except _OWFailed:
+            pass
+    if hit:
+        OPENWEATHER_STATS["stale_served"] += 1
+        return {**hit[0], "stale": True}
+    return None
+
+
+async def _ow_refresh() -> None:
+    """Fetch every wanted point whose data is missing or expired, under the throttle; stop at the
+    first final failure (cooldown)."""
+    OPENWEATHER_STATUS["refresh_running"] = True
+    try:
+        async with _ow_client_factory() as cl:
+            while True:
+                now = _ow_clock()
+                todo = [p for k, p in list(_OW_WANTED.items())
+                        if not (_OW_CACHE.get(k) and now - _OW_CACHE[k][1] < OPENWEATHER_TTL)]
+                if not todo or _ow_cooling_down(now):
+                    return
+                for la, lo in todo:
+                    if _ow_cooling_down(_ow_clock()):
+                        return
+                    try:
+                        data = await _ow_request(cl, OPENWEATHER_URL, {"lat": la, "lon": lo})
+                    except _OWFailed:
+                        return
+                    w = parse_openweather(data)
+                    if w:
+                        _OW_CACHE[_om_key(la, lo)] = (w, _ow_clock())
+    finally:
+        OPENWEATHER_STATUS["refresh_running"] = False
+
+
+def openweather_zones(points: List[Tuple[float, float]]) -> List[Optional[Dict[str, Any]]]:
+    """The zone lists' OpenWeather values, from the cache only (never waits for the network): fresh,
+    else expired flagged stale, else None. Starts the background refresher for missing/expired points."""
+    now = _ow_clock()
+    out: List[Optional[Dict[str, Any]]] = []
+    need = False
+    for la, lo in points:
+        k = _om_key(la, lo)
+        _OW_WANTED.setdefault(k, (float(la), float(lo)))
+        hit = _OW_CACHE.get(k)
+        if hit and now - hit[1] < OPENWEATHER_TTL:
+            out.append(dict(hit[0]))
+            OPENWEATHER_STATS["cache_hits"] += 1
+        else:
+            need = True
+            if hit:
+                out.append({**hit[0], "stale": True})
+                OPENWEATHER_STATS["stale_served"] += 1
+            else:
+                out.append(None)
+    task = _OW_TASK["task"]
+    if need and is_valid_api_key(API_KEY) and not _ow_cooling_down(now) and (task is None or task.done()):
+        try:
+            _OW_TASK["task"] = asyncio.get_running_loop().create_task(_ow_refresh())
+        except RuntimeError:        # no running loop (sync caller): nothing is started
+            pass
+    return out

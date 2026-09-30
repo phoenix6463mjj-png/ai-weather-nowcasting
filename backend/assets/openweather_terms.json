@@ -1,0 +1,40 @@
+{
+ "checked": "2026-10-01",
+ "provider": "OpenWeather (https://openweathermap.org)",
+ "how_checked": "Every quote below is an exact match in the page text fetched 2026-10-01 (HTML with tags stripped and whitespace collapsed).",
+ "endpoints_used": {
+  "current_weather": "https://api.openweathermap.org/data/2.5/weather (lat, lon, units=metric): one call per point",
+  "geocoding": "https://api.openweathermap.org/geo/1.0/direct (place search only; results cached for the process)"
+ },
+ "facts": [
+  {
+   "topic": "free tier limits (Current Weather API)",
+   "quote": "60 API calls/minute, 1,000,000 calls/month",
+   "url": "https://openweathermap.org/price",
+   "values": {"per_minute": 60, "per_month": 1000000},
+   "note": "This backend: at most 50 calls in any rolling 60 s, every point cached 60 min. Worst case 407 distinct points (380-zone list + 27 extra in the 100-zone list) x 24 refreshes = 9,768 calls/day, about 303,000 in a 31-day month."
+  },
+  {
+   "topic": "licence",
+   "quote": "All automated self-service plans are provided under the ODbL (Open Database License). Commercial use is allowed.",
+   "url": "https://openweathermap.org/full-price#licenses"
+  },
+  {
+   "topic": "attribution line",
+   "quote": "Weather data © OpenWeather",
+   "url": "https://openweathermap.org/full-price#licenses",
+   "attribution_link": "https://openweathermap.org/",
+   "licence_link": "https://opendatacommons.org/licenses/odbl/"
+  },
+  {
+   "topic": "where the attribution goes",
+   "quote": "In most commercial use cases, you only need to provide attribution on the screen or page where weather data appears.",
+   "url": "https://openweathermap.org/full-price#licenses"
+  },
+  {
+   "topic": "not sufficient",
+   "quote": "Attribution placed only in hidden documentation or deep legal pages is not sufficient.",
+   "url": "https://openweathermap.org/full-price#licenses"
+  }
+ ]
+}

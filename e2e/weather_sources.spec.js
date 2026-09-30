@@ -11,7 +11,7 @@ const TIME = '2026-09-29T13:45:00Z';
 const SAMPLE = 'Sample data — no live weather feed';
 const EXPECT = {
     sample: { badge: SAMPLE, credit: 0, live: false },
-    openweather: { badge: 'OpenWeather, observed 13:45 UTC', credit: 0, live: true },
+    openweather: { badge: 'OpenWeather (current weather), updated 13:45 UTC', credit: 0, live: true },
     'open-meteo': { badge: 'Open-Meteo (model data), updated 13:45 UTC', credit: 1, live: true },
 };
 
@@ -54,6 +54,9 @@ for (const src of ['sample', 'openweather', 'open-meteo']) {
         await expect(page.getByTestId('sidebar-live')).toHaveCount(e.live ? 1 : 0);
         if (src === 'open-meteo') await expect(page.getByTestId('open-meteo-credit').first()).toBeVisible();
         else await expect(page.getByTestId('open-meteo-credit')).toHaveCount(0);
+        // OpenWeather terms: "Weather data © OpenWeather" on the screen where its data appear
+        if (src === 'openweather') await expect(page.getByTestId('openweather-credit').first()).toContainText('Weather data © OpenWeather');
+        else await expect(page.getByTestId('openweather-credit')).toHaveCount(0);
         // sample data: the safety net replaces every rule-based indicator (sample_safety.spec.js)
         if (src === 'sample') {
             await expect(page.getByTestId('sample-safety-net')).toBeVisible();

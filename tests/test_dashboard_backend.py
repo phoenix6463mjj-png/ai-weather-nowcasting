@@ -59,6 +59,8 @@ def test_weather_source_is_labelled_and_https_only(monkeypatch):
     assert api_fetcher.observed_at({}) is None
 
 
-def test_zone_list_cache_is_30_min_with_a_key():
-    main_src = (ROOT / "backend" / "main.py").read_text(encoding="utf-8")
-    assert "UNIFIED_CACHE_TTL = 1800.0 if is_valid_api_key(API_KEY) else 300.0" in main_src
+def test_openweather_limits_with_a_key():
+    # the call limits now come from the per-point cache (>= 60 min) and the throttle (<= 50/min, free
+    # tier 60/min); the zone list itself reads only the cache (tests/test_openweather.py)
+    assert api_fetcher.OPENWEATHER_TTL >= 3600
+    assert api_fetcher.OPENWEATHER_MAX_PER_MIN <= 50

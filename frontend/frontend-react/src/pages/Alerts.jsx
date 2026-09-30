@@ -5,6 +5,7 @@ import { fetchWithWake, WAKE_UNAVAILABLE } from '../utils/serverWake';
 import { fetchedLabel, isLiveSource, isSampleSource, isUnratedZone, mixedCounts, parseUtcIso, sourceBadge, unratedNote } from '../utils/dashboardRisk';
 import SampleSafetyNotice from '../components/SampleSafetyNotice';
 import OpenMeteoCredit from '../components/OpenMeteoCredit';
+import OpenWeatherCredit from '../components/OpenWeatherCredit';
 import {
     ArrowLeft,
     RefreshCw,
@@ -265,9 +266,10 @@ const Alerts = () => {
                                 <span className="inline-flex flex-col items-end">
                                     <span data-testid="alerts-source-badge" data-source={weatherSource} className="inline-flex items-center gap-1.5 whitespace-nowrap px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
                                         <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                                        {weatherSource === 'open-meteo' ? `Live Feed · ${sourceBadge(weatherSource, null, dataTime)}` : 'Live Feed'}
+                                        {`Live Feed · ${sourceBadge(weatherSource, null, dataTime)}`}
                                     </span>
                                     {weatherSource === 'open-meteo' && <OpenMeteoCredit className="mt-0.5" />}
+                                    {weatherSource === 'openweather' && <OpenWeatherCredit className="mt-0.5" />}
                                 </span>
                             ) : (
                                 <span className="inline-flex flex-col items-end">
@@ -276,6 +278,7 @@ const Alerts = () => {
                                     {error ? 'Server unavailable' : weatherSource ? sourceBadge(weatherSource, null, dataTime, summary, alerts) : 'Loading…'}
                                 </span>
                                 {mixed && !error && mixedCounts(summary, alerts).openMeteo > 0 && <OpenMeteoCredit className="mt-0.5" />}
+                                {mixed && !error && mixedCounts(summary, alerts).openWeather > 0 && <OpenWeatherCredit className="mt-0.5" />}
                                 </span>
                             )}
                             <span className="text-xs text-gray-500 dark:text-gray-400 hidden sm:inline whitespace-nowrap">

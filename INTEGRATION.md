@@ -91,7 +91,7 @@ front, call `Invoke-RestMethod -Method Post http://127.0.0.1:8000/ml/replay/warm
 | `ML_CORS_ORIGINS` | ML serve | `http://localhost:5173,http://127.0.0.1:5173` | browser origins allowed to call `:8001` directly |
 | `NOWCAST_REPLAY_INPUTS` | ML serve | `<root>/raw`, else `<root>/demo_inputs` | archived inputs for on-demand replay |
 | `NOWCAST_REPLAY_TIMEOUT_S` | ML serve | `25` | replay request timeout (the run itself completes and is cached) |
-| `OPENWEATHER_API_KEY` | team backend | none | team pages only; never in code. Weather source order: OpenWeather if this key is set, else **Open-Meteo** (no key, model data), else **sample data**. With a key, the zone list is cached 30 min (free-tier limits) |
+| `OPENWEATHER_API_KEY` | team backend | none | team pages only; never in code, never logged. Weather source order per zone: OpenWeather if this key is set, else **Open-Meteo** (no key, model data), else **sample data**. With a key: ≤ 50 calls/min, each point cached 60 min (A3) |
 | `OPEN_METEO_DISABLED` | team backend | unset | set to `1` to skip Open-Meteo (then: sample data without a key) |
 
 `VITE_ML_API_BASE`, `VITE_API_BASE` and `ML_API_URL` are the only service URLs. The defaults are the
@@ -714,7 +714,7 @@ What is hidden on sample data:
 **Pages (mixed list = some zones sample, some with weather data):**
 - **Badge** (from the real counts): "Open-Meteo (model data) for N of 380 zones, updated HH:MM UTC".
   - When the zones' model times differ, it shows the range, "updated HH:MM–HH:MM UTC".
-  - For OpenWeather: "OpenWeather for N of T zones, observed HH:MM UTC".
+  - For OpenWeather: "OpenWeather (current weather) for N of T zones, updated HH:MM UTC" (A3).
   - The Open-Meteo credit is shown next to it.
 - **"/":**
   - the banner counts rated zones only ("(rule-based, zones with weather data only)");
@@ -751,6 +751,100 @@ What is hidden on sample data:
   - Screenshots `mixed_*` at 1920×1080 and 1366×768, and `analytics_unavailable_1600x1000.png`.
 - `honesty_batch1` (backend-down Analytics) and `sample_safety` (panel wording) updated.
 
+### A3: OpenWeather path + Key Insights (1 Oct 2026)
+
+On Render, Open-Meteo answers "HTTP 429: Daily API request limit exceeded" (a shared outgoing IP), so the
+OpenWeather path, used when `OPENWEATHER_API_KEY` is set, was made safe for the free tier.
+
+**Before (audit):**
+- Endpoint: Current Weather API 2.5, `https://api.openweathermap.org/data/2.5/weather` (lat, lon), one
+  call per point. Place search also used the Geocoding API (`geo/1.0/direct`, 1–2 calls per new name).
+- One refresh of the 380-zone list = 380 calls, fired 20 at a time with no throttle. That is far above
+  the free tier's 60 calls/minute, so bursts would be refused with 429.
+- The list was cached 30 min, and the 100-zone list (Forecast/Analytics; 27 of its points are not in
+  the 380) was cached separately. Per-point cache 5 min.
+- With pages open all day this is up to 380 × 48 + 100 × 48 = 23,040 calls/day.
+- On failure a zone went straight to sample data (no Open-Meteo fallback).
+- Error lines printed the exception text, and a `requests` exception includes the URL with `appid=`.
+  The key could reach the log.
+
+**Now (`utils/api_fetcher.py`, `backend/main.py`):**
+- **One throttle** (`CallThrottle`) for every OpenWeather call (zone lists, searches, geocoding):
+  at most 50 in any rolling 60 s. The free tier is 60/min.
+- **Per-point cache 60 min** (`OPENWEATHER_TTL`).
+- **The zone lists never wait for the network.**
+  - They read the OpenWeather cache only.
+  - A background refresher fetches missing or expired points under the throttle. A full 380-zone
+    refresh takes about 7.6 min.
+  - The list is rebuilt every 2 min to show its progress. The rebuild itself makes no OpenWeather call.
+- **Daily total:** at most 407 distinct points (380 + 27) × 24 = 9,768 calls/day, about 303,000 in a
+  31-day month. The free tier allows 1,000,000/month. Place searches add a few calls each.
+- **Retry:** HTTP 429 and timeouts (25 s) are retried twice, with `Retry-After` or else 2 s then 4 s,
+  as for Open-Meteo.
+- **After a final failure:**
+  - the refresh stops and a 30-min cooldown starts;
+  - expired data is served flagged stale (`zone_source` `openweather_stale`, with its real time);
+  - points with no data fall back to Open-Meteo, then to sample.
+  - Searches (`/predict`, `/nowcast`) also fall back to Open-Meteo, then sample.
+- **Startup warm-up** also runs with a key. It only starts the throttled refresher, so it never
+  bursts.
+- **`/weather_source` → `openweather`:**
+  - `last_error` / `last_error_at` / `last_success_at` / `cooldown_until`;
+  - `refresh_running`, the request counters, `max_calls_per_min`, `cache_s`;
+  - `openweather_key_set` (true/false).
+  - Never the key: it is sent only as a request parameter, and every error text is redacted
+    (`appid=***`) before it is stored or printed.
+- **Rain:** `rain.1h` (mm in the last hour), 0 when OpenWeather omits `rain`. A response with only
+  `rain.3h` is not used as a one-hour value.
+- **Data time:** OpenWeather's `dt`.
+- `requests` is no longer used by `api_fetcher.py`. The unused `async_fetch_weather` /
+  `async_get_weather_by_coords` are removed.
+
+**Pages:**
+- Badge: "OpenWeather (current weather), updated HH:MM UTC" (never "observed").
+- Mixed lists: "OpenWeather (current weather) for N of 380 zones, updated HH:MM UTC". With Open-Meteo
+  zones too, a second part "; Open-Meteo (model data) for M of 380 zones, updated HH:MM UTC". Each part
+  uses its own source's times (`summary.source_times`).
+- The sample safety net and the per-zone sample rule are unchanged.
+- **Attribution** (OpenWeather terms: "Weather data © OpenWeather", on the screen where the data
+  appear): `OpenWeatherCredit.jsx` next to the badge on "/", Alerts, Forecast and Analytics and in the
+  Dashboard panel.
+  - Plus an `openweather` entry in the team credits (`nowcast_data/serve/assets/credits/SOURCES.json`).
+  - Quotes and limits are in `backend/assets/openweather_terms.json`. They are an exact match in the
+    page text fetched 2026-10-01 (openweathermap.org/price and /full-price#licenses).
+
+**Analytics Key Insights:** every sentence is built from the zones' own values. The fixed templates
+("…precipitation exceeding 20 mm/hr", "coastal and delta corridors", "Southern and Western sectors",
+"latent heat flux…") are removed.
+- "Rule-based HIGH in K of N zones. <city>: <rule(s) fired> (rain X mm in the last hour)." Up to 3
+  zones, most rain first.
+- Or: "No zone at rule-based HIGH; M of N zones at MODERATE."
+- "Wind: average A m/s across N zones; highest B m/s at <city>."
+- "Relative humidity: average A % across N zones; highest B % at <city>."
+
+**Tests:**
+- `tests/test_openweather.py` (11, all mocked, simulated clock, fake key):
+  - success, with the endpoint and parameters checked;
+  - 60-min cache;
+  - `rain.1h` only;
+  - 429 → Retry-After → success;
+  - throttle: 380 calls, never more than 50 in 60 s, sync callers share the budget;
+  - timeouts → stale data + cooldown;
+  - all fail → Open-Meteo → sample;
+  - mixed OpenWeather/sample list;
+  - searches fall back;
+  - `/weather_source` shows the redacted error, and the key appears in no output;
+  - warm-up with a key stays under the throttle;
+  - the terms record matches the limits.
+- `e2e/openweather.spec.js` (6):
+  - badges and attribution for all-OpenWeather, OpenWeather + sample, and three sources;
+  - Key Insights with a HIGH zone that has 0.4 mm rain (its only rain figure is 0.4 mm; no "exceeding",
+    "mm/hr", "20 mm" or place-region text);
+  - no-HIGH case;
+  - screenshots `openweather_dashboard_*` / `openweather_analytics_*` at 1920×1080 and 1366×768.
+- Updated: `weather_sources`, `dashboard`, `forecast_leftovers` (new OpenWeather wording, credit),
+  `credits` (team list), and `serve/tests/test_credits.py`.
+
 ## 7. Troubleshooting
 
 | symptom | cause / fix |
@@ -761,6 +855,7 @@ What is hidden on sample data:
 | `503 a replay is already running` | only one replay runs at a time (8 GB laptop) |
 | `npm run dev` fails with an engine or syntax error | the wrong Node is on PATH. Run the PATH line above; `node -v` must print v24.19.0 |
 | tiles missing | the base map uses OpenStreetMap tiles and needs internet access |
+| badge shows fewer OpenWeather zones than expected | the refresher is still working through the zones (≤ 50/min, ~7.6 min for 380) or is in cooldown: `GET /weather_source` → `openweather.refresh_running`, `last_error`, `cooldown_until` |
 | team pages say "Sample data — no live weather feed" | Open-Meteo failed and nothing was cached. `GET /weather_source` → `open_meteo.last_error` says why (HTTP status or exception); `cooldown_until` says when the next request is allowed |
 
 ## 8. Attributions (all shown in the UI)
@@ -769,6 +864,7 @@ What is hidden on sample data:
 |---|---|---|
 | Copernicus DEM GLO-90 | terrain hillshade (ML Nowcast, Dashboard "Terrain") | "produced using Copernicus WorldDEM-90 © DLR e.V. 2010-2014 and © Airbus Defence and Space GmbH 2014-2018 provided under COPERNICUS by the European Union and ESA; all rights reserved", verbatim in the Data credits footer + licence and DOI links (`serve/assets/terrain/ATTRIBUTION.md`) |
 | INSAT-3DR via MOSDAC | INSAT layer + Event-check rows (REF045, REF051) | "Data Source MOSDAC/SAC/ISRO. https://mosdac.gov.in" + DOI https://doi.org/10.19038/SAC/10/3RIMG_L1C_ASIA_MER in the footer (`serve/assets/insat/ATTRIBUTION.md`). Only value-added derivatives are shipped, never raw files |
+| OpenWeather (ODbL) | team pages' weather when `OPENWEATHER_API_KEY` is set: "/", Forecast, Alerts, Analytics | "Weather data © OpenWeather" (link) + ODbL link + "current weather, used as input to rule-based indicators", next to every place its data appear (`OpenWeatherCredit.jsx`); team credits entry `openweather`. Terms, limits and quotes: `backend/assets/openweather_terms.json` |
 | Open-Meteo (CC BY 4.0) | team pages' weather when no OpenWeather key is set: "/", Forecast, Alerts, Analytics | "Weather data by Open-Meteo.com" (link) + CC BY 4.0 link + "model data, used as input to rule-based indicators", next to every place its data appear (`OpenMeteoCredit.jsx`). Terms, limits and quotes: `backend/assets/open_meteo_terms.json` |
 | NASA GIBS | Dashboard "Satellite" (VIIRS SNPP corrected reflectance, yesterday UTC) | map attribution "Imagery: NASA GIBS (ESDIS), VIIRS SNPP corrected reflectance, <date>" |
 | OpenStreetMap | all base maps | "© OpenStreetMap contributors" (map attribution); tiles from `https://tile.openstreetmap.org` under the OSM tile usage policy (light use) |
@@ -804,7 +900,8 @@ What is hidden on sample data:
   Position uncertainty is ≈ 5–10 km. The product's lookup table stops at 179.9 K, so the coldest tops
   are shown as "≤180 K" and no cooling rate is computed there.
 - **Weather on the team pages:**
-  - Order: OpenWeather (key set) → **Open-Meteo** (no key) → sample data.
+  - Order per zone: OpenWeather (key set; throttled ≤ 50 calls/min, cached 60 min, stale when a refresh
+    fails) → **Open-Meteo** → sample data (A3).
   - Open-Meteo gives **model data, not observations**. Its "current" values are 15-minutely model data,
     and rain is the hourly precipitation sum of the preceding hour. The badge says "Open-Meteo (model
     data), updated HH:MM UTC" and never "observed".
@@ -818,11 +915,12 @@ What is hidden on sample data:
   - In a mixed list, each sample zone carries no risk. It is grey on the map, has no card, and is left
     out of every count and chart; the badge states the real counts.
   - With the server unavailable, Analytics shows no figures (the built-in example cities are gone).
-  - Still rule-based text on the pages with weather data:
-    - the Analytics Key Insights sentences are fixed templates, e.g. "…with precipitation exceeding
-      20 mm/hr" whenever a HIGH zone is listed (not checked against the zone's rain);
-    - the Rainfall Trend chart is illustrative (multiples of the average; banner "Illustrative
-      figures").
+  - Analytics Key Insights are built from the zones' own values (A3).
+  - Still illustrative: the Analytics Rainfall Trend chart (multiples of the average; banner
+    "Illustrative figures").
+  - Primary Threat and hazard levels come from fixed rule scores. A HIGH zone with any rain above
+    0.0 mm gets flash-flood score 0.85 and so shows "Flash Flood", even with 0.4 mm (seen in the A3
+    screenshots). Not changed.
   - Measured on 29 Sep 2026: 380 zones = 4 requests in ≈ 2.0 s; a repeat within the cache = 0 requests
     (0.06 s); the Forecast/Analytics list of 100 = 1 request (27 new points, 73 cached).
   - `GET /weather_source` shows the order and the Open-Meteo counters (no secrets).

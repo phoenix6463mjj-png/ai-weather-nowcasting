@@ -102,7 +102,7 @@ test('no warning banner with 0 HIGH zones: neutral info strip; warning banner on
     const p2 = await page.context().newPage();
     await mockZones(p2, [HIGH, MOD], 'Highville');
     await p2.goto('/');
-    await expect(p2.getByTestId('alert-banner-text')).toHaveText('High Risk in 1 locations');
+    await expect(p2.getByTestId('alert-banner-text')).toHaveText('High Risk in 1 location');
     await expect(p2.getByTestId('info-strip')).toHaveCount(0);
 });
 

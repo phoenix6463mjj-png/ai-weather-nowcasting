@@ -5,6 +5,7 @@ import { fetchWithWake, WAKE_UNAVAILABLE } from '../utils/serverWake';
 import { isLiveSource, isMixedList, isSampleSource, isUnratedZone, mixedBadge, mixedCounts, sourceBadge, sourceShort, unratedNote, zonesSummary } from '../utils/dashboardRisk';
 import SampleSafetyNotice from '../components/SampleSafetyNotice';
 import OpenMeteoCredit from '../components/OpenMeteoCredit';
+import OpenWeatherCredit from '../components/OpenWeatherCredit';
 import HonestyBanner from '../components/HonestyBanner';
 import {
     CloudRain,
@@ -485,6 +486,7 @@ const Forecast = () => {
                                 {sourceText}
                             </p>
                             {weatherSource === 'open-meteo' && <OpenMeteoCredit />}
+                            {weatherSource === 'openweather' && <OpenWeatherCredit />}
                             {listMixed && (
                                 <p data-testid="forecast-list-source" className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 mt-0.5">
                                     Node list: {mixedBadge(zonesSummary(citiesList), citiesList)}; {unratedNote(mixedCounts(null, citiesList).sample)}.

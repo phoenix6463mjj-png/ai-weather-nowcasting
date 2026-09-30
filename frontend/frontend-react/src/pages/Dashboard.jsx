@@ -5,6 +5,7 @@ import { fetchWithWake, isServerUnavailable, WAKE_UNAVAILABLE } from '../utils/s
 import { RISK_COLOURS, isLiveSource, isSampleSource, isUnratedZone, mixedCounts, sourceBadge } from '../utils/dashboardRisk';
 import SampleSafetyNotice from '../components/SampleSafetyNotice';
 import OpenMeteoCredit from '../components/OpenMeteoCredit';
+import OpenWeatherCredit from '../components/OpenWeatherCredit';
 import NominatimCredit from '../components/NominatimCredit';
 import { geocode, SupersededError } from '../utils/nominatim';
 import Sidebar from '../components/Sidebar';
@@ -360,6 +361,7 @@ const Dashboard = () => {
                                                 {loading && allCities.length > 0 ? "Updating…" : badgeText}
                                             </span>
                                             {(badgeSource === 'open-meteo' || (mixed && mixedCounts(summary, allCities).openMeteo > 0)) && <OpenMeteoCredit />}
+                                            {(badgeSource === 'openweather' || (mixed && mixedCounts(summary, allCities).openWeather > 0)) && <OpenWeatherCredit />}
                                         </span>
                                     </div>
                                 </div>

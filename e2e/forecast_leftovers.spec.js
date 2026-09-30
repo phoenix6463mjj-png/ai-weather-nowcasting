@@ -46,7 +46,7 @@ for (const [risk, rules, level, fired] of [
     });
 }
 
-for (const [source, name] of [['open-meteo', 'Open-Meteo model data'], ['openweather', 'OpenWeather observations']]) {
+for (const [source, name] of [['open-meteo', 'Open-Meteo model data'], ['openweather', 'OpenWeather current weather']]) {
     test(`"Rule-based summary" names the weather source: ${source}`, async ({ page }) => {
         await open(page, [zone('Mumbai', 'MODERATE', ['Humidity above 70 %'], source)]);
         await expect(page.getByTestId('forecast-summary-title')).toHaveText('Rule-based summary');

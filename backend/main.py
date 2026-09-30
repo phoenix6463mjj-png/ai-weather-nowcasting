@@ -35,8 +35,9 @@ load_dotenv()
 
 from utils.api_fetcher import (
     get_coordinates, get_weather_by_coords, get_fallback_mock,
-    fetch_weather, async_fetch_weather, _GEO_CACHE, API_KEY, is_valid_api_key,
+    fetch_weather, _GEO_CACHE, API_KEY, is_valid_api_key,
     async_fetch_open_meteo, fetch_open_meteo_point, OPEN_METEO_STATS, OPEN_METEO_STATUS, OPEN_METEO_ENABLED,
+    openweather_zones, OPENWEATHER_STATS, OPENWEATHER_STATUS, OPENWEATHER_MAX_PER_MIN, OPENWEATHER_TTL,
 )
 from utils.locations_manager import (
     get_india_locations, get_sampled_locations, find_location_by_name,
@@ -100,8 +101,14 @@ def weather_source():
     om = dict(OPEN_METEO_STATS)
     # last_error: HTTP status or exception class + a short message; times are UTC
     om.update({k: OPEN_METEO_STATUS.get(k) for k in ("last_error", "last_error_at", "last_success_at", "cooldown_until")})
-    return {"order": ["openweather (OPENWEATHER_API_KEY set)", "open-meteo", "open-meteo (stale)", "sample"],
-            "openweather_key_set": is_valid_api_key(API_KEY), "open_meteo": om}
+    ow = dict(OPENWEATHER_STATS)
+    ow.update({k: OPENWEATHER_STATUS.get(k) for k in ("last_error", "last_error_at", "last_success_at",
+                                                        "cooldown_until", "refresh_running")})
+    ow.update({"max_calls_per_min": OPENWEATHER_MAX_PER_MIN, "cache_s": OPENWEATHER_TTL})
+    # never the key itself: only whether one is set
+    return {"order": ["openweather (OPENWEATHER_API_KEY set)", "openweather (stale)", "open-meteo",
+                      "open-meteo (stale)", "sample"],
+            "openweather_key_set": is_valid_api_key(API_KEY), "openweather": ow, "open_meteo": om}
 
 
 _WARMUP_TASKS: List[Any] = []
@@ -110,8 +117,9 @@ _WARMUP_TASKS: List[Any] = []
 @app.on_event("startup")
 async def warm_weather_cache():
     """Fill the zone list once, in the background, at startup (never blocks /health).
-    WEATHER_WARMUP=0 turns it off (tests)."""
-    if os.environ.get("WEATHER_WARMUP", "1") == "0" or is_valid_api_key(API_KEY) or not OPEN_METEO_ENABLED:
+    WEATHER_WARMUP=0 turns it off (tests). With an OpenWeather key this starts the throttled refresher
+    (at most OPENWEATHER_MAX_PER_MIN calls per minute), so the warm-up never bursts."""
+    if os.environ.get("WEATHER_WARMUP", "1") == "0" or (not is_valid_api_key(API_KEY) and not OPEN_METEO_ENABLED):
         return
 
     async def run():
@@ -531,7 +539,7 @@ def predict_risk(request: PredictionRequest):
 # ============================================================
 
 # Per-zone weather source: which data the zone's values came from
-ZONE_SOURCES = ("openweather", "open_meteo", "open_meteo_stale", "sample")
+ZONE_SOURCES = ("openweather", "openweather_stale", "open_meteo", "open_meteo_stale", "sample")
 SAMPLE_ZONE_NOTE = "Sample data — risk not shown"
 
 
@@ -539,14 +547,20 @@ def zone_source_of(source: Optional[str], stale: bool = False) -> str:
     if source == "open-meteo":
         return "open_meteo_stale" if stale else "open_meteo"
     if source == "openweather":
-        return "openweather"
+        return "openweather_stale" if stale else "openweather"
     return "sample"
 
 
 _UNIFIED_ALERTS_CACHE: Dict[int, Tuple[Dict[str, Any], float]] = {}
-# >= 30 min with a real OpenWeather key (free-tier call limits: 380 zones per refresh), else 5 min
-UNIFIED_CACHE_TTL = 1800.0 if is_valid_api_key(API_KEY) else 300.0
+UNIFIED_CACHE_TTL = 300.0
+# With a key the zone list only reads the OpenWeather cache (the throttled refresher fills it), so it is
+# rebuilt every 2 min to show the refresher's progress; this makes no OpenWeather call.
+UNIFIED_CACHE_TTL_KEY = 120.0
 _UNIFIED_LOCK = asyncio.Lock()
+
+
+def unified_ttl() -> float:
+    return UNIFIED_CACHE_TTL_KEY if is_valid_api_key(API_KEY) else UNIFIED_CACHE_TTL
 
 
 async def get_unified_alerts_dataset(limit: int = 380) -> Dict[str, Any]:
@@ -567,14 +581,14 @@ async def get_unified_alerts_dataset(limit: int = 380) -> Dict[str, Any]:
 
     if safe_limit in _UNIFIED_ALERTS_CACHE:
         cached_data, cache_time = _UNIFIED_ALERTS_CACHE[safe_limit]
-        if (now_ts - cache_time) < UNIFIED_CACHE_TTL:
+        if (now_ts - cache_time) < unified_ttl():
             return cached_data
 
     async with _UNIFIED_LOCK:
         now_ts = time.time()
         if safe_limit in _UNIFIED_ALERTS_CACHE:
             cached_data, cache_time = _UNIFIED_ALERTS_CACHE[safe_limit]
-            if (now_ts - cache_time) < UNIFIED_CACHE_TTL:
+            if (now_ts - cache_time) < unified_ttl():
                 return cached_data
 
         # Sample with buffer to ensure exactly safe_limit unique cities
@@ -590,31 +604,18 @@ async def get_unified_alerts_dataset(limit: int = 380) -> Dict[str, Any]:
             if len(locations) >= safe_limit:
                 break
 
-        # Overload protection: reduce concurrency when zone count > 300
-        if safe_limit > 300:
-            semaphore_limit = 20  # reduced concurrency to prevent API burst overload
-        else:
-            semaphore_limit = 25
-
-        sem = asyncio.Semaphore(semaphore_limit)
-
-        async def fetch_one(client: httpx.AsyncClient, loc: Dict[str, Any]) -> Dict[str, Any]:
-            async with sem:
-                return await async_fetch_weather(city=loc["city"], lat=loc["lat"], lon=loc["lon"], client=client)
-
-        weather_list = []
-        chunk_size = 50
-        if not is_valid_api_key(API_KEY):
-            om = await async_fetch_open_meteo([(l["lat"], l["lon"]) for l in locations])
-            weather_list = [w if w else get_fallback_mock(l["city"], l["lat"], l["lon"])
-                            for w, l in zip(om, locations)]
-        async with httpx.AsyncClient(timeout=3.5) as client:
-            for chunk_start in (range(0, len(locations), chunk_size) if is_valid_api_key(API_KEY) else ()):
-                chunk = locations[chunk_start:chunk_start + chunk_size]
-                chunk_results = await asyncio.gather(*[fetch_one(client, loc) for loc in chunk])
-                weather_list.extend(chunk_results)
-                if chunk_start + chunk_size < len(locations):
-                    await asyncio.sleep(0.05)  # slight delay batching between chunks to avoid thread starvation
+        # Weather per zone: OpenWeather (key set; cache only, the throttled refresher fills it), else
+        # Open-Meteo (batched, cached), else sample values
+        points = [(l["lat"], l["lon"]) for l in locations]
+        weather_list: List[Optional[Dict[str, Any]]] = (openweather_zones(points) if is_valid_api_key(API_KEY)
+                                                        else [None] * len(points))
+        missing = [i for i, w in enumerate(weather_list) if w is None]
+        if missing:
+            om = await async_fetch_open_meteo([points[i] for i in missing])
+            for i, w in zip(missing, om):
+                weather_list[i] = w
+        weather_list = [w if w else get_fallback_mock(l["city"], l["lat"], l["lon"])
+                        for w, l in zip(weather_list, locations)]
 
         current_time_iso = utc_now_iso()
         alerts_list = []
@@ -765,6 +766,13 @@ async def get_unified_alerts_dataset(limit: int = 380) -> Dict[str, Any]:
         times = [a["weather"]["data_time"] for a in alerts_list if a["weather"].get("data_time")]
         summary["data_time"] = max(times) if times else None
         summary["data_time_min"] = min(times) if times else None
+        # model/update time range per weather source (badge: "... for N of 380 zones, updated HH:MM UTC")
+        summary["source_times"] = {}
+        for src in ("openweather", "open-meteo"):
+            ts = [a["weather"]["data_time"] for a in alerts_list
+                  if a["source"] == src and a["weather"].get("data_time")]
+            if ts:
+                summary["source_times"][src] = {"min": min(ts), "max": max(ts)}
         # some zones carry the last successful Open-Meteo data because the latest request failed
         summary["stale"] = any(a["weather"].get("stale") for a in alerts_list)
 
@@ -863,8 +871,8 @@ def get_nowcast(city: str):
         # Fetch real weather data by coordinates
         weather = get_weather_by_coords(lat, lon, city_name=cleaned_city)
         source = "realtime_api"
-        data_time = None
-        if not weather and not is_valid_api_key(API_KEY):
+        data_time = weather.get("data_time") if weather else None
+        if not weather:                    # OpenWeather failed or no key: Open-Meteo, then sample
             weather = fetch_open_meteo_point(lat, lon)
             if weather:
                 source = "open-meteo"
@@ -924,7 +932,7 @@ def get_nowcast(city: str):
         }
 
     except Exception as e:
-        print(f"[NOWCAST ERROR] Exception during nowcast for '{cleaned_city}': {e}")
+        print(f"[NOWCAST ERROR] Exception during nowcast for '{cleaned_city}': {type(e).__name__}")   # never the text (it could hold a URL)
         # STEP 8: Safe fallback if unexpected exception occurs
         fb = get_fallback_mock(cleaned_city, 22.0, 79.0)
         temp = fb["temperature"]

@@ -6,6 +6,7 @@ import { isMixedList, isUnratedZone, mixedBadge, unratedNote, zonesSummary } fro
 import HonestyBanner from '../components/HonestyBanner';
 import DonutChart from '../components/DonutChart';
 import OpenMeteoCredit from '../components/OpenMeteoCredit';
+import OpenWeatherCredit from '../components/OpenWeatherCredit';
 import {
     BarChart2,
     ArrowLeft,
@@ -275,35 +276,47 @@ const Analytics = () => {
         return sorted.slice(0, 6);
     }, [filteredDataset, base]);
 
-    // 4. KEY INSIGHTS (AI Generated Synthesis)
+    // 4. KEY INSIGHTS: every sentence is built from the zones' own values (the rule that fired, rain in
+    // the last hour, humidity, wind) and counts; no fixed thresholds, places or meteorology.
     const keyInsights = useMemo(() => {
-        const highCities = topRiskCities.filter(c => String(c.risk_level || c.risk).toUpperCase() === 'HIGH');
+        const dataset = filteredDataset.length > 0 ? filteredDataset : base;
+        const num = (z, k) => {
+            const v = Number(z[k] ?? z.weather?.[k]);
+            return Number.isFinite(v) ? v : null;
+        };
+        const level = (z) => String(z.risk_level || z.risk || '').toUpperCase();
+        const n = dataset.length;
         const insights = [];
+        if (!n) return insights;
 
-        if (highCities.length > 0) {
-            insights.push({
-                type: "danger",
-                text: `High risk intensifying in coastal and delta corridors (${highCities.map(c => c.city).slice(0, 3).join(', ')}) with precipitation exceeding 20 mm/hr.`
+        const high = dataset.filter((z) => level(z) === 'HIGH')
+            .sort((x, y) => (num(y, 'rainfall') ?? -1) - (num(x, 'rainfall') ?? -1));
+        if (high.length > 0) {
+            const zones = high.slice(0, 3).map((z) => {
+                const rules = Array.isArray(z.rules_fired) ? z.rules_fired.filter(Boolean) : [];
+                const rain = num(z, 'rainfall');
+                return `${z.city}: ${rules.length ? rules.join('; ') : 'rule not reported'}`
+                    + (rain != null ? ` (rain ${rain.toFixed(1)} mm in the last hour)` : '');
             });
+            insights.push({ type: "danger", text: `Rule-based HIGH in ${high.length} of ${n} zones. ${zones.join('. ')}.` });
         } else {
-            insights.push({
-                type: "success",
-                text: "No active critical flood thresholds breached across selected regional sectors."
-            });
+            const mod = dataset.filter((z) => level(z) === 'MODERATE').length;
+            insights.push({ type: "info", text: `No zone at rule-based HIGH; ${mod} of ${n} zones at MODERATE.` });
         }
 
-        insights.push({
-            type: "warning",
-            text: `Rule-based thunderstorm indicator elevated across Southern and Western sectors; average wind ${avgWind} m/s.`
-        });
-
-        insights.push({
-            type: "info",
-            text: `Atmospheric relative humidity remains elevated at ${avgHum}%, sustaining strong latent heat flux for afternoon localized convection.`
-        });
-
+        const extreme = (k, unit, digits) => {
+            const vals = dataset.map((z) => [z, num(z, k)]).filter(([, v]) => v != null);
+            if (!vals.length) return null;
+            const avg = vals.reduce((t, [, v]) => t + v, 0) / vals.length;
+            const [zMax, vMax] = vals.reduce((m, cur) => (cur[1] > m[1] ? cur : m));
+            return `average ${avg.toFixed(digits)} ${unit} across ${vals.length} zones; highest ${vMax.toFixed(digits)} ${unit} at ${zMax.city}`;
+        };
+        const wind = extreme('wind_speed', 'm/s', 1);
+        if (wind) insights.push({ type: "info", text: `Wind: ${wind}.` });
+        const hum = extreme('humidity', '%', 0);
+        if (hum) insights.push({ type: "info", text: `Relative humidity: ${hum}.` });
         return insights;
-    }, [topRiskCities, avgWind, avgHum]);
+    }, [filteredDataset, base]);
 
     return (
         <div className="min-h-screen bg-slate-50 dark:bg-[#0b0f19] text-slate-900 dark:text-slate-100 flex flex-col font-sans transition-colors duration-200">
@@ -649,9 +662,10 @@ const Analytics = () => {
                             <p className="text-xs text-slate-500 dark:text-slate-400 mb-3.5">
                                 <span data-testid="analytics-summary-source">Rule-based summary of {dataLabel}</span> for {selectedRegion}:
                                 {(openMeteo || (mixed && data.some((d) => srcOf(d) === "open-meteo"))) && <><br /><OpenMeteoCredit /></>}
+                                {(liveWeather || mixed) && data.some((d) => srcOf(d) === "openweather") && <><br /><OpenWeatherCredit /></>}
                             </p>
 
-                            <div className="space-y-2.5">
+                            <div data-testid="analytics-insights" className="space-y-2.5">
                                 {keyInsights.map((insight, idx) => (
                                     <div
                                         key={idx}

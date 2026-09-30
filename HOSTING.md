@@ -79,6 +79,10 @@ git push -u origin main
      `PYTHONUNBUFFERED`.
    - Optional, under the service's **Environment** tab: `OPENWEATHER_API_KEY` (as a secret). Without
      it the backend uses Open-Meteo (no key), else sample data.
+     - With it, the zones fill in gradually. The backend makes at most 50 calls/min (free tier: 60), so
+       all 380 zones take about 8 min after a (re)start.
+     - Each point is cached 60 min: at most about 9,800 calls/day.
+     - Zones without OpenWeather data meanwhile use Open-Meteo, else sample (their risk is not shown).
 4. **Apply**. The first build takes about 5–10 min (pip installs rasterio, scikit-learn and pandas).
    - The service URL is `https://nowcast-api.onrender.com`, or with a suffix if that name is taken.
      Render shows it at the top of the service page.
@@ -157,6 +161,11 @@ Render redeploys automatically on push. Check `/health` again afterwards.
     - `cooldown_until` is when the next request is allowed.
     - The Render log has one `[OPEN-METEO] … failed (attempt k)` line per failure.
     - The zone list is warmed once in the background at startup.
+    - With `OPENWEATHER_API_KEY` set, check `openweather` in the same JSON:
+      - `refresh_running`, `last_success_at`, and `last_error` (e.g. "HTTP 401: Invalid API key…" or
+        "HTTP 429: …");
+      - `cooldown_until`.
+      - The key itself is never shown or logged.
 - [ ] Deep links: open `https://<vercel-app>/nowcast/results` and `/nowcast/approach` directly (not by
       clicking): they load.
 - [ ] `/nowcast`:

@@ -23,7 +23,7 @@ const AlertBanner = ({ locations = [], summary = null, sample = false, source = 
                 <div className="flex items-center gap-3">
                     <div className="flex items-center gap-2 text-red-600 dark:text-red-400 font-black text-sm">
                         <AlertTriangle size={18} className="fill-red-100 dark:fill-transparent" />
-                        <span data-testid="alert-banner-text">High Risk in {highCount} locations{note}</span>
+                        <span data-testid="alert-banner-text">High Risk in {highCount} location{highCount === 1 ? '' : 's'}{note}</span>
                     </div>
                 </div>
                 <span className="text-[11px] font-black uppercase tracking-wider text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-950/60 px-2.5 py-1 rounded-md border border-red-200 dark:border-red-800">

@@ -2,6 +2,7 @@ import React from 'react';
 import { CloudLightning, X, Droplets, Thermometer, Wind, MapPin, AlertTriangle, CloudRain, Sun } from 'lucide-react';
 import { LEVEL_NAMES, NO_EXPLANATION, RULE_LABEL, explanationText, fetchedLabel, hazardLevels, primaryThreat, riskText as zoneRisk, sourceBadge } from '../utils/dashboardRisk';
 import OpenMeteoCredit from './OpenMeteoCredit';
+import OpenWeatherCredit from './OpenWeatherCredit';
 
 const LEVEL_STYLE = [
     'bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-300 dark:border-emerald-800',
@@ -178,6 +179,7 @@ const RightPanel = ({ selectedCity, cityData, onClose, hideRisk = false }) => {
                         {cityObj.weather?.conditions ? ` · ${cityObj.weather.conditions}` : ''}
                     </p>
                     {cityObj.weather?.source === 'open-meteo' && <p className="-mt-2 mb-3"><OpenMeteoCredit /></p>}
+                    {cityObj.weather?.source === 'openweather' && <p className="-mt-2 mb-3"><OpenWeatherCredit /></p>}
                     <div className="grid grid-cols-2 gap-3">
                         {/* 1. Temperature */}
                         <div className="bg-slate-50 dark:bg-slate-800/60 rounded-xl p-3 border border-slate-200 dark:border-slate-700/70 flex items-center gap-3 shadow-sm hover:shadow-md transition-shadow">

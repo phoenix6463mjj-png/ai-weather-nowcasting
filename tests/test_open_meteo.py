@@ -111,13 +111,8 @@ def test_source_order_openweather_then_open_meteo_then_sample(monkeypatch):
     called = []
     monkeypatch.setattr(A, "fetch_open_meteo_point", lambda la, lo: called.append(1))
 
-    class R:
-        status_code = 200
-
-        @staticmethod
-        def json():
-            return {"dt": 1790000000, "main": {"temp": 30, "humidity": 60, "pressure": 1008}, "wind": {"speed": 2}}
-    monkeypatch.setattr(A.requests, "get", lambda url, timeout=None: R())
+    body = {"dt": 1790000000, "main": {"temp": 30, "humidity": 60, "pressure": 1008}, "wind": {"speed": 2}}
+    monkeypatch.setattr(A, "fetch_openweather_point", lambda la, lo: A.parse_openweather(body))
     w = A.fetch_weather(25.5, 91.3, "Y")
     assert w["source"] == "openweather" and not called
 
@@ -316,7 +311,8 @@ def test_mixed_list_sample_zones_have_no_risk_and_are_excluded_from_counts(monke
     assert s["source"] == "mixed" and s["total"] == 60
     assert s["high"] == 40 and s["moderate"] == 0 and s["low"] == 0 and s["n_rated"] == 40
     assert s["n_sample"] == 20
-    assert s["zone_sources"] == {"openweather": 0, "open_meteo": 20, "open_meteo_stale": 20, "sample": 20}
+    assert s["zone_sources"] == {"openweather": 0, "openweather_stale": 0, "open_meteo": 20, "open_meteo_stale": 20,
+                                 "sample": 20}
     assert all(a["zone_source"] == "sample" for a in alerts[-20:])      # listed after every rated zone
     assert s["data_time"] == s["data_time_min"] == "2026-09-29T13:45Z"
 
