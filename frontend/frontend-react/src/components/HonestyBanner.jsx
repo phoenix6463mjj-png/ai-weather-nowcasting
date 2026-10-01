@@ -2,11 +2,11 @@ import { Link } from 'react-router-dom';
 import { Info } from 'lucide-react';
 
 // One slim banner at the top of a team page, saying what its figures are (and are not).
-//   kind="illustrative": Reports / Analytics (fixed figures, not from the ML model)
-//   kind="rule-score":   Forecast (its "Score" is a rule-based indicator)
+//   kind="rule-figures": Reports / Analytics (figures computed from current weather with the team's rules)
+//   kind="rule-score":   Forecast (its risk levels are a rule-based indicator)
 const TEXT = {
-    illustrative: { lead: 'Illustrative figures — not from the ML model. Measured skill:', link: 'ML Nowcast → Results', to: '/nowcast/results' },
-    'rule-score': { lead: '"Score" and the risk levels on this page are a rule-based indicator, not the ML model. Calibrated nowcasts:', link: 'ML Nowcast →', to: '/nowcast' },
+    'rule-figures': { lead: 'Figures on this page are computed from current weather with fixed rules — not from the ML model. Measured skill:', link: 'ML Nowcast → Results', to: '/nowcast/results' },
+    'rule-score': { lead: 'The risk levels on this page are a rule-based indicator, not the ML model. Calibrated nowcasts:', link: 'ML Nowcast →', to: '/nowcast' },
 };
 
 const HonestyBanner = ({ kind }) => {

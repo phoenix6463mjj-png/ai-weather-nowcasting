@@ -22,21 +22,22 @@ async function bodyText(page) {
 }
 
 for (const [route, name] of [['/reports', 'Reports'], ['/analytics', 'Analytics']]) {
-    test(`${name}: illustrative-figures banner links to the measured results`, async ({ page }) => {
+    test(`${name}: rule-based-figures banner links to the measured results`, async ({ page }) => {
         await stubImages(page);
         await page.goto(route);
-        const b = page.getByTestId('honesty-banner-illustrative');
-        await expect(b).toHaveText('Illustrative figures — not from the ML model. Measured skill: ML Nowcast → Results');
+        const b = page.getByTestId('honesty-banner-rule-figures');
+        await expect(b).toHaveText('Figures on this page are computed from current weather with fixed rules — not from the ML model. Measured skill: ML Nowcast → Results');
         await expect(b.getByRole('link', { name: 'ML Nowcast → Results' })).toHaveAttribute('href', '/nowcast/results');
-        await expect(page.getByTestId('honesty-banner-illustrative')).toHaveCount(1);
+        await expect(page.getByTestId('honesty-banner-rule-figures')).toHaveCount(1);
     });
 }
 
-test('Forecast: source line follows the backend; rule-based Score banner; no "Live" / "Real-Time" on sample data', async ({ page }) => {
+test('Forecast: source line follows the backend; rule-based banner, no "Score"; no "Live" / "Real-Time" on sample data', async ({ page }) => {
     await stubImages(page);
     const src = await zoneSource(page);
     await page.goto('/forecast');
-    await expect(page.getByTestId('honesty-banner-rule-score')).toContainText('"Score" and the risk levels on this page are a rule-based indicator, not the ML model.');
+    await expect(page.getByTestId('honesty-banner-rule-score')).toContainText('The risk levels on this page are a rule-based indicator, not the ML model.');
+    await expect(page.locator('main')).not.toContainText(/\bScore\b/);
     const badge = page.getByTestId('forecast-source-badge');
     await expect(page.getByTestId('forecast-stream')).toBeVisible();
     if (src === 'sample') {
@@ -53,14 +54,15 @@ test('Forecast: source line follows the backend; rule-based Score banner; no "Li
     }
 });
 
-test('/alerts: "Live" only for OpenWeather; sample badge otherwise', async ({ page }) => {
+test('/alerts: the badge names the real source; sample badge otherwise', async ({ page }) => {
     await stubImages(page);
     const src = await zoneSource(page);
     await page.goto('/alerts');
     const badge = page.getByTestId('alerts-source-badge');
     await expect(badge).not.toHaveText('Loading…');
     if (src === 'openweather' || src === 'open-meteo') {
-        await expect(badge).toContainText('Live Feed');
+        await expect(badge).toContainText(`Rule-based indicators from ${src === 'openweather' ? 'OpenWeather (current weather)' : 'Open-Meteo (model data)'}`);
+        await expect(badge).not.toContainText('Live Feed');
         return;
     }
     await expect(badge).toHaveText(SAMPLE);

@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { API_BASE } from '../config';
 import { fetchWithWake, WAKE_UNAVAILABLE } from '../utils/serverWake';
-import { isMixedList, isUnratedZone, mixedBadge, unratedNote, zonesSummary } from '../utils/dashboardRisk';
+import { isMixedList, isUnratedZone, mixedBadge, sourceBadge, unratedNote, zonesSummary } from '../utils/dashboardRisk';
 import HonestyBanner from '../components/HonestyBanner';
 import DonutChart from '../components/DonutChart';
 import OpenMeteoCredit from '../components/OpenMeteoCredit';
@@ -15,14 +15,11 @@ import {
     Droplets,
     CloudRain,
     Sparkles,
-    Calendar,
     Filter,
     MapPin
 } from 'lucide-react';
 import {
     ResponsiveContainer,
-    LineChart,
-    Line,
     BarChart,
     Bar,
     Cell,
@@ -69,8 +66,20 @@ const Analytics = () => {
     const dataLabel = mixed ? `${mixedBadge(zonesSummary(data), data)}; ${unratedNote(nUnrated)}`
         : openMeteo ? "Open-Meteo data (model data)" : liveWeather ? "OpenWeather data" : "sample data";
 
+    // page subtitle: the real weather source and the zones' rule-based counts (before the page filters)
+    const subtitle = useMemo(() => {
+        if (unavailable) return 'No figures: the team backend did not answer';
+        if (sampleOnly) return `Sample data for ${data.length} zones: risk indicators are not shown`;
+        if (!base.length) return null;
+        const lvl = (d) => String(d.risk_level || d.risk || 'LOW').toUpperCase();
+        const n = { HIGH: 0, MODERATE: 0, LOW: 0 };
+        base.forEach((d) => { const l = lvl(d) === 'MEDIUM' ? 'MODERATE' : lvl(d); n[l] = (n[l] || 0) + 1; });
+        const src = mixed ? mixedBadge(zonesSummary(data), data)
+            : sourceBadge(openMeteo ? 'open-meteo' : 'openweather', null, zonesSummary(data).data_time);
+        return `Rule-based indicators from ${src}: ${n.HIGH} HIGH, ${n.MODERATE} MODERATE, ${n.LOW} LOW of ${base.length} zones`;
+    }, [unavailable, sampleOnly, mixed, openMeteo, data, base]);
+
     // 1. FILTER BAR STATE
-    const [timeRange, setTimeRange] = useState("Today"); // "Today" | "7 Days" | "30 Days"
     const [hazardType, setHazardType] = useState("All"); // "All" | "Flood" | "Storm" | "Wind"
     const [selectedRegion, setSelectedRegion] = useState("All India");
 
@@ -184,43 +193,6 @@ const Analytics = () => {
         };
     }, [filteredDataset, base]);
 
-    // 2A. Rainfall Trend Line Chart Data (dynamically structured by Time Range)
-    const lineChartData = useMemo(() => {
-        const baseRain = parseFloat(avgRain) || 16.5;
-        if (timeRange === "Today") {
-            return [
-                { time: "00:00", rainfall: +(baseRain * 0.4).toFixed(1), threshold: 15.0 },
-                { time: "04:00", rainfall: +(baseRain * 0.6).toFixed(1), threshold: 15.0 },
-                { time: "08:00", rainfall: +(baseRain * 0.9).toFixed(1), threshold: 15.0 },
-                { time: "12:00", rainfall: +(baseRain * 1.3).toFixed(1), threshold: 15.0 },
-                { time: "16:00", rainfall: +(baseRain * 1.5).toFixed(1), threshold: 15.0 },
-                { time: "20:00", rainfall: +(baseRain * 1.1).toFixed(1), threshold: 15.0 },
-                { time: "Now",   rainfall: +(baseRain * 1.0).toFixed(1), threshold: 15.0 }
-            ];
-        } else if (timeRange === "7 Days") {
-            return [
-                { time: "Mon", rainfall: +(baseRain * 0.7).toFixed(1), threshold: 15.0 },
-                { time: "Tue", rainfall: +(baseRain * 0.9).toFixed(1), threshold: 15.0 },
-                { time: "Wed", rainfall: +(baseRain * 1.4).toFixed(1), threshold: 15.0 },
-                { time: "Thu", rainfall: +(baseRain * 1.6).toFixed(1), threshold: 15.0 },
-                { time: "Fri", rainfall: +(baseRain * 1.2).toFixed(1), threshold: 15.0 },
-                { time: "Sat", rainfall: +(baseRain * 1.0).toFixed(1), threshold: 15.0 },
-                { time: "Sun", rainfall: +(baseRain * 0.8).toFixed(1), threshold: 15.0 }
-            ];
-        } else {
-            // 30 Days
-            return [
-                { time: "Day 1",  rainfall: +(baseRain * 0.6).toFixed(1), threshold: 15.0 },
-                { time: "Day 5",  rainfall: +(baseRain * 0.8).toFixed(1), threshold: 15.0 },
-                { time: "Day 10", rainfall: +(baseRain * 1.2).toFixed(1), threshold: 15.0 },
-                { time: "Day 15", rainfall: +(baseRain * 1.7).toFixed(1), threshold: 15.0 },
-                { time: "Day 20", rainfall: +(baseRain * 1.3).toFixed(1), threshold: 15.0 },
-                { time: "Day 25", rainfall: +(baseRain * 1.0).toFixed(1), threshold: 15.0 },
-                { time: "Day 30", rainfall: +(baseRain * 0.9).toFixed(1), threshold: 15.0 }
-            ];
-        }
-    }, [avgRain, timeRange]);
-
     // 2B. City Risk Comparison Bar Chart Data (Top 5 cities by rainfall / intensity)
     const barChartData = useMemo(() => {
         const dataset = filteredDataset.length > 0 ? filteredDataset : base;
@@ -320,10 +292,10 @@ const Analytics = () => {
 
     return (
         <div className="min-h-screen bg-slate-50 dark:bg-[#0b0f19] text-slate-900 dark:text-slate-100 flex flex-col font-sans transition-colors duration-200">
-            <TopHeader showCredits onSearch={() => {}} searchLoading={false} selectedCity="All India" />
+            <TopHeader showCredits selectedCity="All India" />
 
             <main className="flex-1 p-6 md:p-8 max-w-7xl mx-auto w-full">
-                <HonestyBanner kind="illustrative" />
+                <HonestyBanner kind="rule-figures" />
                 {/* Header Title Bar */}
                 <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div className="flex items-center gap-3">
@@ -334,9 +306,9 @@ const Analytics = () => {
                             <h1 className="text-2xl font-black text-slate-900 dark:text-white">
                                 Meteorological Analytics Dashboard
                             </h1>
-                            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
-                                {unavailable ? 'Atmospheric Summary & Trends' : sampleOnly ? 'Atmospheric Summary & Trends (sample data)' : liveWeather ? 'Real-Time Atmospheric Telemetry, Predictive Risk Stratification & Trends' : 'Atmospheric Summary, Rule-based Risk Stratification & Trends'}
-                            </p>
+                            {subtitle && <p data-testid="analytics-subtitle" className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
+                                {subtitle}
+                            </p>}
                         </div>
                     </div>
 
@@ -345,7 +317,7 @@ const Analytics = () => {
                             onClick={loadData}
                             disabled={loading}
                             className="flex items-center gap-2 px-3 py-2 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs rounded-xl border border-slate-200 dark:border-slate-700 transition-colors shadow-xs cursor-pointer disabled:opacity-50"
-                            title="Refresh Analytics Telemetry"
+                            title="Refresh analytics"
                         >
                             <RefreshCw size={13} className={loading ? "animate-spin text-blue-500" : ""} />
                             <span>{loading ? "Updating..." : "Refresh"}</span>
@@ -381,26 +353,6 @@ const Analytics = () => {
                     </div>
 
                     <div className="flex flex-wrap items-center gap-3">
-                        {/* Time Range Filter */}
-                        <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 p-1 rounded-lg">
-                            <span className="text-[11px] font-bold text-slate-400 pl-2 pr-1 flex items-center gap-1">
-                                <Calendar size={12} /> Time:
-                            </span>
-                            {["Today", "7 Days", "30 Days"].map((range) => (
-                                <button
-                                    key={range}
-                                    onClick={() => setTimeRange(range)}
-                                    className={`px-3 py-1 rounded-md text-xs font-bold transition-colors cursor-pointer ${
-                                        timeRange === range
-                                            ? "bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-xs"
-                                            : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-                                    }`}
-                                >
-                                    {range}
-                                </button>
-                            ))}
-                        </div>
-
                         {/* Hazard Type Filter */}
                         <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 p-1 rounded-lg">
                             <span className="text-[11px] font-bold text-slate-400 pl-2 pr-1">
@@ -453,7 +405,7 @@ const Analytics = () => {
                                 {avgRain} mm
                             </div>
                             <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                                Across {totalNodes} monitored sectors
+                                Mean of {totalNodes} zones
                             </p>
                         </div>
                         <div className="p-3 bg-blue-50 dark:bg-blue-950/40 text-blue-500 rounded-xl">
@@ -471,7 +423,7 @@ const Analytics = () => {
                                 {avgHum}%
                             </div>
                             <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                                Convective moisture potential
+                                Mean of {totalNodes} zones
                             </p>
                         </div>
                         <div className="p-3 bg-teal-50 dark:bg-teal-950/40 text-teal-500 rounded-xl">
@@ -489,7 +441,7 @@ const Analytics = () => {
                                 {avgWind} m/s
                             </div>
                             <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                                Surface shear & isobar gradient
+                                Mean of {totalNodes} zones
                             </p>
                         </div>
                         <div className="p-3 bg-purple-50 dark:bg-purple-950/40 text-purple-500 rounded-xl">
@@ -498,74 +450,8 @@ const Analytics = () => {
                     </div>
                 </div>
 
-                {/* 2. REAL CHARTS SECTION (2 COLUMNS) */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-                    {/* Chart A: Line Chart - Rainfall Trend */}
-                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-xs flex flex-col justify-between">
-                        <div className="flex items-center justify-between mb-4">
-                            <div>
-                                <h3 className="font-bold text-base text-slate-900 dark:text-white">
-                                    Rainfall Trend
-                                </h3>
-                                <p className="text-xs text-slate-500 dark:text-slate-400">
-                                    Precipitation timeline trajectory ({timeRange})
-                                </p>
-                            </div>
-                            <span className="text-[11px] font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 px-2 py-0.5 rounded border border-blue-200 dark:border-blue-900">
-                                Baseline: {avgRain} mm
-                            </span>
-                        </div>
-
-                        <div className="h-64 w-full">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <LineChart data={lineChartData} margin={{ top: 10, right: 15, left: -15, bottom: 0 }}>
-                                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" className="dark:stroke-slate-800" />
-                                    <XAxis
-                                        dataKey="time"
-                                        tick={{ fill: '#64748b', fontSize: 11 }}
-                                        stroke="#cbd5e1"
-                                        className="dark:stroke-slate-700"
-                                    />
-                                    <YAxis
-                                        tick={{ fill: '#64748b', fontSize: 11 }}
-                                        stroke="#cbd5e1"
-                                        className="dark:stroke-slate-700"
-                                        unit="mm"
-                                    />
-                                    <Tooltip
-                                        contentStyle={{
-                                            backgroundColor: '#0f172a',
-                                            borderColor: '#334155',
-                                            borderRadius: '8px',
-                                            color: '#f8fafc',
-                                            fontSize: '12px',
-                                            fontWeight: 'bold'
-                                        }}
-                                        formatter={(val) => [`${val} mm`, 'Rainfall']}
-                                    />
-                                    <Line
-                                        type="monotone"
-                                        dataKey="rainfall"
-                                        stroke="#3b82f6"
-                                        strokeWidth={2.5}
-                                        dot={{ fill: '#3b82f6', r: 4 }}
-                                        activeDot={{ r: 6, fill: '#2563eb' }}
-                                        name="Rainfall"
-                                    />
-                                    {!sampleOnly && <Line
-                                        type="monotone"
-                                        dataKey="threshold"
-                                        stroke="#ef4444"
-                                        strokeWidth={1.5}
-                                        strokeDasharray="4 4"
-                                        dot={false}
-                                        name="Warning Threshold"
-                                    />}
-                                </LineChart>
-                            </ResponsiveContainer>
-                        </div>
-                    </div>
-
+                {/* 2. CHART: the zones with the most rain now */}
+                <div className="mb-6">
                     {/* Chart B: Bar Chart - City Risk Comparison */}
                     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-xs flex flex-col justify-between">
                         <div className="flex items-center justify-between mb-4">
@@ -574,11 +460,11 @@ const Analytics = () => {
                                     {sampleOnly ? 'City Rainfall Comparison (sample data)' : 'City Risk Comparison'}
                                 </h3>
                                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                                    Top 5 monitored cities by precipitation load
+                                    Top 5 zones by rain (mm)
                                 </p>
                             </div>
                             <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
-                                Ranked Metric (mm)
+                                Rain (mm)
                             </span>
                         </div>
 
@@ -633,7 +519,7 @@ const Analytics = () => {
                                 Risk Distribution
                             </h3>
                             <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">
-                                Classification proportions ({totalNodes} nodes)
+                                Rule-based levels of {totalNodes} zones
                             </p>
                         </div>
 
@@ -692,11 +578,11 @@ const Analytics = () => {
                                 Top Risk Cities
                             </h3>
                             <p className="text-xs text-slate-500 dark:text-slate-400">
-                                Ranked priority list evaluated against physical meteorological danger thresholds
+                                Zones ranked by rule-based level, then rain
                             </p>
                         </div>
                         <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
-                            Ranked by Threat Urgency
+                            Rule-based (not the ML model)
                         </span>
                     </div>
 

@@ -243,7 +243,7 @@ const Alerts = () => {
     return (
         <div className="min-h-screen bg-slate-50 dark:bg-[#0b0f19] text-gray-900 dark:text-gray-100 flex flex-col font-sans transition-colors duration-200">
             {/* Top Navigation Header (matches existing Dashboard/Forecast) */}
-            <TopHeader showCredits onSearch={() => {}} searchLoading={false} selectedCity="All India" alertCount={sampleOnly ? null : highCount} />
+            <TopHeader showCredits selectedCity="All India" alertCount={sampleOnly ? null : highCount} />
 
             <main className="flex-1 p-4 sm:p-6 md:p-8 max-w-7xl mx-auto w-full space-y-6">
 
@@ -270,7 +270,7 @@ const Alerts = () => {
                                 <span className="inline-flex flex-col items-end">
                                     <span data-testid="alerts-source-badge" data-source={weatherSource} className="inline-flex items-center gap-1.5 whitespace-nowrap px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
                                         <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                                        {`Live Feed · ${sourceBadge(weatherSource, null, dataTime)}`}
+                                        {`Rule-based indicators from ${sourceBadge(weatherSource, null, dataTime)}`}
                                     </span>
                                     {weatherSource === 'open-meteo' && <OpenMeteoCredit className="mt-0.5" />}
                                     {weatherSource === 'openweather' && <OpenWeatherCredit className="mt-0.5" />}
@@ -577,10 +577,10 @@ const Alerts = () => {
                                     {/* Bottom Row */}
                                     <div>
                                         <div className="flex items-center justify-between pt-2.5 border-t border-gray-100 dark:border-slate-800 text-xs">
-                                            {/* 5. Left: "Live • Just now" with pulsing green dot */}
+                                            {/* 5. Left: the zone's weather source and its age, e.g. "OpenWeather (current weather) • 5 min ago" */}
                                             <span className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 font-medium">
                                                 <div className={`w-2 h-2 rounded-full shrink-0 ${isLiveSource(alert.source) ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`}></div>
-                                                <span data-testid="alert-card-source">{isLiveSource(alert.source) ? `Live • ${timeAgo}` : sourceBadge('sample')}</span>
+                                                <span data-testid="alert-card-source">{isLiveSource(alert.source) ? `${sourceBadge(alert.source)} • ${timeAgo}` : sourceBadge('sample')}</span>
                                             </span>
 
                                             {/* 2. Right: "View Details →" (blue link style with hover underline + color shift) */}

@@ -191,8 +191,9 @@ test('mixed Analytics: figures and risk charts use only zones with weather data'
     await expect(page.getByTestId('analytics-mixed-note')).toHaveText(
         `Open-Meteo (model data) for ${rated.length} of ${zones.length} zones, updated 05:15–06:15 UTC. ${nSample} zones with sample data: risk not shown; figures and charts below use the ${rated.length} zones with weather data.`);
     await expect(page.getByTestId('sample-safety-net')).toHaveCount(0);
-    await expect(page.getByText(`Across ${rated.length} monitored sectors`)).toBeVisible();
-    await expect(page.getByText(`Classification proportions (${rated.length} nodes)`)).toBeVisible();
+    await expect(page.getByText(`Mean of ${rated.length} zones`)).toHaveCount(3);
+    await expect(page.getByText(`Rule-based levels of ${rated.length} zones`)).toBeVisible();
+    await expect(page.getByTestId("analytics-subtitle")).toContainText(`Rule-based indicators from Open-Meteo (model data) for ${rated.length} of ${zones.length} zones`);
     await expect(page.getByTestId('analytics-summary-source')).toContainText(`Rule-based summary of Open-Meteo (model data) for ${rated.length} of ${zones.length} zones`);
     // Top Risk Cities: none of them sample-only
     const sampleCities = new Set(zones.filter((z) => z.zone_source === 'sample').map((z) => z.city));

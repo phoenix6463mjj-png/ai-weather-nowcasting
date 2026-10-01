@@ -19,6 +19,9 @@ test('Approach: compute-time line from the benchmark file, next to the data late
     const p = BENCH.pipeline_seconds;
     const f = (v) => (v >= 10 ? v.toFixed(0) : v.toFixed(1));
     await expect(line).toContainText(`${f(p.median)} s median (${f(p.min)}–${f(p.max)} s, ${BENCH.n_runs} runs)`);
+    // the label says "Our compute time (measured):" once; the text does not repeat it
+    expect(((await line.innerText()).match(/compute time/gi) || []).length).toBe(1);
+    await expect(line).toContainText('Our compute time (measured): One all-India nowcast (');
     await expect(line).toContainText(`${BENCH.machine.ram_gb} GB RAM`);
     await expect(line).toContainText('Data latency dominates: IMERG Early is 5.3 h old at our first live poll (~4 h typical).');
     await expect(line).not.toContainText(/real[- ]time|NWP|faster/i);

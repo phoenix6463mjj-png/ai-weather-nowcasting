@@ -965,6 +965,118 @@ laptop, full CPU):
   - `e2e/latency.spec.js`: the line is shown verbatim after the data-latency arithmetic; screenshots
     `approach_latency_*` at 1920×1080 and 1366×768.
 
+### Honesty fixes batch (1 Oct 2026)
+
+Text/UI fixes on the team pages and the Approach page. Each was investigated first; what was found is
+given with the fix.
+
+**1. "safe" / "safer" / "safety" (grep of all of `frontend-react/src`).**
+- Changed (visible text):
+  - header subtitle on every page: "Hyper-Local Early Warning for a Safer Tomorrow" →
+    "Hyper-Local Early Warning System";
+  - Dashboard hero: "Stronger Forecasts / Safer Communities" → "Weather Nowcasting / for India". The
+    line under it ("Real-time insights. Early warnings. A more resilient India.") → "Rule-based indicators
+    from current weather." (sample data: "Sample data: risk indicators are not shown."). The quote
+    "Weather-aware today for a safer tomorrow" is removed;
+  - sidebar card "Monitoring Today for a Safer Tomorrow" → "ML Nowcast / maps and alerts" (now a link).
+- Kept (not visible text):
+  - code comments: `RightPanel.jsx` "Safely extract…", "Safe formatting…"; `Forecast.jsx` "Safe
+    fallback…", "SAFE SEARCH INPUT UI"; a comment in `utils/dashboardRisk.js`;
+  - identifiers and test ids: `SampleSafetyNotice`, `SAMPLE_SAFETY_TEXT`, `sample-safety-net` /
+    `-text` / `-ml-link`. Renaming them would change many tests and nothing a user sees.
+- The notice text itself ("Sample data — no live weather feed. Risk indicators are not shown on sample
+  data.") has no "safe".
+- Test: `e2e/honesty_fixes.spec.js` reads the visible text of all 8 pages (`/`, Forecast, Analytics,
+  Alerts, Reports, ML Nowcast map, Results, Approach) and fails on `\bsaf(e|er|ety|ely)\b`. No sentence
+  is exempt (no official-advice sentence contains the word).
+
+**2. Alerts:**
+- The badge "Live Feed · <source>" → "Rule-based indicators from <source>", e.g. "Rule-based indicators
+  from Open-Meteo (model data), updated 07:15 UTC".
+- Each card's "Live • 5 min ago" → "<source> • 5 min ago", e.g. "Open-Meteo (model data) • 1 min ago".
+
+**3. Analytics:**
+- The subtitle ("Real-Time Atmospheric Telemetry, Predictive Risk Stratification & Trends") is now built
+  from the real source and counts: "Rule-based indicators from <source>: H HIGH, M MODERATE, L LOW of N
+  zones". On sample data: "Sample data for N zones: risk indicators are not shown".
+- **Removed: the "Rainfall Trend" chart.** It plotted the current mean rain × fixed multipliers
+  (0.4…1.5) for invented hours/weekdays/days, with a fixed 15 mm "Warning Threshold". The
+  Today / 7 Days / 30 Days filter changed only that chart, so it is removed too. No rain history exists
+  to compute a trend from. The bar chart (top 5 zones by rain) now uses the full width.
+- Captions "Across N monitored sectors", "Convective moisture potential", "Surface shear & isobar
+  gradient" → "Mean of N zones". "Ranked priority list evaluated against physical meteorological
+  danger thresholds" → "Zones ranked by rule-based level, then rain". "Ranked by Threat Urgency" →
+  "Rule-based (not the ML model)". "Classification proportions (N nodes)" → "Rule-based levels of N
+  zones".
+- Banner: "Illustrative figures — not from the ML model" → "Figures on this page are computed from
+  current weather with fixed rules — not from the ML model. Measured skill: ML Nowcast → Results"
+  (`HonestyBanner kind="rule-figures"`; the `illustrative` kind is gone).
+- **Not changed (logic, not text):** the Hazard filter (Flood / Storm / Wind) keeps zones by thresholds
+  that are not the team's rules: rain ≥ 15 mm for Flood, wind ≥ 8 m/s for Storm, wind ≥ 7 m/s for Wind.
+
+**4. Reports:** every fixed figure is removed.
+- Removed: the four example reports (fixed dates, cities, metrics, river-basin and synoptic text, and
+  High/Moderate/Low percentages). Also "Total Reports Today 18 / 4 scheduled bulletins, 14 automated
+  dispatches", the "24.8%" start value and the "PDF" export that was really a text file.
+- The page now holds one report computed from `/alerts?limit=380`:
+  - cards: zones in the list (with the source badge), rule-based HIGH and MODERATE (of the rated zones),
+    weather data time;
+  - the HIGH / MODERATE / LOW counts with a bar sized by the counts (no percentages);
+  - the first 10 zones at HIGH or MODERATE, with the rule(s) that fired, rain and wind;
+  - exports: "Export rated zones (CSV)" (every rated zone, its level, rules fired and values) and
+    "Export summary (TXT)", both from the same data.
+  - On sample data: the safety-net notice and only the zone count and source.
+
+**5. Forecast:**
+- Banner: "The risk levels on this page are a rule-based indicator, not the ML model. Calibrated
+  nowcasts: ML Nowcast →". The page has no "Score" wording left.
+- "Telemetry: …" → "Current weather: …". "Real-Time Location" → "Searched Location (current weather)".
+
+**6. Approach page** (`nowcast_data/serve/results.py`):
+- CAP row: "Read-only JSON API for the demo. CAP 1.2 file export built; live feed not built.", status
+  "File export built".
+- Cloud-top temperature row: "INSAT-3DR cloud-top observation layer delivered (MOSDAC access granted
+  28 Sep 2026); not a model input." The old text "needs INSAT imagery (download requires a MOSDAC
+  account)" is gone. Status note: "10.8 µm cloud-top temperature on the two case studies. Using it in the
+  model needs INSAT history + retraining (roadmap)."
+- Compute line: "Our compute time (measured): One all-India nowcast (3 thresholds × 5 leads, 93,000 grid
+  cells) takes 14 s median …". It no longer repeats "Compute time".
+
+**7. Header clipping at 1366 px:**
+- The left block could shrink, so a long place name squeezed the title.
+- Now the title and subtitle never wrap or shrink. The place name is cut with an ellipsis (max 150 px
+  below 1536 px, 280 px above; full name on hover). Nav gaps and the search box are narrower below
+  1536 px.
+- The search placeholder is "Search city…" (it was cut off); the full hint is its accessible name.
+- Test: with a 45-character zone name the title fits at 1366×768 and 1920×1080, and the place name ends
+  before the nav.
+
+**8. Dead controls:**
+- Sidebar "Live Map" (it re-fetched the zone list, the same as "Monitor India") → link to `/nowcast`
+  (badge "ML").
+- "Locations" (also a re-fetch) and "Settings" (it opened Analytics) → removed.
+- Header avatar "A" (no action) → removed.
+- Sidebar photo card's arrow → the card's text row links to `/nowcast`.
+- The header search on Alerts, Analytics and Reports was a no-op (`onSearch={() => {}}`). It now opens
+  `/?city=<name>`, and the Dashboard runs that search once. The same now works from the ML Nowcast
+  pages.
+- Not changed: the Alerts "LIVE" pill in the sidebar (shown only with OpenWeather / Open-Meteo data,
+  existing tests); Forecast's "Live Nowcast Panel" title.
+
+**Tests:**
+- New: `e2e/honesty_fixes.spec.js` (10 tests): no safe/safer/safety on any page; header subtitle and no
+  avatar on every page; title not clipped with a long name; sidebar links; header search from another
+  page; Alerts badge source; Analytics subtitle counts equal `/batch_predict`; Reports cards, counts,
+  zone rows and CSV row count equal `/alerts`; Forecast banner and no "Score"; screenshots.
+- Updated for the new wording: `team_pages`, `weather_sources`, `prehosting`, `mixed_zones`,
+  `honesty_batch1` (Reports), `nowcast` (CAP and CTT rows), `latency`, `credits` (search box found by
+  its label).
+- `nowcast_data/serve/tests/test_results.py` (CAP and CTT rows) and `test_latency.py` (no repeated
+  "compute time").
+
+**Screenshots** (`e2e/screenshots/honesty_*`, 1920×1080 and 1366×768): dashboard, alerts, analytics,
+reports, forecast, approach table and compute line, header with a long place name.
+
 ## 7. Troubleshooting
 
 | symptom | cause / fix |
@@ -1039,7 +1151,7 @@ laptop, full CPU):
   - With the server unavailable, Analytics shows no figures (the built-in example cities are gone).
   - Analytics Key Insights are built from the zones' own values (A3).
   - Still illustrative: the Analytics Rainfall Trend chart (multiples of the average; banner
-    "Illustrative figures").
+    "Illustrative figures"). Removed in the honesty fixes batch (1 Oct 2026).
   - Primary Threat and hazard levels come from fixed rule scores. A HIGH zone with any rain above
     0.0 mm gets flash-flood score 0.85 and so shows "Flash Flood", even with 0.4 mm (seen in the A3
     screenshots). Not changed.
@@ -1090,12 +1202,13 @@ laptop, full CPU):
     - Analytics' "Thunderstorm convective probability" became "Rule-based thunderstorm indicator".
   - Analytics still falls back to built-in example nodes when the backend is down, now labelled as such;
   - Reports: the fixed example figures (dates, sector counts, river-basin text) are unchanged but labelled
-    as examples.
+    as examples. Replaced by one computed report in the honesty fixes batch (1 Oct 2026).
 - Forecast: its source line follows the backend's weather source, with the same text as "/" ("Sample
   data — no live weather feed" / "OpenWeather, observed HH:MM UTC"). A banner says "Score" and the risk
   levels are a rule-based indicator, not the ML model.
 - /alerts: "Live Feed" and "Live • …" appear only when the source is OpenWeather; otherwise it shows
-  "Sample data — no live weather feed".
+  "Sample data — no live weather feed". Since the honesty fixes batch (1 Oct 2026): "Rule-based
+  indicators from <source>" and "<source> • N min ago".
 - CORS (fixed in Batch 2): `backend/main.py` reads `CORS_ORIGINS` (default: the Vite dev origins),
   with credentials off.
 - `nowcast_data/scripts/build_state_mask.py` (offline, not shipped) has a hard-coded local input

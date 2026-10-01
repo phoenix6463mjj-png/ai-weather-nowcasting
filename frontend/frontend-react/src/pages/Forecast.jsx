@@ -368,7 +368,7 @@ const Forecast = () => {
         else if (risk === "HIGH" && primaryThreat(zone) === "flood") text = `Flash Flood: ${rules.length ? rules.join('; ') : RAIN_RULE_HIGH} (rule-based)`;
         else text = ruleLevelText(zone);
         const subtext = isRealtime && realtimeData
-            ? `Telemetry: ${realtimeData.rainfall} mm rain in the last hour, ${realtimeData.wind_speed} m/s wind, ${realtimeData.humidity}% humidity. Source: ${sourceBadge(realtimeData.source === 'realtime_api' ? 'openweather' : realtimeData.source === 'open-meteo' ? 'open-meteo' : 'sample', null, realtimeData.data_time)}.`
+            ? `Current weather: ${realtimeData.rainfall} mm rain in the last hour, ${realtimeData.wind_speed} m/s wind, ${realtimeData.humidity}% humidity. Source: ${sourceBadge(realtimeData.source === 'realtime_api' ? 'openweather' : realtimeData.source === 'open-meteo' ? 'open-meteo' : 'sample', null, realtimeData.data_time)}.`
             : evaluated;
         return { text, severity: risk, subtext, color: risk === "HIGH" ? "rose" : risk === "MODERATE" ? "amber" : "emerald" };
     }, [isRealtime, realtimeData, activeData, activeNowcast, weatherSource]);
@@ -580,7 +580,7 @@ const Forecast = () => {
                                     : "bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 border-blue-200 dark:border-blue-800"
                             }`}>
                                 <span className={`w-2 h-2 rounded-full ${isRealtime ? "bg-purple-500 animate-ping" : "bg-blue-500 animate-pulse"}`} />
-                                <span>{isRealtime ? (liveWeather ? "Real-Time Location:" : "Searched Location:") : "Selected Node:"}</span>
+                                <span>{isRealtime ? (liveWeather ? "Searched Location (current weather):" : "Searched Location:") : "Selected Node:"}</span>
                                 <strong className="text-slate-900 dark:text-white font-black">{activeNodeName}</strong>
                             </span>
                             {activeData?.state && (
@@ -620,7 +620,7 @@ const Forecast = () => {
                                 ? "bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border-purple-300 dark:border-purple-800 shadow-sm"
                                 : "bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-800 shadow-sm"
                         }`}>
-                            {isRealtime ? (liveWeather ? "📡 Real-Time Location Data" : "📍 Searched Location Data") : "📊 Monitoring Node Data"}
+                            {isRealtime ? (liveWeather ? "📍 Searched Location: Current Weather" : "📍 Searched Location Data") : "📊 Monitoring Node Data"}
                         </span>
                         <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">
                             Active Stream: <strong data-testid="forecast-stream" className="text-slate-900 dark:text-white font-bold">{sourceText}</strong>

@@ -972,7 +972,8 @@ test('Approach page: status table, IWV attribution from AGGREGATE_VAL, IMERG evi
         await expect(page.locator(`[data-testid="approach-row"][data-item="${item}"]`)).toHaveAttribute('data-status', status);
     }
     expect(st['Wind shear']).toBe('Tested, no gain');
-    expect(st['Alert API / CAP']).toBe('Not yet built');
+    expect(st['Alert API / CAP']).toBe('File export built');
+    await expect(page.locator('[data-testid="approach-row"][data-item="Alert API / CAP"]')).toContainText('CAP 1.2 file export built; live feed not built');
     await expect(page.getByTestId('iwv-attribution')).toHaveText(a.rows[0].attribution);
     await expect(page.getByTestId('iwv-attribution')).toContainText('Validation 2022–23, alert-selected rows');
     await expect(page.getByTestId('approach-page')).not.toContainText('core driver');
@@ -1359,14 +1360,15 @@ test('data credits: MOSDAC credit line and the 3DR L1C DOI', async ({ page }) =>
     await expect(c.getByRole('link', { name: 'DOI' })).toHaveAttribute('href', 'https://doi.org/10.19038/SAC/10/3RIMG_L1C_ASIA_MER');
 });
 
-test('Approach page: only the cloud-top temperature row changed (INSAT observation layer, not a model input)', async ({ page }) => {
+test('Approach page: cloud-top temperature row (INSAT observation layer, not a model input)', async ({ page }) => {
     await page.setViewportSize({ width: 1920, height: 1080 });
     await page.goto('/nowcast/approach');
     const row = page.locator('[data-testid="approach-row"][data-item="Cloud-top temperature drop rate"]');
     await expect(row).toHaveAttribute('data-status', 'Observation layer delivered');
+    await expect(row).toContainText('INSAT-3DR cloud-top observation layer delivered (MOSDAC access granted 28 Sep 2026); not a model input.');
+    await expect(row).not.toContainText('needs INSAT imagery');
     await expect(row.getByTestId('approach-status-note')).toHaveText(
-        'INSAT-3DR 10.8 µm cloud-top temperature on the two case studies (MOSDAC access granted 28 Sep 2026). '
-        + 'Not a model input; using it in the model needs INSAT history + retraining (roadmap).');
+        '10.8 µm cloud-top temperature on the two case studies. Using it in the model needs INSAT history + retraining (roadmap).');
     await expect(page.getByTestId('approach-table')).not.toContainText('Blocked by data access');
     await expect(page.getByTestId('approach-status-note')).toHaveCount(1);
     await shot(page, 'approach_ctt_row_1920x1080');

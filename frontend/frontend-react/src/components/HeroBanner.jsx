@@ -19,12 +19,11 @@ const HeroBanner = ({ cityData, sample = true }) => {
             <a data-testid="photo-credit" href="https://unsplash.com/license" target="_blank" rel="noreferrer" className="absolute bottom-1 right-2 z-20 px-1.5 py-px rounded bg-black/45 text-[9px] font-semibold text-white hover:bg-black/70">Photo: Unsplash</a>
             <div className="relative z-10 h-full flex items-center justify-between px-10">
                 <div>
-                    <h2 className="text-4xl font-black text-slate-800 dark:text-white leading-tight tracking-tight">Stronger Forecasts<br/>Safer Communities</h2>
-                    <p className="text-slate-600 dark:text-slate-300 font-bold mt-2 text-sm">{sample ? 'Early warnings. A more resilient India.' : 'Real-time insights. Early warnings. A more resilient India.'}</p>
+                    <h2 data-testid="hero-title" className="text-4xl font-black text-slate-800 dark:text-white leading-tight tracking-tight">Weather Nowcasting<br/>for India</h2>
+                    <p data-testid="hero-subtitle" className="text-slate-600 dark:text-slate-300 font-bold mt-2 text-sm">{sample ? 'Sample data: risk indicators are not shown.' : 'Rule-based indicators from current weather.'}</p>
                 </div>
 
                 <div className="flex items-center gap-6">
-                    <p className="hidden lg:block text-slate-700 dark:text-slate-300 italic text-sm border-r border-slate-300 dark:border-slate-600 pr-6 font-medium">"Weather-aware today<br/>for a safer tomorrow"</p>
 
                     <div className="bg-slate-900/70 dark:bg-slate-800/80 backdrop-blur-md rounded-2xl p-4 text-white flex items-center gap-6 border border-white/10 shadow-lg">
                         <div>

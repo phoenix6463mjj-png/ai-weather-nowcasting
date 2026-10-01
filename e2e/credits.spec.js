@@ -94,7 +94,7 @@ test('Nominatim: no request per keystroke, cached repeats, >= 1 s apart, latest 
     const calls = await mockNominatim(page);
     await page.goto('/');
     await expect(page.getByTestId('dashboard-source-badge')).not.toHaveText('Loading weather source…');
-    const input = page.getByPlaceholder('Search city (e.g. Mumbai, Jaipur)...');
+    const input = page.getByLabel('Search city (e.g. Mumbai, Jaipur)');
     await input.pressSequentially('Shimla', { delay: 60 });
     await page.waitForTimeout(1200);
     expect(calls.length, 'typing alone sends nothing (no auto-complete)').toBe(0);

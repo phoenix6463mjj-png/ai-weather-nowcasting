@@ -65,22 +65,23 @@ test('Analytics with the backend down: no example figures, the safety-net notice
     await expect(page.getByTestId('analytics-summary-source')).toHaveCount(0);
 });
 
-test('Reports: every card labelled as an example; no official/Doppler/accuracy/Confidential claims; export footer honest', async ({ page }) => {
+test('Reports: no fixed example reports; no official/Doppler/accuracy/Confidential claims; export footer honest', async ({ page }) => {
     await stubImages(page);
     await page.goto('/reports');
-    await expect(page.getByTestId('honesty-banner-illustrative')).toBeVisible();
-    const cards = page.getByTestId('report-example-label');
-    await expect(cards).toHaveCount(4);
-    for (const c of await cards.all()) await expect(c).toHaveText('Example report (illustrative)');
-    await expect(page.locator('body')).not.toContainText('94.6');
-    await expect(page.locator('body')).not.toContainText('zero false-negative');
-    await expect(page.locator('body')).not.toContainText('Validation 9');
+    await expect(page.getByTestId('honesty-banner-rule-figures')).toBeVisible();
+    await expect(page.getByTestId('reports-zones-value')).not.toBeEmpty();
+    for (const s of ['94.6', 'zero false-negative', 'Validation 9', 'Example report', 'Vizianagaram', 'Godavari', 'Depression over',
+        'Total Reports Today', 'scheduled bulletins', '24.8%', 'High: 22%']) {
+        await expect(page.locator('body'), s).not.toContainText(s);
+    }
     await expectNoBanned(page);
-    const dl = page.waitForEvent('download');
-    await page.getByRole('button', { name: /Export PDF/ }).first().click();
-    const text = fs.readFileSync(await (await dl).path(), 'utf-8');
-    expect(text).toContain('Example report (illustrative) - not an official bulletin');
-    for (const re of BANNED) expect(text).not.toMatch(re);
+    if (await page.getByTestId('report-current').count()) {
+        const dl = page.waitForEvent('download');
+        await page.getByRole('button', { name: /Export summary/ }).click();
+        const text = fs.readFileSync(await (await dl).path(), 'utf-8');
+        expect(text).toContain('Not an alert bulletin.');
+        for (const re of BANNED) expect(text).not.toMatch(re);
+    }
 });
 
 test('Forecast: no confidence value, rule-based alert label, "Backend Synchronized" only after a successful fetch', async ({ page }) => {

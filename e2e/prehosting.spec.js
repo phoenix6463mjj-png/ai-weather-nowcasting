@@ -57,7 +57,7 @@ test('Alerts: "N min ago" and "Fetched HH:MM UTC" from the backend UTC time (bro
     const iso = t.toISOString().replace(/\.\d{3}Z$/, 'Z');           // as the backend emits it
     await mock(page, [zone('Mumbai', 'MODERATE', ['Humidity above 70 %'], { ts: iso })], iso);
     await page.goto('/alerts');
-    await expect(card(page, 'Mumbai').getByTestId('alert-card-source')).toHaveText('Live • 7 min ago');
+    await expect(card(page, 'Mumbai').getByTestId('alert-card-source')).toHaveText('Open-Meteo (model data) • 7 min ago');
     await expect(page.getByText(`Fetched ${iso.slice(11, 16)} UTC`, { exact: true }).first()).toBeVisible();
 });
 
@@ -65,7 +65,7 @@ test('Alerts: a naive (no time zone) backend time is not read as browser-local t
     const naive = new Date(Date.now() - 2 * 3600_000).toISOString().slice(0, 19);    // no Z
     await mock(page, [zone('Mumbai', 'MODERATE', ['Humidity above 70 %'], { ts: naive })], naive);
     await page.goto('/alerts');
-    await expect(card(page, 'Mumbai').getByTestId('alert-card-source')).toHaveText('Live • Just now');   // falls back to the fetch time
+    await expect(card(page, 'Mumbai').getByTestId('alert-card-source')).toHaveText('Open-Meteo (model data) • Just now');   // falls back to the fetch time
     await expect(page.getByText(/^Fetched \d\d:\d\d UTC$/).first()).toBeVisible();
 });
 

@@ -70,7 +70,7 @@ for (const src of ['sample', 'openweather', 'open-meteo']) {
         // Alerts
         await page.goto('/alerts');
         const badge = page.getByTestId('alerts-source-badge');
-        if (e.live) await expect(badge).toContainText('Live Feed');
+        if (e.live) await expect(badge).toContainText('Rule-based indicators from ');
         else await expect(badge).toHaveText(SAMPLE);
         if (src === 'open-meteo') {
             await expect(badge).toContainText('Open-Meteo (model data), updated 13:45 UTC');

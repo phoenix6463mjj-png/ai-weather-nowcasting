@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink, Link } from 'react-router-dom';
-import { Home, Map, CloudRain, Bell, BarChart2, MapPin, FileText, Settings, Play } from 'lucide-react';
+import { Home, Map, CloudRain, Bell, BarChart2, FileText, Play } from 'lucide-react';
 
 const Sidebar = ({
     live = false,
@@ -29,16 +29,14 @@ const Sidebar = ({
                         <Home size={18} />
                         <span className="text-sm">Home</span>
                     </NavLink>
-                    <button
-                        onClick={onMonitorIndia}
-                        className="w-full flex items-center justify-between px-4 py-3 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl font-semibold transition-colors text-left cursor-pointer"
-                    >
+                    {/* the ML Nowcast map (calibrated probability maps for India) */}
+                    <NavLink to="/nowcast" data-testid="sidebar-live-map" className={({ isActive }) => `${navLinkClass({ isActive })} justify-between`}>
                         <div className="flex items-center gap-3">
                             <Map size={18} />
                             <span className="text-sm">Live Map</span>
                         </div>
-                        <span className="bg-blue-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-sm">INDIA</span>
-                    </button>
+                        <span className="bg-blue-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-sm">ML</span>
+                    </NavLink>
                     <NavLink to="/forecast" className={navLinkClass}>
                         <CloudRain size={18} />
                         <span className="text-sm">Forecast</span>
@@ -58,24 +56,10 @@ const Sidebar = ({
                         <BarChart2 size={18} />
                         <span className="text-sm">Analytics</span>
                     </NavLink>
-                    <button
-                        onClick={onMonitorIndia}
-                        className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl font-semibold transition-colors text-left cursor-pointer"
-                    >
-                        <MapPin size={18} />
-                        <span className="text-sm">Locations</span>
-                    </button>
                     <NavLink to="/reports" className={navLinkClass}>
                         <FileText size={18} />
                         <span className="text-sm">Reports</span>
                     </NavLink>
-                    <Link
-                        to="/analytics"
-                        className="flex items-center gap-3 px-4 py-3 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl font-semibold transition-colors"
-                    >
-                        <Settings size={18} />
-                        <span className="text-sm">Settings</span>
-                    </Link>
                 </nav>
 
                 <div className="mt-8">
@@ -187,14 +171,14 @@ const Sidebar = ({
                     <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1542224566-6e85f2e6772f?auto=format&fit=crop&w=600&q=80')] bg-cover bg-center"></div>
                     <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent"></div>
                     <a data-testid="photo-credit" href="https://unsplash.com/license" target="_blank" rel="noreferrer" className="absolute top-1 right-2 z-20 px-1.5 py-px rounded bg-black/45 text-[9px] font-semibold text-white hover:bg-black/70">Photo: Unsplash</a>
-                    <div className="relative z-10 flex items-center justify-between">
+                    <Link to="/nowcast" data-testid="sidebar-nowcast-card" className="relative z-10 flex items-center justify-between hover:opacity-90">
                         <div>
-                            <p className="text-white font-bold leading-tight text-sm">Monitoring Today<br/>for a Safer Tomorrow</p>
+                            <p className="text-white font-bold leading-tight text-sm">ML Nowcast<br/>maps and alerts</p>
                         </div>
                         <div className="w-6 h-6 bg-white/20 backdrop-blur rounded-full flex items-center justify-center">
                             <span className="text-white text-[10px]">➔</span>
                         </div>
-                    </div>
+                    </Link>
                 </div>
             </div>
         </aside>

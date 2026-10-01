@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { API_BASE } from '../config';
 import { fetchWithWake, isServerUnavailable, WAKE_UNAVAILABLE } from '../utils/serverWake';
 import { RISK_COLOURS, isLiveSource, isSampleSource, isUnratedZone, mixedCounts, sourceBadge } from '../utils/dashboardRisk';
@@ -36,6 +36,8 @@ const Dashboard = () => {
     const [baseLayer, setBaseLayer] = useState('map');      // 'map' | 'satellite' | 'terrain'
 
     const isFetchingRef = useRef(false);
+    // the header search on the other pages opens "/?city=<name>": run that search here once
+    const [searchParams, setSearchParams] = useSearchParams();
 
     const loadAllData = async () => {
         // Prevent overlapping/duplicate concurrent API calls
@@ -248,6 +250,16 @@ const Dashboard = () => {
             setSearchLoading(false);
         }
     };
+
+    useEffect(() => {
+        const q = searchParams.get('city');
+        if (q && q.trim()) {
+            setSearchParams({}, { replace: true });
+            const run = async () => { await handleSearch(q); };
+            run();
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     // Marker Click / Select Handler
     const handleSelectCity = (location) => {
