@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 
 const SHOTS = path.join(path.dirname(fileURLToPath(import.meta.url)), 'screenshots');
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64');
-const ML_FOOTER = ['era5', 'imerg', 'gfs', 'imd', 'copernicus_dem', 'insat_mosdac', 'nasa_gibs', 'osm', 'open_meteo'];
+const ML_FOOTER = ['era5', 'imerg', 'gfs', 'imd', 'copernicus_dem', 'insat_mosdac', 'nasa_gibs', 'osm', 'osm_shelters', 'open_meteo'];
 const TEAM = ['imd', 'nasa_gibs', 'osm', 'open_meteo', 'openweather', 'unsplash', 'nominatim'];
 const PLACES = {
     shimla: { lat: '31.1048', lon: '77.1734', display_name: 'Shimla, Himachal Pradesh, India' },

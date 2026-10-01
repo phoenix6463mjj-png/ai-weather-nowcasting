@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { BellRing, FlaskConical, CalendarClock, Info } from 'lucide-react';
-import { getEpisodes, getEventCheck, getTimeline, getIssueMeta, getIssueAlerts, getAlertDetail, issueMapUrl, issueMissedUrl } from '../../services/nowcastApi';
+import { BellRing, FlaskConical, CalendarClock, Info, Building2 } from 'lucide-react';
+import { getEpisodes, getEventCheck, getTimeline, getIssueMeta, getIssueAlerts, getAlertDetail, getShelters, issueMapUrl, issueMissedUrl } from '../../services/nowcastApi';
 import { HAZARDS, fmtUtc, fmtIssueShort, issueDefaultLead, FF_VERIFY_NOTE } from '../../utils/hazardLabels';
 import AlertMap from './AlertMap';
 import MapControls from './MapControls';
@@ -17,6 +17,7 @@ import Drawer from './Drawer';
 import LayersPanel from './LayersPanel';
 import IngredientsTab from './IngredientsTab';
 import CaveatsPanel from './CaveatsPanel';
+import ShelterPanel, { SHELTER_LABEL } from './ShelterPanel';
 import { MapBadges } from './MapFrame';
 import useEventDrawerWidth from './useEventDrawerWidth';
 
@@ -47,6 +48,8 @@ const ReplayView = () => {
     const [check, setCheck] = useState({ ep: null, data: null, timeline: null });
     const [detail, setDetail] = useState({ id: null, d: null, error: null });
     const [reviews, setReviews] = useState({});            // forecaster review per alert (this page only; never sent)
+    const [shelterPt, setShelterPt] = useState(null);       // { lat, lon, source: 'click' | 'alert' }
+    const [shelter, setShelter] = useState({ key: null, data: null, error: null });
     const eventWidth = useEventDrawerWidth();
     const terrain = useTerrain(ep);
     const insat = useInsat(ep, ts);
@@ -103,6 +106,19 @@ const ReplayView = () => {
     }, [selId, ep, ts]);
     const det = selId && detail.id === selId ? detail : { d: null, error: null };
 
+    // nearby shelter options for the chosen point, checked against every alert of this issue
+    const shelterKey = shelterPt && ep && ts ? `${ep}/${ts}/${shelterPt.lat.toFixed(4)}/${shelterPt.lon.toFixed(4)}` : null;
+    useEffect(() => {
+        if (!shelterKey) return undefined;
+        let live = true;
+        getShelters({ kind: 'issue', ep, ts }, shelterPt.lat, shelterPt.lon)
+            .then((r) => live && setShelter({ key: shelterKey, data: r, error: null }))
+            .catch((e) => live && setShelter({ key: shelterKey, data: null, error: e.message }));
+        return () => { live = false; };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [shelterKey]);
+    const sh = shelter.key === shelterKey ? shelter : { data: null, error: null };
+
     const { meta, alerts } = data;
     const loading = !!ep && !!ts && data.key !== `${ep}/${ts}` && !error;
 
@@ -111,6 +127,13 @@ const ReplayView = () => {
     const checkApplies = !!eventCheck?.applies;
     const active = drawer === 'event' && !checkApplies ? null : drawer;
     const closeDrawer = useCallback(() => setDrawer(null), []);
+    // opening "Nearby shelter options" with an alert selected (and no point yet) starts from its peak cell
+    const pointFromAlert = () => selected?.peak_cell && setShelterPt({ lat: selected.peak_cell[0], lon: selected.peak_cell[1], source: 'alert' });
+    const openDrawer = (id) => {
+        if (id === 'shelter' && !shelterPt) pointFromAlert();
+        setDrawer(id);
+    };
+    const shelterOpen = active === 'shelter';
     const select = (a) => { setSelected(a); if (a) setDrawer('alert'); };
     const issueInfo = episode?.issues.find((i) => i.ts === ts);
 
@@ -166,7 +189,7 @@ const ReplayView = () => {
 
     const changeEpisode = (id) => {
         const e = episodes.find((x) => x.episode === id);
-        setSelected(null); setError(null);
+        setSelected(null); setError(null); setShelterPt(null);
         setEp(id);
         setTs(e.issues[Math.floor(e.issues.length / 2)].ts);
     };
@@ -176,6 +199,7 @@ const ReplayView = () => {
         { id: 'alert', label: 'Alert', icon: BellRing, width: 420 },
         { id: 'ingredients', label: 'Ingredients', icon: FlaskConical, width: 440 },
         ...(checkApplies ? [{ id: 'event', label: 'Event check', icon: CalendarClock, width: eventWidth }] : []),
+        { id: 'shelter', label: SHELTER_LABEL, short: 'Shelter options', icon: Building2, width: 440 },
         { id: 'caveats', label: 'Caveats', icon: Info, width: 420 },
     ];
 
@@ -243,7 +267,9 @@ const ReplayView = () => {
                     {meta && (
                         <AlertMap bounds={meta.bounds} alerts={shown} selectedId={selected?.alert_id}
                             onSelect={select} sites={meta.sites || []} overlays={overlays} dimFill={!!field}
-                            terrain={terrain.layers} terrainNotice={terrain.fullNotice} />
+                            terrain={terrain.layers} terrainNotice={terrain.fullNotice}
+                            onPick={shelterOpen ? (p) => setShelterPt({ ...p, source: 'click' }) : null}
+                            shelter={shelterOpen && shelterPt ? { point: shelterPt, radiusKm: sh.data?.radius_km, candidates: sh.data?.candidates || [] } : null} />
                     )}
                     <div className="absolute top-3 left-3 bottom-3 z-[400] flex flex-col pointer-events-none">
                         <LayersPanel summary={meta && lead ? `${ep} · ${fmtIssueShort(meta.issue_time)} · L${lead} h · ${showWatch ? 'Watch + Warning' : 'Warnings'}${insat.on && insat.available ? ' · INSAT-3DR' : ''}` : ''}>
@@ -295,12 +321,14 @@ const ReplayView = () => {
                 </div>
             </div>
 
-            <Drawer tabs={tabs} active={active} onOpen={setDrawer} onClose={closeDrawer}>
+            <Drawer tabs={tabs} active={active} onOpen={openDrawer} onClose={closeDrawer}>
                 {(id) => (
                     id === 'alert' ? alertSection
                         : id === 'ingredients' ? <IngredientsTab selected={selected} d={det.d} error={det.error} />
                             : id === 'event' ? <EventCheckPanel check={eventCheck} timeline={check.ep === ep ? check.timeline : null} onJump={jumpTo} />
-                                : <CaveatsPanel />
+                                : id === 'shelter' ? <ShelterPanel point={shelterPt} data={sh.data} error={sh.error}
+                                    loading={!!shelterKey && shelter.key !== shelterKey} selected={selected} onUseAlert={pointFromAlert} lead={lead} />
+                                    : <CaveatsPanel />
                 )}
             </Drawer>
         </div>

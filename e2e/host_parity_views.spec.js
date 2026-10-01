@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 
 const OUT = path.join(path.dirname(fileURLToPath(import.meta.url)), 'screenshots');
 const HOST = process.env.E2E_HOST_APP_URL || 'http://127.0.0.1:10000';
+const FULL = process.env.E2E_API_URL || 'http://127.0.0.1:8000';
 
 async function hostUp(request) {
     try {
@@ -82,6 +83,13 @@ async function drawerSections(page) {
                 await cap.click().catch(() => {});
                 await page.waitForTimeout(500);
             }
+            // nearby shelter options from the selected alert's peak cell (/shelters)
+            const sh = page.getByTestId('drawer-tab-shelter');
+            if (await sh.count()) {
+                await sh.click();
+                await expect(page.getByTestId('shelter-summary').or(page.getByTestId('shelter-not-available'))).toBeVisible();
+                await page.waitForTimeout(400);
+            }
         }
     }
 }
@@ -103,6 +111,8 @@ async function clickThrough(page) {
     await cycleLeadsAndFields(page);
     await page.getByTestId('tab-live').click();
     await expect(page.getByTestId('live-not-validated')).toBeVisible({ timeout: 60_000 });
+    // the badge renders before the run's meta/alerts arrive; the lead buttons only after them
+    await expect(page.getByTestId('lead-1')).toBeAttached({ timeout: 60_000 });
     await cycleLeadsAndFields(page);
     await drawerSections(page);
     for (const r of ['/nowcast/results', '/nowcast/approach']) {
@@ -127,6 +137,17 @@ test('ML Nowcast views: every /ml request has the same status on the host packag
     const f = by(logs.full);
     const h = by(logs.host);
     expect(Object.keys(f).length).toBeGreaterThan(50);
+    // a request made on one side only (click timing): request it directly on the other side, same status
+    const oneSided = [];
+    for (const k of Object.keys({ ...f, ...h }).filter((x) => (x in f) !== (x in h))) {
+        const [method, p] = [k.slice(0, k.indexOf(' ')), k.slice(k.indexOf(' ') + 1)];
+        expect(method, k).toBe('GET');
+        const missing = k in f ? 'host' : 'full';
+        const status = (await request.get(`${missing === 'host' ? HOST : FULL}${p}`)).status();
+        (missing === 'host' ? h : f)[k] = status;
+        oneSided.push({ request: k, seen_on: missing === 'host' ? 'full' : 'host', fetched_on: missing, status });
+    }
+    fs.writeFileSync(path.join(OUT, 'host_parity_views_one_sided.json'), JSON.stringify(oneSided, null, 1));
     const diff = Object.keys({ ...f, ...h }).filter((k) => f[k] !== h[k]).map((k) => `${k}: full ${f[k]} host ${h[k]}`);
     expect(diff, diff.join('\n')).toEqual([]);
 });

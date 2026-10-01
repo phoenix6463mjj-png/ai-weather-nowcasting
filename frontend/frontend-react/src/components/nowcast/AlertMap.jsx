@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { MapContainer, TileLayer, GeoJSON, CircleMarker, Tooltip, ImageOverlay, Rectangle, Pane, ZoomControl, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, GeoJSON, CircleMarker, Circle, Tooltip, ImageOverlay, Rectangle, Pane, ZoomControl, useMap, useMapEvents } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import { HAZARD_STYLE, LEVEL_STYLE, VERIFY_STYLE, valueText, FF_VERIFY_NOTE } from '../../utils/hazardLabels';
 import { TERRAIN_ATTRIBUTION } from './useTerrain';
@@ -28,15 +28,45 @@ const TrackSize = () => {
     return null;
 };
 
+// "Nearby shelter options" open: a map click (also on an alert) chooses the point; crosshair cursor.
+const PickPoint = ({ onPick }) => {
+    const map = useMap();
+    useMapEvents({ click: (e) => onPick({ lat: e.latlng.lat, lon: e.latlng.lng }) });
+    useEffect(() => {
+        const el = map.getContainer();
+        el.classList.add('nowcast-pick-mode');
+        el.style.cursor = 'crosshair';
+        return () => { el.classList.remove('nowcast-pick-mode'); el.style.cursor = ''; };
+    }, [map]);
+    return null;
+};
+
+// A newly chosen shelter point: zoom to its search circle so the numbered candidates are readable.
+const FitShelter = ({ point, radiusKm }) => {
+    const map = useMap();
+    useEffect(() => {
+        if (!point) return;
+        const dLat = radiusKm / 111.2;
+        const dLon = radiusKm / (111.2 * Math.cos((point.lat * Math.PI) / 180));
+        map.fitBounds([[point.lat - dLat, point.lon - dLon], [point.lat + dLat, point.lon + dLon]], { padding: [16, 16] });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [point?.lat, point?.lon, map]);
+    return null;
+};
+
 /**
  * Leaflet map of model alert polygons.
  *  - fill/stroke colour = hazard; Warning = solid & opaque, Watch = dashed & light
  *  - dot at the alert's peak cell = contract sec. 7 verification (green = verified, grey = false alarm)
  *  - overlays: PNG rasters already resampled to Web-Mercator rows by the API, placed at `bounds`
  *  - terrain: hillshade PNGs (same row mapping) in the lowest pane, under every risk layer and alert
+ *  - onPick (shelter section open): map clicks choose a point instead of selecting an alert;
+ *    shelter = { point, radiusKm, candidates } draws the point, the radius and the numbered candidates
  */
-const AlertMap = ({ bounds, alerts = [], selectedId, onSelect, sites = [], overlays = [], showDomain = true, dimFill = false,
-    terrain = [], terrainNotice }) => (
+const AlertMap = ({ bounds, alerts = [], selectedId, onSelect: onSelectProp, sites = [], overlays = [], showDomain = true, dimFill = false,
+    terrain = [], terrainNotice, onPick = null, shelter = null }) => {
+    const onSelect = onPick ? null : onSelectProp;
+    return (
     <MapContainer center={[30, 79]} zoom={6} className="w-full h-full z-0" zoomControl={false}>
         {/* top-left is the Layers panel, bottom-right the legend */}
         <ZoomControl position="topright" />
@@ -111,6 +141,25 @@ const AlertMap = ({ bounds, alerts = [], selectedId, onSelect, sites = [], overl
                 </Tooltip>
             </CircleMarker>
         ))}
+        {onPick && <PickPoint onPick={onPick} />}
+        {shelter?.point && (
+            <>
+                <FitShelter point={shelter.point} radiusKm={shelter.radiusKm || 25} />
+                <Circle center={[shelter.point.lat, shelter.point.lon]} radius={(shelter.radiusKm || 25) * 1000} interactive={false}
+                    pathOptions={{ color: '#6d28d9', weight: 1.5, dashArray: '5 5', fill: false, className: 'nowcast-shelter-radius' }} />
+                <CircleMarker center={[shelter.point.lat, shelter.point.lon]} radius={7} interactive={false}
+                    pathOptions={{ color: '#111827', weight: 3, fillColor: '#ffffff', fillOpacity: 1, className: 'nowcast-shelter-point' }} />
+            </>
+        )}
+        {(shelter?.candidates || []).map((c) => (
+            <CircleMarker key={`sh-${c.osm_id}`} center={[c.lat, c.lon]} radius={8}
+                pathOptions={{ color: '#6d28d9', weight: 2.5, fillColor: c.outside_all_alerts ? '#6d28d9' : '#ffffff', fillOpacity: 1,
+                    className: `nowcast-shelter-marker ${c.outside_all_alerts ? 'outside' : 'inside'}` }}>
+                <Tooltip permanent direction="right" offset={[7, 0]} className="nowcast-shelter-label">
+                    <span className="text-[10px] font-black">{c.rank}</span>
+                </Tooltip>
+            </CircleMarker>
+        ))}
         {sites.map((site) => (
             <CircleMarker key={`site-${site.episode || site.name}`} center={[site.lat, site.lon]} radius={7}
                 pathOptions={{ color: '#111827', weight: 2.5, fillColor: '#facc15', fillOpacity: 1, className: 'nowcast-site-marker' }}>
@@ -120,6 +169,7 @@ const AlertMap = ({ bounds, alerts = [], selectedId, onSelect, sites = [], overl
             </CircleMarker>
         ))}
     </MapContainer>
-);
+    );
+};
 
 export default AlertMap;

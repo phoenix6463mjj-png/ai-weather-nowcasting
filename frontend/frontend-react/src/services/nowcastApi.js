@@ -48,6 +48,11 @@ export const getLiveAlerts = (run) => request(`live/${run}/ui-alerts?level=all`)
 export const liveMapUrl = (run, lead, field) => mlUrl(`live/${run}/map/${lead}/${field}.png`);
 
 export const getReplayStatus = () => request('replay/status');
+
+// Nearby shelter options: OSM public buildings near a point, checked against every alert of the issue/run
+const fix = (v) => Number(v).toFixed(4);
+export const getShelters = (src, lat, lon) =>
+    request(`${src.kind === 'live' ? `live/${src.run}` : `issues/${src.ep}/${src.ts}`}/shelters${q({ lat: fix(lat), lon: fix(lon) })}`);
 export const runReplay = (body) => request('replay', {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
 });

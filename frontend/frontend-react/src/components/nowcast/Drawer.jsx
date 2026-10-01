@@ -5,7 +5,8 @@ import { X } from 'lucide-react';
  * Right-side details drawer (layout rule: ONE drawer, collapsed by default, one section at a time,
  * Esc / × closes). It sits beside the map in the flex row (it pushes the map, never covers it),
  * so map controls stay visible. The icon rail is always shown; clicking an icon opens that section.
- *   tabs: [{ id, label, icon: LucideIcon, width?: px }]   active: tab id or null (collapsed)
+ *   tabs: [{ id, label, short?, icon: LucideIcon, width?: px }]   active: tab id or null (collapsed)
+ *   (short: the icon rail's text when the label is long; the panel header always shows label)
  */
 const Drawer = ({ tabs, active, onOpen, onClose, children }) => {
     const open = tabs.find((t) => t.id === active) || null;
@@ -43,7 +44,7 @@ const Drawer = ({ tabs, active, onOpen, onClose, children }) => {
                             className={`mx-1 py-2 rounded-lg flex flex-col items-center gap-0.5 text-[10px] font-bold leading-tight transition-colors ${on
                                 ? 'bg-blue-600 text-white' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800'}`}>
                             <t.icon size={17} />
-                            <span className="text-center">{t.label}</span>
+                            <span className="text-center">{t.short || t.label}</span>
                         </button>
                     );
                 })}

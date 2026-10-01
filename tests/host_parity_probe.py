@@ -21,7 +21,9 @@ FIELDS = ["thunderstorm", "cloudburst_index", "flash_flood", "rain_p10", "rain_p
 
 def discover(get):
     paths = ["health", "episodes", "caveats", "credits", "results", "approach", "terrain", "insat",
-             "replay/status", "india/meta", "live"]
+             "replay/status", "india/meta", "live", "shelters"]
+    # nearby shelter options: inside the covered states (Pipalkoti, Malana) and outside (Mumbai)
+    pts = ["lat=30.4335&lon=79.4284", "lat=32.0618&lon=77.2600", "lat=19.0700&lon=72.8800"]
     for layer in get("terrain").json()["layers"]:
         paths.append(f"terrain/{layer}.png")
     paths += [f"india/map/{L}/{f}.png" for L in LEADS for f in FIELDS]
@@ -29,6 +31,7 @@ def discover(get):
         run = r["run"]
         paths += [f"live/{run}/meta", f"live/{run}/ui-alerts?level=all", f"live/{run}/alerts.cap.xml"]
         paths += [f"live/{run}/map/{L}/{f}.png" for L in LEADS for f in FIELDS]
+        paths += [f"live/{run}/shelters?{p}" for p in pts]
     eps = get("episodes").json()
     for e in (eps["episodes"] if isinstance(eps, dict) else eps):
         ep = e["episode"]
@@ -42,6 +45,7 @@ def discover(get):
             base = f"issues/{ep}/{ts}"
             paths += [f"{base}/meta", f"{base}/ui-alerts?level=all", f"{base}/insat", f"{base}/files/manifest.json",
                       f"{base}/alerts.cap.xml"]
+            paths += [f"{base}/shelters?{p}" for p in pts]
             alerts = get(f"{base}/ui-alerts?level=all").json().get("alerts", [])
             if alerts:
                 paths += [f"{base}/alerts/{alerts[0]['alert_id']}",

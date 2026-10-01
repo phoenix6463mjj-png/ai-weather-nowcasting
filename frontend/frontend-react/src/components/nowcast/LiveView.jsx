@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, ChevronLeft, ArrowUpRight, ArrowDownRight, BellRing, FlaskConical, Info } from 'lucide-react';
-import { getLiveRuns, getLiveMeta, getLiveAlerts, liveMapUrl } from '../../services/nowcastApi';
+import { AlertTriangle, ChevronLeft, ArrowUpRight, ArrowDownRight, BellRing, FlaskConical, Info, Building2 } from 'lucide-react';
+import { getLiveRuns, getLiveMeta, getLiveAlerts, getShelters, liveMapUrl } from '../../services/nowcastApi';
 import { HAZARDS, HAZARD_STYLE, LEVEL_STYLE, valueText, kindText, fmtUtc, defaultLead, FIELD_OPTIONS } from '../../utils/hazardLabels';
 import AlertMap from './AlertMap';
 import MapControls from './MapControls';
@@ -13,6 +13,7 @@ import Drawer from './Drawer';
 import LayersPanel from './LayersPanel';
 import IngredientsTab from './IngredientsTab';
 import CaveatsPanel from './CaveatsPanel';
+import ShelterPanel, { SHELTER_LABEL } from './ShelterPanel';
 import { MapBadges } from './MapFrame';
 
 const LIVE_FIELDS = FIELD_OPTIONS.filter((o) => o.id !== 'flash_flood');
@@ -85,6 +86,26 @@ const LiveView = () => {
     const [reviews, setReviews] = useState({});            // forecaster review per alert (this page only; never sent)
     const closeDrawer = useCallback(() => setDrawer(null), []);
     const select = (a) => { setSelected(a); if (a) setDrawer('alert'); };
+    const [shelterPt, setShelterPt] = useState(null);       // { lat, lon, source: 'click' | 'alert' }
+    const [shelter, setShelter] = useState({ key: null, data: null, error: null });
+    const pointFromAlert = () => selected?.peak_cell && setShelterPt({ lat: selected.peak_cell[0], lon: selected.peak_cell[1], source: 'alert' });
+    const openDrawer = (id) => {
+        if (id === 'shelter' && !shelterPt) pointFromAlert();
+        setDrawer(id);
+    };
+    const shelterOpen = drawer === 'shelter';
+    const run = meta?.run;
+    const shelterKey = shelterPt && run ? `${run}/${shelterPt.lat.toFixed(4)}/${shelterPt.lon.toFixed(4)}` : null;
+    useEffect(() => {
+        if (!shelterKey) return undefined;
+        let live = true;
+        getShelters({ kind: 'live', run }, shelterPt.lat, shelterPt.lon)
+            .then((r) => live && setShelter({ key: shelterKey, data: r, error: null }))
+            .catch((e) => live && setShelter({ key: shelterKey, data: null, error: e.message }));
+        return () => { live = false; };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [shelterKey]);
+    const sh = shelter.key === shelterKey ? shelter : { data: null, error: null };
 
     useEffect(() => {
         let live = true;
@@ -115,6 +136,7 @@ const LiveView = () => {
     const tabs = [
         { id: 'alert', label: 'Alert', icon: BellRing, width: 420 },
         { id: 'ingredients', label: 'Ingredients', icon: FlaskConical, width: 420 },
+        { id: 'shelter', label: SHELTER_LABEL, short: 'Shelter options', icon: Building2, width: 440 },
         { id: 'caveats', label: 'Caveats', icon: Info, width: 420 },
     ];
 
@@ -139,7 +161,9 @@ const LiveView = () => {
                 {runs && !runs.runs.length && <p className="p-6 text-sm">No live runs available.</p>}
                 <div className="flex-1 relative min-h-0">
                     {meta && <AlertMap bounds={meta.bounds} alerts={shown} selectedId={selected?.alert_id} onSelect={select} overlays={overlays} dimFill={!!field}
-                        terrain={terrain.layers} terrainNotice={terrain.fullNotice} />}
+                        terrain={terrain.layers} terrainNotice={terrain.fullNotice}
+                        onPick={shelterOpen ? (p) => setShelterPt({ ...p, source: 'click' }) : null}
+                        shelter={shelterOpen && shelterPt ? { point: shelterPt, radiusKm: sh.data?.radius_km, candidates: sh.data?.candidates || [] } : null} />}
                     {meta && lead && (
                         <div className="absolute top-3 left-3 bottom-3 z-[400] flex flex-col pointer-events-none">
                             <LayersPanel summary={`Live ${meta.run} · L${lead} h · ${showWatch ? 'Watch + Warning' : 'Warnings'}`}>
@@ -157,7 +181,7 @@ const LiveView = () => {
                     )}
                 </div>
             </div>
-            <Drawer tabs={tabs} active={drawer} onOpen={setDrawer} onClose={closeDrawer}>
+            <Drawer tabs={tabs} active={drawer} onOpen={openDrawer} onClose={closeDrawer}>
                 {(id) => (id === 'alert' ? (
                     selected ? <LiveAlertPanel key={selected.alert_id} a={selected} run={meta?.run} onBack={() => setSelected(null)} onIngredients={() => setDrawer('ingredients')}
                         review={reviews[selected.alert_id]} onReview={(r) => setReviews((m) => ({ ...m, [selected.alert_id]: r }))} /> : (
@@ -174,7 +198,9 @@ const LiveView = () => {
                         </div>
                     )
                 ) : id === 'ingredients' ? <IngredientsTab selected={selected} d={selected} liveNote={LIVE_INGREDIENTS_NOTE} />
-                    : <CaveatsPanel />)}
+                    : id === 'shelter' ? <ShelterPanel point={shelterPt} data={sh.data} error={sh.error} live
+                        loading={!!shelterKey && shelter.key !== shelterKey} selected={selected} onUseAlert={pointFromAlert} lead={lead} />
+                        : <CaveatsPanel />)}
             </Drawer>
         </div>
     );

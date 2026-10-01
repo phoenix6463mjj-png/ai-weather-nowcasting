@@ -1077,6 +1077,68 @@ given with the fix.
 **Screenshots** (`e2e/screenshots/honesty_*`, 1920×1080 and 1366×768): dashboard, alerts, analytics,
 reports, forecast, approach table and compute line, header with a long place name.
 
+### Nearby shelter options (1 Oct 2026)
+
+**What it is:** a drawer section on /nowcast, in both Event replay and Live: icon "Shelter options", panel
+title "Nearby shelter options". It is collapsed by default and closes with Esc / ×.
+- **Choosing the point:** while the section is open, a map click chooses the point. A click on an alert
+  also chooses the point; it does not switch sections. Opening the section with an alert selected starts
+  from that alert's peak cell, and a button re-uses it.
+- **Map layers, only while the section is open:** the chosen point (ringed dot), a dashed 25 km circle and
+  numbered candidate dots (filled: outside all alerts; hollow: inside an alert). The map zooms to the
+  circle so the numbers are readable.
+- **Each candidate:** name and type (OSM id), straight-line distance and 8-point direction (no route), and
+  whether it lies outside all current alerts at every lead. Otherwise it shows "Inside a current alert at
+  +1, +2 … h", plus the alerts at the lead shown on the map.
+  - The alert check uses every alert of the issue or run (all leads, Watch and Warning, all hazards), not
+    only the filtered ones; the panel says so.
+  - It also shows slope, distance to the nearest mapped stream, and elevation relative to the chosen
+    point. Values only: no thresholds, no pass/fail.
+- **Fixed wording, shown first:** "Candidate public buildings outside the current alert area, not verified
+  shelters. Roads may be blocked. Follow evacuation instructions from district authorities and IMD.
+  Emergency: 112."
+  - Outside Uttarakhand and Himachal Pradesh: "Not available for this area yet."
+  - Live: "Live output: not validated." REF025: its in-sample badge.
+  - Nothing is called "safe".
+
+**Data** (details in `nowcast_data/serve/README.md` "Nearby shelter options"):
+- One Overpass query on 2026-10-01 returned 33.1 MB (raw, gitignored).
+- 2,461 buildings and 12,676 river/stream lines; OSM has no emergency assembly points mapped in the two
+  states.
+- Derived assets 19.6 MB under `serve/assets/osm/`; the host ships 6.2 MB (the 13.4 MB waterways file is a
+  build input only).
+- Terrain values come from the Copernicus DEM on disk, precomputed. The chosen point's elevation comes from
+  a 5.5 MB numpy grid, so the host needs no rasterio.
+- Credit: new `osm_shelters` entry in the ML credits footer (ODbL), and `serve/assets/osm/ATTRIBUTION.md`.
+- First Overpass attempts answered HTTP 504 ("server is probably too busy") when the query asked for a
+  600 s / 1 GB or 512 MB reservation. The same query with the default memory and `timeout:300` succeeded
+  in 49 s.
+
+**Not covered:** the National sample view (no section there). Buildings only as mapped in OpenStreetMap,
+which may be incomplete; unnamed ones show as "Unnamed <type>".
+
+**Tests:**
+- `nowcast_data/serve/tests/test_shelters.py` (8 tests).
+- `e2e/shelters.spec.js` (6 tests): REF045 alert peak and map click; REF051; REF025 badge; Live "not
+  validated" and the outside-region message. The candidates, flags and markers equal the API's.
+- Host parity: `tests/host_parity_probe.py` also requests `/shelters` (3 points per issue and per live run,
+  and `shelters`).
+
+**Screenshots:** `e2e/screenshots/shelters_{REF045,REF051}_{1920x1080,1366x768}.png`.
+
+**Host-parity views spec fix (same day):**
+- Cause of the failure: request timing in the test, not a host difference. On the full-app pass the
+  Live view made no map-PNG requests at all, while the host pass made lead-6 ones. The spec waited only
+  for the "not validated" badge, which renders before the live run's meta and alerts arrive. The lead
+  buttons and field select appear only after them, so on the slower full side (proxied :8000 → :8001)
+  the click-through found nothing to click.
+- Fix in `e2e/host_parity_views.spec.js`:
+  - wait for the Live lead buttons before cycling them;
+  - any request seen on one side only is requested directly on the other side and must give the same
+    status (`e2e/screenshots/host_parity_views_one_sided.json` lists them). Statuses of requests made on
+    both sides are compared as before.
+  - The click-through also opens "Nearby shelter options" for each episode.
+
 ## 7. Troubleshooting
 
 | symptom | cause / fix |

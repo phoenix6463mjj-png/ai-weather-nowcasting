@@ -34,6 +34,8 @@ NOWCAST_FILES = [
     ("models/v0/reliability_val_farcap.csv", "Results page (reliability)"),
 ]
 NOWCAST_EXCLUDE = ["serve/tests/**/*", "serve/build_ingredients*.py", "serve/build_terrain.py", "serve/build_insat_case.py",
+                   # nearby shelter options: offline builder and its 13 MB river/stream input (no endpoint reads it)
+                   "serve/build_shelters.py", "serve/assets/osm/waterways.geojson",
                    "**/__pycache__/**/*", "**/*.pyc",
                    # 13-14 MB each; no endpoint reads them (national / live maps use prob_L*h.tif + manifest)
                    "docs/sample_output_india/grids.json", "docs/live_output/*/grids.json"]
