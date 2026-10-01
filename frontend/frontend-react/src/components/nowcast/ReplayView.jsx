@@ -342,7 +342,7 @@ const ReplayView = () => {
                             : id === 'event' ? <EventCheckPanel check={eventCheck} timeline={check.ep === ep ? check.timeline : null} onJump={jumpTo} />
                                 : id === 'shelter' ? <ShelterPanel point={shelterPt} data={sh.data} error={sh.error}
                                     loading={!!shelterKey && shelter.key !== shelterKey} selected={selected} onUseAlert={pointFromAlert} lead={lead}
-                                    onWiden={setRadius} insideOpen={insideOpen} onInsideToggle={() => setInsideOpen((o) => !o)} />
+                                    onWiden={setRadius} mapAlerts={shown} insideOpen={insideOpen} onInsideToggle={() => setInsideOpen((o) => !o)} />
                                     : <CaveatsPanel />
                 )}
             </Drawer>

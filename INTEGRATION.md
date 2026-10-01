@@ -1277,6 +1277,98 @@ Satellite observation (INSAT via MOSDAC). It is not a model input.
 **Screenshots:** `e2e/screenshots/insat_live_*`, `insat_live_alert_*`, `insat_events_results_*`,
 `insat_latency_approach_*` (1920×1080, 1366×768).
 
+### 3D terrain view + elevation profile; INSAT latency label checked (2 Oct 2026)
+
+**0. Approach "INSAT latency" line: where the numbers come from (checked).**
+- **Source:** `docs/insat_latency.json`, computed from `nowcast_data/scratch/insat_live_latency.csv`.
+- **What the 32 measurements are:** real MOSDAC L1C_ASIA_MER V01R00 files, not fixtures.
+  - They were recorded by the earlier live stage of `scratch/mdapi_env/download_insat.py`. Its run started
+    2026-09-28T21:31Z and recorded files until 2026-09-29T05:31Z.
+  - 16 INSAT-3DR files, 28 Sep 21:15Z – 29 Sep 04:45Z slots, first listed 21:51Z – 05:31Z.
+  - 16 INSAT-3DS files, 28 Sep 21:00Z – 29 Sep 04:30Z slots, first listed 21:41Z – 05:11Z.
+  - The first file of that run (3RIMG 20:45Z) was already listed at the start, so it is excluded.
+- **Per file:** the time our 10-minute search poll first listed the file (`first_seen_utc`), minus the scan's
+  end (the file's `Acquisition_End_Time` attribute).
+  - 3DR: from the CSV.
+  - 3DS: read from each raw file on 1 Oct, because the old stage could not parse the millisecond format.
+- **It is not the product creation time** (`Product_Creation_Time` is not used).
+- Because polls are 10 min apart, each value is an upper bound up to 10 min late:
+  - 3DR values alternate 9 / 19 min, so the file appeared 0–19 min after the scan ended;
+  - 3DS is always 14 min, so 4–14 min.
+- **The 46 / 61 min "search only" figures are different:** one snapshot (21 Sep 2026 05:01Z) of the newest
+  file's age measured from the scan's *start* (`docs/insat_availability.md`), so they include the ~27 min
+  scan itself.
+- **Label now:** "INSAT listing delay (measured): Scan end to first listed in MOSDAC's search (real L1C
+  files…)", followed by the full definition and the comparison sentence.
+- **The poller has run:** one cycle at 2026-10-01T20:11Z (3RIMG 16:45Z and 3SIMG 19:30Z slots).
+  - Both files were listed at its start, so they are excluded: the count stays 32.
+  - The newest 3DR file listed then was about 3.5 h old.
+  - The poller rewrites `docs/insat_latency.json` with the code it started with. The new label shows the
+    measurement period only when the file contains it, and the definition always.
+
+**1. Data.**
+- **Elevation:** the existing `serve/assets/osm/elevation_uk_hp.npz` is reused, not rebuilt.
+  - The Copernicus GLO-90 mean of 3×3 native cells: 9″, about 278 m N–S × 240 m E–W at 30°N.
+  - 1840 × 2240 cells over Uttarakhand + Himachal, int16, **5.5 MB**, numpy only.
+- **Rivers/streams:** new `serve/assets/osm/waterways.npz` (**2.8 MB**), from the saved Overpass response
+  (`python -m serve.build_shelters --waterways-only`).
+  - The same 12,676 OSM river/stream lines, now with type (river/stream) and name (3,736 named).
+  - The 13.4 MB GeoJSON stays a build file. The host now ships 2.8 MB more.
+
+**2. Elevation profile** (every listed candidate card):
+- **API:** each candidate in `/shelters` carries a `profile`:
+  - samples along the straight latitude/longitude line from the chosen point to the building, at most
+    250 m apart (e.g. 244–250 m), each the 9″ DEM cell under the sample;
+  - crossings with OSM river/stream lines (type and name);
+  - stretches inside a current alert, per lead.
+- **Card:** a small SVG.
+  - Start and end heights; blue dashed lines and dots at crossings.
+  - Light red where inside an alert at any lead, darker red at the lead shown on the map.
+  - Fixed note: "Straight line, not a route. Roads may differ."
+
+**3. 3D view.**
+- **Opening:** "3D view" button in the shelter section, hidden outside the two states. It opens a modal
+  overlay that Esc, × or a click outside closes. No new always-visible panel.
+- **Scene:** three.js **0.186.1** (npm, MIT, no dependencies), lazy-loaded.
+  - Terrain from `/api/shelters/terrain`: ±25 km, or ±50 km after "Widen the search" (stride 2, so at
+    most 220 cells a side).
+  - Shaded by elevation (legend with the block's min–max), **"Height ×2"** printed.
+  - The map's alerts at the current lead are draped in their hazard colours; Warning solid, Watch dashed.
+  - The chosen point, numbered candidate pins as in the list (filled = outside all alerts, "i" =
+    inside), and rivers/streams in blue.
+  - Drag to rotate, scroll to zoom, "Reset view". The section's fixed wording is shown underneath.
+- **No WebGL:** "The 3D view needs WebGL, which this browser does not provide. …".
+
+**4. Performance.**
+- **Production build:**
+  - main bundle 1,147.87 → 1,152.66 kB (+4.8 kB; gzip 326.97 → 328.69 kB);
+  - the 3D chunk is 573.29 kB (gzip 143.13 kB), loaded only when "3D view" is clicked. The e2e checks no
+    three.js request before that, so `/nowcast` loads no slower.
+- **This laptop's GPU** (Intel Iris Xe, ANGLE D3D11; dev server):
+  - REF045 (50 km): click to drawn 1.6–1.9 s;
+  - REF051: 0.9 s;
+  - rotation **60 fps** (display refresh) at 1920×1080 and 1366×768 (`e2e/perf_gpu_probe.mjs`,
+    `e2e/screenshots/terrain3d_perf_gpu.json`).
+- **Headless test browser** (software WebGL, SwiftShader): opens in 0.7–1.1 s, rotation about 4 fps. That
+  limit belongs to the test renderer, not the laptop.
+
+**5. Tests.**
+- `nowcast_data/serve/tests/test_profile3d.py` (6):
+  - profile heights equal the DEM grid at the sample points, start = the point's height and end = the
+    building's;
+  - a crossing of a real Alaknanda segment is found at the midpoint of a short line across it;
+  - alert stretches on synthetic boxes;
+  - the terrain block equals the grid slice;
+  - outside → not available; works with rasterio unimportable.
+- `e2e/terrain3d.spec.js` (4): profiles equal the API; three.js is not loaded before the click; 3D on REF045
+  (50 km) and REF051 (WebGL available in the test browser, so the fallback branch is code only); Esc/×;
+  hidden outside the states.
+- The host-parity probe also requests `/shelters/terrain`, and the views spec opens and closes the 3D view.
+
+**Screenshots** (`e2e/screenshots/`):
+- `profile_REF045_50km_*`, `profile_REF051_*`;
+- `terrain3d_REF045_50km_*`, `terrain3d_REF051_*` (1920×1080 and 1366×768).
+
 ## 7. Troubleshooting
 
 | symptom | cause / fix |

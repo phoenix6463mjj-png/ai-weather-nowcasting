@@ -67,8 +67,11 @@ test('Approach: measured INSAT latency line, read from docs/insat_latency.json',
     test.skip(!a, 'no INSAT latency measured');
     await page.goto('/nowcast/approach');
     const line = page.getByTestId('approach-insat-latency');
-    await expect(line).toContainText(`INSAT latency (measured): ${a.text}`);
-    await expect(line).toContainText(`Latency = ${a.definition}. Source: docs/insat_latency.json.`);
+    await expect(line).toContainText(`INSAT listing delay (measured): ${a.text}`);
+    await expect(line).toContainText(`Definition: ${a.definition}. ${a.vs_availability} Source: docs/insat_latency.json.`);
+    expect(a.definition).toContain("Acquisition_End_Time");
+    expect(a.definition).toContain("not the product's creation time");
+    expect(a.vs_availability).toContain('46 / 61 min');
     const s = a.summary.all;
     expect(a.text).toContain(`${s.count} files, median ${s.median_min} min (range ${s.min_min}–${s.max_min} min)`);
 });

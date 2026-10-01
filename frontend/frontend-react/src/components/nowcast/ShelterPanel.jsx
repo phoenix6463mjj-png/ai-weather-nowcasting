@@ -1,4 +1,9 @@
-import { MapPin, Crosshair, Search } from 'lucide-react';
+import { lazy, Suspense, useState } from 'react';
+import { MapPin, Crosshair, Search, Box } from 'lucide-react';
+import ProfileChart from './ProfileChart';
+
+// three.js is only downloaded when the 3D view is opened (separate chunk)
+const Terrain3D = lazy(() => import('./Terrain3D'));
 
 // "Nearby shelter options" drawer section. Everything shown comes from /shelters (serve/shelters.py):
 // OpenStreetMap public buildings within the stated radius, values only (no thresholds, no pass/fail).
@@ -47,10 +52,14 @@ const Candidate = ({ c, lead, prefix = '' }) => (
             <dd data-testid="shelter-stream" className="font-bold">{fmtM(c.stream_distance_m)}</dd>
             <dd data-testid="shelter-elev" className="font-bold">{c.elevation_rel_text}</dd>
         </dl>
+        {c.profile && <ProfileChart p={c.profile} lead={lead} />}
     </li>
 );
 
-const ShelterPanel = ({ point, data, error, loading, selected, onUseAlert, onWiden, insideOpen, onInsideToggle, lead, live = false }) => (
+const ShelterPanel = ({ point, data, error, loading, selected, onUseAlert, onWiden, insideOpen, onInsideToggle, lead, live = false, mapAlerts = [] }) => {
+    const [open3d, setOpen3d] = useState(false);
+    const pins = data?.available ? [...data.candidates, ...data.inside_candidates.map((c) => ({ ...c, prefix: 'i' }))] : [];
+    return (
     <div data-testid="shelter-panel" className="text-xs">
         <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-700 space-y-2">
             <p data-testid="shelter-wording" className="text-[11px] font-bold leading-snug text-amber-950 dark:text-amber-100 bg-amber-100 dark:bg-amber-900/40 border border-amber-300 dark:border-amber-800 rounded px-2 py-1.5">
@@ -112,6 +121,18 @@ const ShelterPanel = ({ point, data, error, loading, selected, onUseAlert, onWid
                     {data.n_outside} outside all current alerts, {data.n_inside} inside one.
                     Straight-line distance and direction, no route. Alert check: {data.n_alerts_checked} alerts of this {live ? 'run' : 'issue'} ({data.alert_scope}), not only those on the map.
                 </p>
+                <div className="px-4 pb-1">
+                    <button type="button" data-testid="shelter-3d" onClick={() => setOpen3d(true)}
+                        className="flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-slate-300 dark:border-slate-600 font-bold text-slate-800 dark:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800">
+                        <Box size={13} /> 3D view
+                    </button>
+                </div>
+                {open3d && (
+                    <Suspense fallback={<div data-testid="terrain3d-loading" className="fixed inset-0 z-[2000] bg-black/40 flex items-center justify-center text-white text-sm">Loading 3D view…</div>}>
+                        <Terrain3D point={point} radiusKm={data.radius_km} pins={pins} alerts={mapAlerts} lead={lead}
+                            wording={data.wording} onClose={() => setOpen3d(false)} />
+                    </Suspense>
+                )}
 
                 {data.none_outside_text ? (
                     <div className="mx-3 my-2 rounded-lg border-2 border-slate-300 dark:border-slate-600 p-2.5 space-y-2">
@@ -158,6 +179,7 @@ const ShelterPanel = ({ point, data, error, loading, selected, onUseAlert, onWid
             </div>
         )}
     </div>
-);
+    );
+};
 
 export default ShelterPanel;

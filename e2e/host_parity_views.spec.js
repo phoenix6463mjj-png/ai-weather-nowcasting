@@ -89,6 +89,12 @@ async function drawerSections(page) {
                 await sh.click();
                 await expect(page.getByTestId('shelter-summary').or(page.getByTestId('shelter-not-available'))).toBeVisible();
                 await page.waitForTimeout(400);
+                const b3 = page.getByTestId('shelter-3d');                  // 3D view: /shelters/terrain
+                if (await b3.count()) {
+                    await b3.click();
+                    await expect(page.getByTestId('terrain3d')).not.toHaveAttribute('data-status', 'loading', { timeout: 30_000 });
+                    await page.keyboard.press('Escape');
+                }
             }
         }
     }

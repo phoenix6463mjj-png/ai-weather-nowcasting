@@ -81,8 +81,8 @@ const NowcastApproach = () => {
                             </div>
                             {a.insat_latency && (
                                 <p data-testid="approach-insat-latency" className="text-xs mb-2">
-                                    <span className="font-black">INSAT latency (measured): </span>{a.insat_latency.text}{' '}
-                                    <span className="text-[10px] text-slate-500 dark:text-slate-400">Latency = {a.insat_latency.definition}. Source: {a.insat_latency.source}.</span>
+                                    <span className="font-black">INSAT listing delay (measured): </span>{a.insat_latency.text}{' '}
+                                    <span className="text-[10px] text-slate-500 dark:text-slate-400">Definition: {a.insat_latency.definition}. {a.insat_latency.vs_availability} Source: {a.insat_latency.source}.</span>
                                 </p>
                             )}
                             {a.compute && (

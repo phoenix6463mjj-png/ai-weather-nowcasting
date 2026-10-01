@@ -239,7 +239,7 @@ const LiveView = () => {
                 ) : id === 'ingredients' ? <IngredientsTab selected={selected} d={selected} liveNote={LIVE_INGREDIENTS_NOTE} />
                     : id === 'shelter' ? <ShelterPanel point={shelterPt} data={sh.data} error={sh.error} live
                         loading={!!shelterKey && shelter.key !== shelterKey} selected={selected} onUseAlert={pointFromAlert} lead={lead}
-                        onWiden={setRadius} insideOpen={insideOpen} onInsideToggle={() => setInsideOpen((o) => !o)} />
+                        onWiden={setRadius} mapAlerts={shown} insideOpen={insideOpen} onInsideToggle={() => setInsideOpen((o) => !o)} />
                         : <CaveatsPanel />)}
             </Drawer>
         </div>

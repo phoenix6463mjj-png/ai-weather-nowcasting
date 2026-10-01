@@ -27,6 +27,8 @@ def discover(get):
         paths.append(f"live-insat/frames/{lay['latest']['id']}.png")
     # nearby shelter options: inside the covered states (Pipalkoti, Malana) and outside (Mumbai)
     pts = ["lat=30.4335&lon=79.4284", "lat=32.0618&lon=77.2600", "lat=19.0700&lon=72.8800"]
+    # 3D view terrain blocks (25 / 50 km half-width) inside the covered states, and outside them
+    paths += [f"shelters/terrain?{p}" for p in pts] + [f"shelters/terrain?{pts[0]}&half_km=50"]
     for layer in get("terrain").json()["layers"]:
         paths.append(f"terrain/{layer}.png")
     paths += [f"india/map/{L}/{f}.png" for L in LEADS for f in FIELDS]
