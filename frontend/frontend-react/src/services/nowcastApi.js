@@ -68,6 +68,10 @@ export const getInsatIndex = () => request('insat');
 export const getInsat = (ep) => request(`insat/${ep}`);
 export const getIssueInsat = (ep, ts) => request(`issues/${ep}/${ts}/insat`);
 export const insatUrl = (ep, slotId) => mlUrl(`insat/${ep}/${slotId}.png`);
+// Live tab INSAT cloud-top layer (observation) and the per-alert coldest cloud top near the valid time
+export const getLiveInsat = () => request('live-insat');
+export const liveInsatUrl = (id) => mlUrl(`live-insat/frames/${id}.png`);
+export const getLiveRunInsat = (run) => request(`live/${run}/insat`);
 export const getResults = () => request('results');
 export const getApproach = () => request('approach');
 

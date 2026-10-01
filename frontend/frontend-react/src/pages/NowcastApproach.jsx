@@ -79,6 +79,12 @@ const NowcastApproach = () => {
                                     at the ~{lat.imerg_early_typical_h} h typical latency LIVE_PIPELINE.md also notes ≈ <b>{lat.real_warning_imerg_typical_h} h</b>.</p>
                                 <p>On ~{lat.insat_age_h} h-old INSAT data ≈ <b>{lat.real_warning_insat_h} h</b>.</p>
                             </div>
+                            {a.insat_latency && (
+                                <p data-testid="approach-insat-latency" className="text-xs mb-2">
+                                    <span className="font-black">INSAT latency (measured): </span>{a.insat_latency.text}{' '}
+                                    <span className="text-[10px] text-slate-500 dark:text-slate-400">Latency = {a.insat_latency.definition}. Source: {a.insat_latency.source}.</span>
+                                </p>
+                            )}
                             {a.compute && (
                                 <p data-testid="approach-compute-latency" className="text-xs mb-2">
                                     <span className="font-black">Our compute time (measured): </span>{a.compute.text}{' '}

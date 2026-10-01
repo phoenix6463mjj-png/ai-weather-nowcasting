@@ -21,7 +21,10 @@ FIELDS = ["thunderstorm", "cloudburst_index", "flash_flood", "rain_p10", "rain_p
 
 def discover(get):
     paths = ["health", "episodes", "caveats", "credits", "results", "approach", "terrain", "insat",
-             "replay/status", "india/meta", "live", "shelters"]
+             "replay/status", "india/meta", "live", "shelters", "live-insat"]
+    lay = get("live-insat").json()                        # live INSAT: the latest frame only (the host ships one snapshot)
+    if lay.get("available"):
+        paths.append(f"live-insat/frames/{lay['latest']['id']}.png")
     # nearby shelter options: inside the covered states (Pipalkoti, Malana) and outside (Mumbai)
     pts = ["lat=30.4335&lon=79.4284", "lat=32.0618&lon=77.2600", "lat=19.0700&lon=72.8800"]
     for layer in get("terrain").json()["layers"]:
@@ -32,6 +35,7 @@ def discover(get):
         paths += [f"live/{run}/meta", f"live/{run}/ui-alerts?level=all", f"live/{run}/alerts.cap.xml"]
         paths += [f"live/{run}/map/{L}/{f}.png" for L in LEADS for f in FIELDS]
         paths += [f"live/{run}/shelters?{p}" for p in pts]
+        paths.append(f"live/{run}/insat")
     eps = get("episodes").json()
     for e in (eps["episodes"] if isinstance(eps, dict) else eps):
         ep = e["episode"]

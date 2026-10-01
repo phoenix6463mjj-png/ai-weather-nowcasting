@@ -9,6 +9,8 @@ The file set was derived by recording every file the one-process app opened duri
 issues of a case study, their rasters read by rasterio). Excluded, with reasons, in MANIFEST.txt.
 """
 import argparse
+import json
+import os
 import sys
 import fnmatch
 import shutil
@@ -26,6 +28,7 @@ NOWCAST_FILES = [
     ("docs/live_output/**/*", "the one live run (20260926T0330Z)"),
     ("docs/LIVE_PIPELINE.md", "quoted by the case-study paragraph (IMERG Early latency)"),
     ("docs/latency_benchmark.json", "Approach page: measured compute time of one all-India nowcast"),
+    ("docs/insat_latency.json", "Approach page: measured INSAT L1C latency (from the poller's CSV)"),
     ("catalog/documented_event_times.csv", "documented-event check"),
     ("catalog/selected_episodes.csv", "episode metadata"),
     ("models/v0/scores_test.csv", "Results page"),
@@ -36,6 +39,8 @@ NOWCAST_FILES = [
 NOWCAST_EXCLUDE = ["serve/tests/**/*", "serve/build_ingredients*.py", "serve/build_terrain.py", "serve/build_insat_case.py",
                    # nearby shelter options: offline builder and its 13 MB river/stream input (no endpoint reads it)
                    "serve/build_shelters.py", "serve/assets/osm/waterways.geojson",
+                   # live INSAT: the offline event analysis (needs h5py/xarray); the poller is not in serve/ at all
+                   "serve/build_insat_events.py",
                    "**/__pycache__/**/*", "**/*.pyc",
                    # 13-14 MB each; no endpoint reads them (national / live maps use prob_L*h.tif + manifest)
                    "docs/sample_output_india/grids.json", "docs/live_output/*/grids.json"]
@@ -101,6 +106,42 @@ def _write_band_npz(nowcast_data, dst_root, log):
                 "the GeoTIFF bands for numpy-only reading on the host (built here; rasterio not installed there)"))
 
 
+def _optional(src_root, rels, dst_root, log, why):
+    """Files that exist only after an offline step (e.g. docs/insat_events.json after the INSAT event download)."""
+    n = size = 0
+    for rel in rels:
+        p = src_root / rel
+        if p.is_file():
+            (dst_root / rel).parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(p, dst_root / rel)
+            n, size = n + 1, size + p.stat().st_size
+    log.append((f"nowcast_data/{', '.join(rels)}", n, size, why))
+
+
+def _insat_snapshot(nowcast_data, dst_root, log):
+    """Live INSAT layer on the host = ONE snapshot: the latest derived frame (PNG + BT grid + JSON) from the
+    poller's folder (env NOWCAST_INSAT_LIVE_DIR, else <nowcast_data>/live_insat), plus SNAPSHOT.json so the
+    API labels it "snapshot, acquired HH:MMZ". No raw file, no credentials, no poller on the host."""
+    src = Path(os.environ.get("NOWCAST_INSAT_LIVE_DIR") or nowcast_data / "live_insat")
+    frames = []
+    for p in (src.glob("*.json") if src.is_dir() else []):
+        if p.name != "SNAPSHOT.json":
+            frames.append(json.loads(p.read_text(encoding="utf-8")))
+    if not frames:
+        log.append(("nowcast_data/live_insat/*", 0, 0, "live INSAT snapshot: none (the poller has not produced a frame)"))
+        return
+    f = max(frames, key=lambda x: x["acq_start"])
+    dst = dst_root / "live_insat"
+    dst.mkdir(parents=True, exist_ok=True)
+    size = 0
+    for ext in ("png", "npz", "json"):
+        shutil.copy2(src / f"{f['id']}.{ext}", dst / f"{f['id']}.{ext}")
+        size += (src / f"{f['id']}.{ext}").stat().st_size
+    (dst / "SNAPSHOT.json").write_text(json.dumps({"snapshot": True, "frame": f["id"], "acq_start": f["acq_start"],
+                                                   "source": src.name}, indent=1), encoding="utf-8")
+    log.append(("nowcast_data/live_insat/*", 4, size, f"live INSAT snapshot: {f['id']} (acquired {f['acq_start']})"))
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--nowcast-data", default=str(TEAM.parent / "nowcast_data"))
@@ -116,6 +157,9 @@ def main():
     _copy_globs(Path(a.nowcast_data), NOWCAST_FILES, NOWCAST_EXCLUDE, out / "nowcast_data", log)
     _copy_globs(TEAM, TEAM_FILES, [], out / "team_app", log)
     _write_band_npz(Path(a.nowcast_data), out / "nowcast_data", log)
+    _optional(Path(a.nowcast_data), ["docs/insat_events.json"], out / "nowcast_data", log,
+              "Results page: INSAT at three cloudbursts IMERG barely saw (after the event download)")
+    _insat_snapshot(Path(a.nowcast_data), out / "nowcast_data", log)
     for f, dst in (("Dockerfile", "Dockerfile"), ("requirements-host.txt", "requirements-host.txt"),
                    ("space_README.md", "README.md"), ("render.yaml", "render.yaml"),
                    ("space.gitignore", ".gitignore"), ("space.dockerignore", ".dockerignore"),

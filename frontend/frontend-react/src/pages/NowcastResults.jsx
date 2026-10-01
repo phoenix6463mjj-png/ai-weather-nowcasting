@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import SvgPlot from '../components/nowcast/SvgPlot';
 import PageShell, { Card, Quote } from '../components/nowcast/PageShell';
+import InsatEvents from '../components/nowcast/InsatEvents';
 import { getCaveats, getEventCheck, getResults, getTimeline } from '../services/nowcastApi';
 import { fmtIssueShort, VERIFY_STYLE } from '../utils/hazardLabels';
 
@@ -132,6 +133,11 @@ const NowcastResults = () => {
                         <CaseStudies cases={cases} />
                         <div className="mt-2"><Quote q={r.case_study_note} testid="case-study-note" /></div>
                     </Card>
+                    {r.insat_events && (
+                        <Card title={r.insat_events.title} testid="insat-events-section">
+                            <InsatEvents d={r.insat_events} />
+                        </Card>
+                    )}
                     </div>
                     <div className="col-span-4 space-y-4">
                     <Card title="Calibration (reliability) at ≥30 mm/hr" testid="reliability-section">

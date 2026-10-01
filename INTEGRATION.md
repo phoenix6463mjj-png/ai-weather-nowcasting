@@ -1184,6 +1184,99 @@ the valley near streams. The default point was also the issue's first alert, not
 **Screenshots:** `e2e/screenshots/shelters_REF045_{1920x1080,1366x768}.png`,
 `shelters_REF045_50km_*.png` and `shelters_REF051_*.png`.
 
+### INSAT I3a: live layer + three IMERG-blind cloudbursts (2 Oct 2026; built, not yet run)
+
+Satellite observation (INSAT via MOSDAC). It is not a model input.
+
+**Scripts the user runs** (in `nowcast_data/scratch/mdapi_env/`, which is gitignored, next to the existing
+`download_insat.py`):
+- **Credentials:** env `MOSDAC_USERNAME` / `MOSDAC_PASSWORD` only.
+- **Login rules (`strict_session.py`):**
+  - one login per run;
+  - one re-login only if the session expires;
+  - any failed login stops the script and is never retried. That includes a network error during the
+    login request.
+  - Checked offline with the network mocked: network error and wrong credentials stop after one request;
+    expired, re-login OK; a second expiry stops without a third login; credentials never appear in the
+    log.
+- **`insat_poller.py`:** every 10 min:
+  - finds the newest 3RIMG and 3SIMG L1C_ASIA_MER V01R00 file (search needs no login);
+  - downloads only new ones to `raw/insat/live/`, keeping the newest 4 raw files;
+  - renders each with `serve/insat_live.render_frame` into `nowcast_data/live_insat/` (gitignored);
+  - appends to `scratch/insat_live_latency.csv` and rewrites `docs/insat_latency.json`;
+  - logs to `scratch/insat_poller.log`; network errors and timeouts are retried.
+  - At most 2 downloads per cycle, about 96 a day (own cap 300; MOSDAC allows 5,000). Dry run (no login):
+    newest 3RIMG 01 Oct 16:45Z, 3SIMG 17:00Z.
+- **`insat_events_download.py`:** INSAT-3DR only, every 30 min, from −9 h to +3 h around each event.
+  - The catalog has a **date only** for all three events, so the window is anchored on the IMERG
+    half-hourly peak within 25 km: REF048 12 May 19:00Z, REF049 19 Jul 17:00Z, REF050 24 Jul 21:00Z.
+  - Dry run: **67 files, about 1,656 MB.** REF048 has 19 of 24 slots: MOSDAC lists no 3DR file for
+    18:45–20:45Z on 12 May, exactly around its anchor. REF049 and REF050 have 24 each.
+
+**Live layer** (`serve/insat_live.py`):
+- Each frame is a PNG over the live run's grid extent, plus a BT grid (`.npz`, numpy only on the host)
+  and a JSON record: satellite, scan start/end, time available, latency, file name, LUT floor.
+- API:
+  - `/api/live-insat`: labels, colour scale, latest frame and the last 8;
+  - `/api/live-insat/frames/{id}.png`;
+  - `/api/live/{run}/insat`: per alert, the coldest cloud top within 25 km, but only if a frame's scan
+    started within ±60 min of the alert's valid time. Otherwise "No INSAT frame near this alert's valid
+    time".
+- Cooling is the change of that coldest value since the same satellite's frame 30 min earlier. It is
+  shown only where neither value is at the LUT floor; otherwise "cooling rate not computable"; never across
+  satellites.
+- **INSAT-3DS:** its LUT floor is 180.0 K (3DR 179.86 K). Floor pixels are coloured as the "≤180 K" class
+  for both. 3DS acquisition times carry milliseconds, which the 28 Sep live stage could not parse; fixed
+  here. Its image offset has not been measured (`docs/insat_georef.md`, note added).
+- **Live tab:** toggle "INSAT cloud tops (satellite observation, INSAT via MOSDAC)" in the Layers panel,
+  off by default.
+  - Shows a caption (satellite, acquisition time, measured latency), chips for the last few frames and
+    an opacity slider.
+  - The legend shows the case-layer labels: position line, the "≤180 K = at or below the coldest value in
+    the product's lookup table" line, and "No verified severe-storm threshold shown".
+  - The alert drawer has an "INSAT cloud tops" line. The 26 Sep run says "No INSAT frame near this
+    alert's valid time".
+- **Host:** `hosting/build_space.py` ships only the latest frame (PNG, `.npz`, JSON) and `SNAPSHOT.json`.
+  The layer is then labelled "snapshot, acquired HH:MMZ". No raw files, no credentials, no poller.
+
+**Approach page:** "INSAT latency (measured)", read from `docs/insat_latency.json`.
+- Measured now: 32 files, median 14 min (range 9–19); INSAT-3DR 16, median 9 min; INSAT-3DS 16, median
+  14 min.
+- Definition: first listed in the search, minus acquisition end; polled every 10 min.
+- The 16 3DS values use the acquisition end read from the raw files still on disk (the CSV lacked it).
+- The existing "search only" figures (3DR 46 min, 3DS 61 min, quoted from `docs/insat_availability.md`)
+  use a different definition and are unchanged.
+
+**Results page:** card "INSAT at three cloudbursts IMERG barely saw", from `docs/insat_events.json`
+(`python -m serve.build_insat_events` after the download).
+- "Three case studies, not a general result."
+- Per event: a 25 km INSAT series (coldest, 10th percentile, 30-min change of the 10th percentile), the
+  IMERG series and the model's cloudburst alerts nearby.
+- Until the files exist it says "Not available yet: …".
+- Event check timeline rows: none. No replay data exists for these dates.
+
+**Tests and fixtures:**
+- Fixtures: `serve/tests/fixtures/insat_live/` holds 4 frames rendered from real 28 Sep 2026 files
+  (3DR 21:15/21:45Z, 3DS 21:00/21:30Z). `insat_events_REF051.json` is the event analysis run on REF051's
+  case files.
+- `serve/tests/test_insat_live.py` (13):
+  - labels and frames;
+  - the ±1 h rule;
+  - the 25 km minimum against an independent computation;
+  - cooling never across satellites or at the floor;
+  - the BT grid equals the raw file's LUT;
+  - latency summary and Approach numbers;
+  - the events section;
+  - the event patch equals the case layer's Malana series;
+  - no h5py/pyproj at import.
+- `e2e/insat_live.spec.js` (5). The host-parity probe and views spec also cover `/live-insat` and the
+  latest frame.
+- e2e runs with serve started with `NOWCAST_INSAT_LIVE_DIR=serve/tests/fixtures/insat_live` and
+  `NOWCAST_INSAT_EVENTS_FILE=serve/tests/fixtures/insat_events_REF051.json`.
+
+**Screenshots:** `e2e/screenshots/insat_live_*`, `insat_live_alert_*`, `insat_events_results_*`,
+`insat_latency_approach_*` (1920×1080, 1366×768).
+
 ## 7. Troubleshooting
 
 | symptom | cause / fix |

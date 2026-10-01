@@ -39,7 +39,7 @@ const MapLegend = ({ legends, field, hazards = [], observed = false, missed = fa
                 {insat && (
                     <div data-testid="legend-insat" className="space-y-0.5">
                         <Head>Satellite observation (INSAT via MOSDAC)</Head>
-                        <p className="text-[11px] font-semibold text-slate-800 dark:text-slate-100">INSAT-3DR cloud-top brightness temperature (K)</p>
+                        <p data-testid="legend-insat-title" className="text-[11px] font-semibold text-slate-800 dark:text-slate-100">{insat.satellite || 'INSAT-3DR'} cloud-top brightness temperature (K)</p>
                         {/* one strip, coldest left; tick labels are the class boundaries */}
                         <div data-testid="legend-insat-strip" className="relative pb-3">
                             <div className="flex h-2.5 rounded-sm overflow-hidden border border-slate-300 dark:border-slate-600">

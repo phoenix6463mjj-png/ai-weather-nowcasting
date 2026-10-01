@@ -113,6 +113,13 @@ async function clickThrough(page) {
     await expect(page.getByTestId('live-not-validated')).toBeVisible({ timeout: 60_000 });
     // the badge renders before the run's meta/alerts arrive; the lead buttons only after them
     await expect(page.getByTestId('lead-1')).toBeAttached({ timeout: 60_000 });
+    // live INSAT layer (latest frame; the host ships it as its one snapshot)
+    await openLayers(page);
+    const ins = page.getByTestId('live-insat-toggle');
+    if (await ins.count() && await ins.isEnabled()) {
+        await ins.check();
+        await page.waitForTimeout(600);
+    }
     await cycleLeadsAndFields(page);
     await drawerSections(page);
     for (const r of ['/nowcast/results', '/nowcast/approach']) {

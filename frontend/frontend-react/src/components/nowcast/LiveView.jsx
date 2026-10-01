@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, ChevronLeft, ArrowUpRight, ArrowDownRight, BellRing, FlaskConical, Info, Building2 } from 'lucide-react';
-import { getLiveRuns, getLiveMeta, getLiveAlerts, getShelters, liveMapUrl } from '../../services/nowcastApi';
+import { getLiveRuns, getLiveMeta, getLiveAlerts, getShelters, liveMapUrl, getLiveInsat, liveInsatUrl, getLiveRunInsat } from '../../services/nowcastApi';
 import { HAZARDS, HAZARD_STYLE, LEVEL_STYLE, valueText, kindText, fmtUtc, defaultLead, FIELD_OPTIONS } from '../../utils/hazardLabels';
 import AlertMap from './AlertMap';
 import MapControls from './MapControls';
@@ -14,13 +14,14 @@ import LayersPanel from './LayersPanel';
 import IngredientsTab from './IngredientsTab';
 import CaveatsPanel from './CaveatsPanel';
 import ShelterPanel, { SHELTER_LABEL } from './ShelterPanel';
+import LiveInsatControl from './LiveInsatControl';
 import { MapBadges } from './MapFrame';
 
 const LIVE_FIELDS = FIELD_OPTIONS.filter((o) => o.id !== 'flash_flood');
 const LIVE_INGREDIENTS_NOTE = 'no per-feature SHAP is stored for live runs';
 
 // Live alerts carry only the model's top-5 reasons (no explain.json, no verification).
-const LiveAlertPanel = ({ a, run, onBack, onIngredients, review, onReview }) => (
+const LiveAlertPanel = ({ a, run, onBack, onIngredients, review, onReview, insatNear }) => (
     <div data-testid="explain-panel" data-hazard={a.hazard}>
         <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-700">
             <div className="flex items-center gap-2">
@@ -48,6 +49,13 @@ const LiveAlertPanel = ({ a, run, onBack, onIngredients, review, onReview }) => 
             <p>Valid {fmtUtc(a.valid_time)} (lead {a.lead_time_h} h{a.radius_km ? `, within ${a.radius_km} km` : ''})</p>
             <p>peak {a.peak_cell[0].toFixed(2)}N {a.peak_cell[1].toFixed(2)}E · {Math.round(a.area_km2).toLocaleString()} km²</p>
             <p className="text-slate-500">No observed verification exists for live runs.</p>
+        </div>
+        <div data-testid="live-alert-insat" className="px-4 py-3 border-b border-slate-100 dark:border-slate-800">
+            <h4 className="text-[10px] font-black uppercase text-slate-500 mb-1">INSAT cloud tops (satellite observation, INSAT via MOSDAC)</h4>
+            <p data-testid="live-alert-insat-text" data-available={insatNear ? String(insatNear.available) : ''} className="text-xs">
+                {insatNear ? insatNear.text : 'Loading…'}
+            </p>
+            {insatNear?.available && (insatNear.lines || []).map((l) => <p key={l} data-testid="live-alert-insat-line" className="text-[10px] text-amber-700 dark:text-amber-400 mt-0.5">{l}</p>)}
         </div>
         <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-800">
             <h4 className="text-[10px] font-black uppercase text-slate-500 mb-1">Ingredients</h4>
@@ -84,6 +92,24 @@ const LiveView = () => {
     const [error, setError] = useState(null);
     const [drawer, setDrawer] = useState(null);
     const [reviews, setReviews] = useState({});            // forecaster review per alert (this page only; never sent)
+    // INSAT cloud-top layer (observation; off by default) and the per-alert coldest cloud top near the valid time
+    const [insatLayer, setInsatLayer] = useState(null);
+    const [insatOn, setInsatOn] = useState(false);
+    const [insatFrame, setInsatFrame] = useState(null);
+    const [insatOpacity, setInsatOpacity] = useState(0.75);
+    const [insatNear, setInsatNear] = useState(null);
+    useEffect(() => {
+        let live = true;
+        getLiveInsat().then((r) => live && setInsatLayer(r)).catch(() => {});
+        return () => { live = false; };
+    }, []);
+    useEffect(() => {
+        if (!meta?.run) return undefined;
+        let live = true;
+        getLiveRunInsat(meta.run).then((r) => live && setInsatNear(r)).catch(() => {});
+        return () => { live = false; };
+    }, [meta?.run]);
+    const insatShown = insatOn && insatLayer?.available ? (insatLayer.frames.find((f) => f.id === insatFrame) || insatLayer.latest) : null;
     const closeDrawer = useCallback(() => setDrawer(null), []);
     const select = (a) => { setSelected(a); if (a) setDrawer('alert'); };
     const [shelterPt, setShelterPtRaw] = useState(null);    // { lat, lon, source: 'click' | 'alert' }
@@ -134,7 +160,11 @@ const LiveView = () => {
         return c;
     }, [alerts, lead, showWatch]);
     const hiddenWatch = alerts.filter((a) => a.lead_time_h === lead && hazards.includes(a.hazard) && a.level === 'Watch').length;
-    const overlays = meta && lead && field ? [{ url: liveMapUrl(meta.run, lead, field), opacity: 1, zIndex: 1, kind: `field-${field}` }] : [];
+    const overlays = [
+        // INSAT observation below the forecast raster (frame bounds = the live run's grid bounds)
+        ...(insatShown ? [{ url: liveInsatUrl(insatShown.id), opacity: insatOpacity, zIndex: 0, kind: 'insat live-insat' }] : []),
+        ...(meta && lead && field ? [{ url: liveMapUrl(meta.run, lead, field), opacity: 1, zIndex: 1, kind: `field-${field}` }] : []),
+    ];
 
     const tabs = [
         { id: 'alert', label: 'Alert', icon: BellRing, width: 420 },
@@ -175,13 +205,16 @@ const LiveView = () => {
                                 <MapControls leads={meta.leads_available} lead={lead} setLead={setLead}
                                     hazards={hazards} setHazards={setHazards} showWatch={showWatch} setShowWatch={setShowWatch}
                                     counts={counts} field={field} setField={setField} fieldOptions={LIVE_FIELDS} terrain={terrain} />
+                                <LiveInsatControl layer={insatLayer} on={insatOn} setOn={setInsatOn} frameId={insatShown?.id}
+                                    setFrameId={setInsatFrame} opacity={insatOpacity} setOpacity={setInsatOpacity} />
                             </LayersPanel>
                         </div>
                     )}
                     {meta && (
                         <div className="absolute top-[84px] bottom-[26px] right-3 z-[400] flex flex-col justify-end pointer-events-none">
                             <MapLegend legends={meta.legends} field={field} hazards={hazards} verification={false}
-                                terrain={terrain.layers.length > 0} noteTitle="Verification" note="Live: no observed verification layer." />
+                                terrain={terrain.layers.length > 0} noteTitle="Verification" note="Live: no observed verification layer."
+                                insat={insatShown ? { classes: insatLayer.colour_scale.classes, lines: insatLayer.lines, floorLine: insatShown.floor_line, satellite: insatShown.satellite } : null} />
                         </div>
                     )}
                 </div>
@@ -189,6 +222,7 @@ const LiveView = () => {
             <Drawer tabs={tabs} active={drawer} onOpen={openDrawer} onClose={closeDrawer}>
                 {(id) => (id === 'alert' ? (
                     selected ? <LiveAlertPanel key={selected.alert_id} a={selected} run={meta?.run} onBack={() => setSelected(null)} onIngredients={() => setDrawer('ingredients')}
+                        insatNear={insatNear ? { ...(insatNear.alerts[selected.alert_id] || { available: false, text: 'No INSAT frame near this alert\'s valid time' }), lines: insatNear.lines } : null}
                         review={reviews[selected.alert_id]} onReview={(r) => setReviews((m) => ({ ...m, [selected.alert_id]: r }))} /> : (
                         <div data-testid="alert-list-view">
                             <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-700">
