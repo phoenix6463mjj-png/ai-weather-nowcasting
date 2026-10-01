@@ -31,6 +31,13 @@ test('Live: INSAT layer off by default; on = the latest frame with its satellite
     await expect(page.getByTestId('legend-insat')).toHaveCount(0);
     await t.check();
     await expect(page.getByTestId('live-insat-caption')).toHaveText(layer.latest.caption);
+    // each satellite's newest frame with its own age (a stalled satellite stays visible)
+    const ages = page.getByTestId('live-insat-sat-age');
+    await expect(ages).toHaveCount(layer.by_satellite.length);
+    for (const [i, s] of layer.by_satellite.entries()) {
+        await expect(ages.nth(i)).toContainText(s.text.split(',')[0]);
+        await expect(ages.nth(i)).toContainText(' old');
+    }
     expect(layer.latest.caption).toMatch(/^INSAT-3D[RS] · acquired \d\d \w{3} \d\d:\d\dZ · measured latency \d+ min$/);
     await expect(page.locator('img.live-insat')).toHaveAttribute('src', new RegExp(`live-insat/frames/${layer.latest.id}\\.png$`));
     await expect(page.getByTestId('legend-insat-floor')).toHaveText(layer.latest.floor_line);

@@ -15,6 +15,7 @@ COPY --chown=user team_app ./team_app
 USER user
 ENV NOWCAST_DATA_ROOT=/home/user/app/nowcast_data \
     ML_REPLAY_ENABLED=0 \
+    NOWCAST_EPHEMERAL_STORAGE=1 \
     PYTHONUNBUFFERED=1
 # CORS_ORIGINS / ML_CORS_ORIGINS are set in the host's settings (the deployed frontend's URL).
 

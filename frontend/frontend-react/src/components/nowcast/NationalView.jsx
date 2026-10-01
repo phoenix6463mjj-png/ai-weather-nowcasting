@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { MapIcon, Info } from 'lucide-react';
 import { getIndiaMeta, indiaMapUrl } from '../../services/nowcastApi';
+import { nowcastTarget } from '../../utils/nowcastUrl';
 import { fmtUtc, FIELD_OPTIONS } from '../../utils/hazardLabels';
 import AlertMap from './AlertMap';
 import MapControls from './MapControls';
@@ -17,8 +18,9 @@ const INDIA_FIELDS = FIELD_OPTIONS.filter((o) => o.id && o.id !== 'flash_flood')
 const NationalView = () => {
     const [meta, setMeta] = useState(null);
     const [error, setError] = useState(null);
-    const [lead, setLead] = useState(1);
-    const [field, setField] = useState('thunderstorm');
+    const [lead, setLead] = useState(() => nowcastTarget().lead || 1);
+    const [field, setField] = useState(() => (['thunderstorm', 'cloudburst_index', 'rain_p10', 'rain_p1', 'rain_p30'].includes(nowcastTarget().field)
+        ? nowcastTarget().field : 'thunderstorm'));
     const terrain = useTerrain('national');
     const [drawer, setDrawer] = useState(null);
     const closeDrawer = useCallback(() => setDrawer(null), []);

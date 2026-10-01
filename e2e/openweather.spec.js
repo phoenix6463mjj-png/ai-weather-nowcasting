@@ -82,9 +82,6 @@ test('OpenWeather for every zone: badge "OpenWeather (current weather), updated 
     await page.goto('/forecast');
     await expect(page.getByTestId('forecast-source-badge')).toHaveText('OpenWeather (current weather), updated 13:45 UTC');
     await expect(page.getByTestId('openweather-credit')).toHaveCount(1);
-    await page.goto('/analytics');
-    await expect(page.getByTestId('analytics-summary-source')).toHaveText('Rule-based summary of OpenWeather data');
-    await expect(page.getByTestId('openweather-credit')).toHaveCount(1);
 });
 
 test('OpenWeather + sample: badge from real counts; sample zones unrated (per-zone rule unchanged)', async ({ page }) => {
@@ -127,29 +124,6 @@ const HIGH_LOW_RAIN = (i, z) => {
         rules_fired: [], prediction: { ...(z.prediction || {}), risk_level: 'LOW', risk_text: 'LOW' } };
 };
 
-test('Key Insights: a HIGH zone with low rain shows its real rain and rule; no invented rain figure', async ({ page }) => {
-    await mock(page, allOW, HIGH_LOW_RAIN);
-    const zones = await (await page.request.get('http://127.0.0.1:8000/batch_predict?limit=100')).json();
-    const city = zones[0].city;
-    const n = zones.length;
-    await page.goto('/analytics');
-    const box = page.getByTestId('analytics-insights');
-    await expect(box).toContainText(`Rule-based HIGH in 1 of ${n} zones. ${city}: Humidity above 90 % with wind above 8 m/s (rain 0.4 mm in the last hour).`);
-    await expect(box).toContainText(`Wind: average ${((9.3 + 2.0 * (n - 1)) / n).toFixed(1)} m/s across ${n} zones; highest 9.3 m/s at ${city}.`);
-    await expect(box).toContainText(`Relative humidity: average ${((96 + 50 * (n - 1)) / n).toFixed(0)} % across ${n} zones; highest 96 % at ${city}.`);
-    const text = await box.innerText();
-    expect(text).not.toMatch(/exceeding|mm\/hr|20 mm|coastal|delta|Southern|Western|latent heat|convection|thresholds breached/i);
-    const mm = [...text.matchAll(/(\d+(?:\.\d+)?) mm/g)].map((m) => m[1]);
-    expect(mm).toEqual(['0.4']);                                   // the only rain figure is the zone's own
-});
-
-test('Key Insights with no HIGH zone: counts only', async ({ page }) => {
-    await mock(page, allOW, (i, z) => ({ ...HIGH_LOW_RAIN(i + 1, z) }));
-    const n = (await (await page.request.get('http://127.0.0.1:8000/batch_predict?limit=100')).json()).length;
-    await page.goto('/analytics');
-    await expect(page.getByTestId('analytics-insights')).toContainText(`No zone at rule-based HIGH; 0 of ${n} zones at MODERATE.`);
-});
-
 test('OpenWeather screenshots of / and Analytics at 1920x1080 and 1366x768', async ({ page }) => {
     await mock(page, (i) => (i % 4 === 3 ? 'sample' : 'openweather'), HIGH_LOW_RAIN, { tiles: true });
     for (const [w, h] of [[1920, 1080], [1366, 768]]) {
@@ -158,10 +132,5 @@ test('OpenWeather screenshots of / and Analytics at 1920x1080 and 1366x768', asy
         await expect(page.getByTestId('openweather-credit').first()).toBeVisible();
         await page.waitForTimeout(4000);
         await page.screenshot({ path: path.join(SHOTS, `openweather_dashboard_${w}x${h}.png`) });
-        await page.goto('/analytics');
-        await expect(page.getByTestId('analytics-insights')).toBeVisible();
-        await page.getByTestId('analytics-insights').scrollIntoViewIfNeeded();
-        await page.waitForTimeout(1200);
-        await page.screenshot({ path: path.join(SHOTS, `openweather_analytics_${w}x${h}.png`) });
     }
 });

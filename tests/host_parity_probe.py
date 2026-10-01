@@ -21,7 +21,7 @@ FIELDS = ["thunderstorm", "cloudburst_index", "flash_flood", "rain_p10", "rain_p
 
 def discover(get):
     paths = ["health", "episodes", "caveats", "credits", "results", "approach", "terrain", "insat",
-             "replay/status", "india/meta", "live", "shelters", "live-insat"]
+             "replay/status", "india/meta", "live", "shelters", "live-insat", "analytics", "cap/approvals", "cap/feed.atom"]
     lay = get("live-insat").json()                        # live INSAT: the latest frame only (the host ships one snapshot)
     if lay.get("available"):
         paths.append(f"live-insat/frames/{lay['latest']['id']}.png")

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { CheckCircle2, XCircle, Pencil, Download, FileCode2 } from 'lucide-react';
-import { getAlertCap, getApprovedCap } from '../../services/nowcastApi';
+import { CheckCircle2, XCircle, Pencil, Download, FileCode2, Rss } from 'lucide-react';
+import { getAlertCap, getApprovedCap, getCapApprovals, postCapReview, capFeedUrl } from '../../services/nowcastApi';
 
 const CAP_FORMAT_LABEL = "CAP 1.2 compatible (format used by India's Sachet alerting platform)";
 const CAP_NOT_SENT = 'Demo only: nothing is ever sent anywhere. "Download CAP" saves a file to this computer.';
@@ -17,16 +17,39 @@ const STATUS_STYLE = {
 /**
  * Forecaster review of one alert's CAP message (demo): Approve / Edit (headline + description only) /
  * Reject. Only an approved alert can be downloaded as a CAP file; editing sends it back to review.
- * The review lives in the page (parent state); nothing is stored or sent anywhere.
+ * Each decision is also stored by the ML API (POST cap/review) for the Atom feed of approved messages
+ * (cap/feed.atom); on the hosted demo approvals reset when the server restarts. Nothing is sent anywhere.
  *   src: { kind: 'replay', ep, ts } | { kind: 'live', run }
  */
+const keyOf = (src, alertId) => (src.kind === 'live' ? `live:${src.run}:${alertId}` : `replay:${src.ep}/${src.ts}:${alertId}`);
 const CapReview = ({ src, alertId, review, onChange }) => {
     const [cap, setCap] = useState(null);
     const [error, setError] = useState(null);
     const [editing, setEditing] = useState(false);
     const [draft, setDraft] = useState({ headline: '', description: '' });
     const [dl, setDl] = useState(null);
+    const [feed, setFeed] = useState(null);                 // { n_approved, storage_note, ... } from the ML API
+    const [saveErr, setSaveErr] = useState(null);
     const r = review || { status: 'pending' };
+
+    // the stored decision for this alert (if any) and the feed count
+    useEffect(() => {
+        let live = true;
+        getCapApprovals().then((s) => {
+            if (!live) return;
+            setFeed(s);
+            const it = s.items.find((i) => i.key === keyOf(src, alertId));
+            if (it && !review) onChange({ status: it.status, headline: it.headline ?? undefined, description: it.description ?? undefined, edited: it.edited });
+        }).catch(() => {});
+        return () => { live = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [alertId, src.kind, src.ep, src.ts, src.run]);
+
+    const decide = (next) => {
+        onChange(next);
+        setSaveErr(null);
+        postCapReview(src, alertId, next).then(setFeed).catch((e) => setSaveErr(e.message));
+    };
 
     useEffect(() => {
         let live = true;
@@ -51,7 +74,7 @@ const CapReview = ({ src, alertId, review, onChange }) => {
 
     const startEdit = () => { setDraft({ headline, description }); setEditing(true); };
     const saveEdit = () => {
-        onChange({ status: 'pending', headline: draft.headline.trim(), description: draft.description.trim(), edited: true });
+        decide({ status: 'pending', headline: draft.headline.trim(), description: draft.description.trim(), edited: true });
         setEditing(false);
     };
     const download = async () => {
@@ -106,11 +129,11 @@ const CapReview = ({ src, alertId, review, onChange }) => {
             )}
             {!editing && (
                 <div className="flex flex-wrap gap-1.5">
-                    <button type="button" data-testid="cap-approve" onClick={() => onChange({ ...r, status: 'approved' })} disabled={r.status === 'approved'}
+                    <button type="button" data-testid="cap-approve" onClick={() => decide({ ...r, status: 'approved' })} disabled={r.status === 'approved'}
                         className={`${btn} border-emerald-600 text-emerald-700 dark:text-emerald-400`}><CheckCircle2 size={13} /> Approve</button>
                     <button type="button" data-testid="cap-edit" onClick={startEdit}
                         className={`${btn} border-slate-400 text-slate-700 dark:text-slate-200`}><Pencil size={13} /> Edit</button>
-                    <button type="button" data-testid="cap-reject" onClick={() => onChange({ ...r, status: 'rejected' })} disabled={r.status === 'rejected'}
+                    <button type="button" data-testid="cap-reject" onClick={() => decide({ ...r, status: 'rejected' })} disabled={r.status === 'rejected'}
                         className={`${btn} border-red-500 text-red-700 dark:text-red-400`}><XCircle size={13} /> Reject</button>
                     <button type="button" data-testid="cap-download" onClick={download} disabled={r.status !== 'approved' || dl === 'working'}
                         title={r.status === 'approved' ? 'Save this CAP message as a file on this computer' : 'Approve the alert first'}
@@ -120,6 +143,18 @@ const CapReview = ({ src, alertId, review, onChange }) => {
             {dl && dl !== 'working' && (
                 <p data-testid="cap-download-result" className="text-[10px] text-slate-500">{dl === 'done' ? `Saved ${alertId}.cap.xml (not sent anywhere).` : `Download ${dl}`}</p>
             )}
+            {saveErr && <p data-testid="cap-save-error" className="text-[10px] text-red-600">Decision not stored: {saveErr}</p>}
+            <div data-testid="cap-feed" className="rounded-md border border-slate-200 dark:border-slate-700 px-2 py-1.5 text-[11px] space-y-0.5">
+                <p className="flex items-center gap-2">
+                    <a data-testid="cap-feed-link" href={capFeedUrl()} target="_blank" rel="noreferrer"
+                        className="flex items-center gap-1 font-bold text-blue-700 dark:text-blue-400 hover:underline"><Rss size={12} /> Feed (Atom)</a>
+                    <span data-testid="cap-feed-count" className="text-slate-600 dark:text-slate-300">
+                        {feed ? `${feed.n_approved} approved message${feed.n_approved === 1 ? '' : 's'} in the feed` : 'loading…'}
+                    </span>
+                </p>
+                {feed && <p data-testid="cap-feed-storage" className="text-[10px] text-slate-500 dark:text-slate-400">{feed.storage_note}</p>}
+                <p className="text-[10px] text-slate-500 dark:text-slate-400">Exercise feed — not an official warning; not connected to IMD, NDMA or Sachet.</p>
+            </div>
             <p data-testid="cap-format" className="text-[10px] text-slate-500 dark:text-slate-400 flex items-start gap-1">
                 <FileCode2 size={12} className="shrink-0 mt-px" /><span>{CAP_FORMAT_LABEL}. <b>{CAP_NOT_SENT}</b></span>
             </p>

@@ -9,7 +9,7 @@ const STATUS_STYLE = {
     'Blocked by data access': 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300',
     'Observation layer delivered': 'bg-sky-100 text-sky-900 dark:bg-sky-900/40 dark:text-sky-300',
     'Not yet built': 'bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-300',
-    'File export built': 'bg-sky-100 text-sky-900 dark:bg-sky-900/40 dark:text-sky-300',
+    'Export + Atom feed built': 'bg-sky-100 text-sky-900 dark:bg-sky-900/40 dark:text-sky-300',
 };
 
 const Stat = ({ label, value, sub, testid }) => (

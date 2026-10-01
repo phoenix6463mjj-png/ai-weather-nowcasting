@@ -21,7 +21,7 @@ async function bodyText(page) {
     return (await page.locator('body').innerText()).split(SAMPLE).join('');
 }
 
-for (const [route, name] of [['/reports', 'Reports'], ['/analytics', 'Analytics']]) {
+for (const [route, name] of [['/reports', 'Reports']]) {
     test(`${name}: rule-based-figures banner links to the measured results`, async ({ page }) => {
         await stubImages(page);
         await page.goto(route);

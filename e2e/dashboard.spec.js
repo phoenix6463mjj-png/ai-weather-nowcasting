@@ -32,11 +32,11 @@ test('Dashboard: source badge follows the backend weather source; no LIVE badge 
         await expect(page.getByTestId('panel-weather-source')).toHaveText('Sample data — no live weather feed');
     } else if (src === 'openweather') {
         await expect(badge).toContainText('OpenWeather (current weather), updated');
-        await expect(page.getByTestId('sidebar-live')).toHaveText('LIVE');
+        await expect(page.getByTestId('sidebar-live')).toHaveText('Current weather');
     } else if (src === 'open-meteo') {
         await expect(badge).toContainText('Open-Meteo (model data), updated');
         await expect(badge).not.toContainText('observed');
-        await expect(page.getByTestId('sidebar-live')).toHaveText('LIVE');
+        await expect(page.getByTestId('sidebar-live')).toHaveText('Current weather');
         await expect(page.getByTestId('open-meteo-credit').first()).toBeVisible();
     }
     await expect(page.getByText('Live AI Nowcasting')).toHaveCount(0);

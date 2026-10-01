@@ -73,6 +73,8 @@ export const getIssueInsat = (ep, ts) => request(`issues/${ep}/${ts}/insat`);
 export const insatUrl = (ep, slotId) => mlUrl(`insat/${ep}/${slotId}.png`);
 // Live tab INSAT cloud-top layer (observation) and the per-alert coldest cloud top near the valid time
 export const getLiveInsat = () => request('live-insat');
+// team Analytics page (ML model): attribution, CSI, documented limits, INSAT status
+export const getAnalytics = () => request('analytics');
 export const liveInsatUrl = (id) => mlUrl(`live-insat/frames/${id}.png`);
 export const getLiveRunInsat = (run) => request(`live/${run}/insat`);
 export const getResults = () => request('results');
@@ -82,6 +84,13 @@ export const getApproach = () => request('approach');
 // Nothing is sent anywhere: the XML only comes back to this browser.
 const capBase = (src) => (src.kind === 'live' ? `live/${src.run}` : `issues/${src.ep}/${src.ts}`);
 export const getAlertCap = (src, alertId) => request(`${capBase(src)}/alerts.cap.xml${q({ alert_id: alertId })}`, undefined, 'text');
+// CAP Atom feed of approved messages (approvals stored by the ML API; ephemeral on the hosted demo)
+export const capFeedUrl = () => mlUrl('cap/feed.atom');
+export const getCapApprovals = () => request('cap/approvals');
+export const postCapReview = (src, alertId, r) => request('cap/review', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...src, alert_id: alertId, status: r.status, headline: r.headline || null, description: r.description || null }),
+});
 export const getApprovedCap = (src, alertId, edits) => request(`${capBase(src)}/alerts/${encodeURIComponent(alertId)}/cap.xml`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ review: 'approved', headline: edits?.headline || null, description: edits?.description || null }),

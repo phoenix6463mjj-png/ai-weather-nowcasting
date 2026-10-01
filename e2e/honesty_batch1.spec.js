@@ -30,41 +30,6 @@ const abortBackend = async (page, pattern) => {
 };
 const UNAVAILABLE = 'Server unavailable — please refresh in a minute.';
 
-test('Analytics: rule-based labels, no validation/XGBoost/94.6%, donut draws with no console errors', async ({ page }) => {
-    await stubImages(page);
-    const errors = [];
-    page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
-    const src = await zoneSource(page);
-    await page.goto('/analytics');
-    if (src === 'sample') {                     // safety net: no summary, donut or ranking on sample data
-        await expect(page.getByTestId('sample-safety-net')).toBeVisible();
-        await expect(page.locator('body')).not.toContainText('Real-Time');
-        await expectNoBanned(page);
-        return;
-    }
-    await expect(page.getByTestId('analytics-model-label')).toHaveText('Rule-based indicator (not the ML model)');
-    const label = { openweather: 'OpenWeather data', 'open-meteo': 'Open-Meteo data (model data)' }[src] || 'sample data';
-    await expect(page.getByTestId('analytics-summary-source')).toHaveText(`Rule-based summary of ${label}`);
-    await expect(page.getByText('Rule-based summary', { exact: true })).toBeVisible();
-    await expect(page.locator('body')).not.toContainText('94.6');
-    await expect(page.locator('body')).not.toContainText('live sensor');
-    await expectNoBanned(page);
-    const paths = page.locator('[data-testid="donut-chart"] path');
-    await expect(paths.first()).toBeVisible();
-    for (const d of await paths.evaluateAll((ps) => ps.map((p) => p.getAttribute('d')))) expect(d).not.toContain('NaN');
-    await page.waitForTimeout(800);
-    expect(errors, errors.join('\n')).toEqual([]);
-});
-
-test('Analytics with the backend down: no example figures, the safety-net notice instead', async ({ page }) => {
-    await stubImages(page);
-    await abortBackend(page, '**/batch_predict**');
-    await page.goto('/analytics');
-    await expect(page.getByTestId('sample-safety-net')).toBeVisible();
-    await expect(page.getByTestId('analytics-unavailable')).toHaveText(UNAVAILABLE);
-    await expect(page.getByTestId('analytics-summary-source')).toHaveCount(0);
-});
-
 test('Reports: no fixed example reports; no official/Doppler/accuracy/Confidential claims; export footer honest', async ({ page }) => {
     await stubImages(page);
     await page.goto('/reports');

@@ -181,48 +181,11 @@ test('mixed Forecast: a sample node shows the safety net; a rated node its level
     await expect(page.getByTestId('forecast-risk-level')).toHaveText('Level: High (rule-based)');
 });
 
-test('mixed Analytics: figures and risk charts use only zones with weather data', async ({ page }) => {
-    await mockMixed(page);
-    const raw = await (await page.request.get('http://127.0.0.1:8000/batch_predict?limit=100')).json();
-    const zones = raw.map((a, i) => rewrite(a, i));
-    const rated = zones.filter((z) => z.zone_source !== 'sample');
-    const nSample = zones.length - rated.length;
-    await page.goto('/analytics');
-    await expect(page.getByTestId('analytics-mixed-note')).toHaveText(
-        `Open-Meteo (model data) for ${rated.length} of ${zones.length} zones, updated 05:15–06:15 UTC. ${nSample} zones with sample data: risk not shown; figures and charts below use the ${rated.length} zones with weather data.`);
-    await expect(page.getByTestId('sample-safety-net')).toHaveCount(0);
-    await expect(page.getByText(`Mean of ${rated.length} zones`)).toHaveCount(3);
-    await expect(page.getByText(`Rule-based levels of ${rated.length} zones`)).toBeVisible();
-    await expect(page.getByTestId("analytics-subtitle")).toContainText(`Rule-based indicators from Open-Meteo (model data) for ${rated.length} of ${zones.length} zones`);
-    await expect(page.getByTestId('analytics-summary-source')).toContainText(`Rule-based summary of Open-Meteo (model data) for ${rated.length} of ${zones.length} zones`);
-    // Top Risk Cities: none of them sample-only
-    const sampleCities = new Set(zones.filter((z) => z.zone_source === 'sample').map((z) => z.city));
-    const ratedCities = new Set(rated.map((z) => z.city));
-    const top = await page.locator('h4').allInnerTexts();
-    expect(top.length).toBeGreaterThan(0);
-    for (const c of top) expect(sampleCities.has(c) && !ratedCities.has(c), c).toBe(false);
-});
-
-test('Analytics server unavailable: no example cities or figures; safety-net notice and ML link', async ({ page }) => {
-    await page.route('https://images.unsplash.com/**', (r) => r.fulfill({ body: PNG, contentType: 'image/png' }));
-    await page.addInitScript(() => { window.__SERVER_WAKE__ = { retryMs: 100, budgetMs: 400, attemptMs: 300 }; });
-    await page.route((u) => u.port === '8000' && u.pathname === '/batch_predict', (r) => r.abort());
-    await page.goto('/analytics');
-    await expect(page.getByTestId('sample-safety-net')).toBeVisible();
-    await expect(page.getByTestId('sample-safety-text')).toHaveText(NET);
-    await expect(page.getByTestId('sample-safety-ml-link')).toHaveAttribute('href', '/nowcast');
-    await expect(page.getByTestId('analytics-unavailable')).toHaveText('Server unavailable — please refresh in a minute.');
-    const text = await page.locator('main').innerText();
-    for (const w of ['Vizianagaram', 'Ratnagiri', 'Mumbai', 'Avg Precipitation', 'Risk Distribution', 'Top Risk Cities', 'Key Insights', 'HIGH', 'MODERATE', ' mm'])
-        expect(text, w).not.toContain(w);
-    await page.screenshot({ path: path.join(SHOTS, 'analytics_unavailable_1600x1000.png') });
-});
-
 test('mixed screenshots of /, Alerts, Forecast, Analytics at 1920x1080 and 1366x768', async ({ page }) => {
     await mockMixed(page, { tiles: true });                  // real map tiles for the screenshots
     for (const [w, h] of [[1920, 1080], [1366, 768]]) {
         await page.setViewportSize({ width: w, height: h });
-        for (const [r, id] of [['', 'dashboard-source-badge'], ['alerts', 'alerts-total-caption'], ['forecast', 'forecast-list-source'], ['analytics', 'analytics-mixed-note']]) {
+        for (const [r, id] of [['', 'dashboard-source-badge'], ['alerts', 'alerts-total-caption'], ['forecast', 'forecast-list-source']]) {
             await page.goto(`/${r}`);
             await expect(page.getByTestId(id)).toBeVisible();
             await page.waitForTimeout(r === '' ? 4000 : 1200);          // map tiles on "/"

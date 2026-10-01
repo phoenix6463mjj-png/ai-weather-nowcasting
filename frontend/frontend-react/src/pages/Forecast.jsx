@@ -392,7 +392,7 @@ const Forecast = () => {
                         className={`p-6 rounded-2xl border text-center font-bold ${backendStatus === 'down'
                             ? 'bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-900 text-red-700 dark:text-red-300'
                             : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-500'}`}>
-                        {backendStatus === 'down' ? WAKE_UNAVAILABLE : 'Loading forecast…'}
+                        {backendStatus === 'down' ? WAKE_UNAVAILABLE : 'Loading current conditions…'}
                     </div>
                 </main>
             </div>
@@ -433,7 +433,7 @@ const Forecast = () => {
                         <div>
                             <div className="flex items-center gap-2">
                                 <h1 className="text-2xl font-black tracking-tight">
-                                    Nowcasting Engine (current conditions)
+                                    Current conditions
                                 </h1>
                                 {activeData?.city && (
                                     <span className="text-xs px-2.5 py-0.5 rounded-full font-bold bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
@@ -673,7 +673,7 @@ const Forecast = () => {
                 <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 md:p-8 shadow-sm transition-all duration-300 hover:shadow-xl hover:scale-[1.005]">
                     <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
-                            <h2 className="text-lg font-bold">Nowcasting Engine</h2>
+                            <h2 className="text-lg font-bold">Current conditions</h2>
                             <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
                                 Now
                             </span>
@@ -694,7 +694,7 @@ const Forecast = () => {
                         <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 flex flex-col justify-between transition-all duration-300 hover:border-blue-400 dark:hover:border-blue-500/50 hover:shadow-md">
                             <div>
                                 <div className="flex items-center justify-between mb-1">
-                                    <h3 className="font-bold text-sm">{liveWeather ? 'Live Nowcast Panel' : 'Nowcast Panel (sample data)'}</h3>
+                                    <h3 data-testid="forecast-panel-title" className="font-bold text-sm">{liveWeather ? 'Current conditions' : 'Current conditions (sample data)'}</h3>
                                     {!sampleOnly && (
                                     <span data-testid="forecast-panel-risk" className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${currentRiskInfo.badgeClass}`}>
                                         {currentRiskInfo.label}
@@ -704,7 +704,7 @@ const Forecast = () => {
                                 <p className="text-xs text-slate-500 dark:text-slate-400">
                                     {isRealtime ? (
                                         <span className="text-amber-600 dark:text-amber-400 font-semibold flex items-center gap-1">
-                                            <Info size={13} /> {liveWeather ? 'Live Nowcast' : 'Nowcast'} (No historical projection available)
+                                            <Info size={13} /> Current weather only (no projection ahead)
                                         </span>
                                     ) : (
                                         <>Readout for: <strong>Now (current)</strong></>
@@ -718,7 +718,7 @@ const Forecast = () => {
                                     <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 text-amber-800 dark:text-amber-300 text-xs">
                                         <div className="font-bold flex items-center gap-1.5">
                                             <Info size={14} className="shrink-0" />
-                                            <span>{liveWeather ? 'Live Nowcast' : 'Nowcast'} (No historical projection available)</span>
+                                            <span>Current weather only (no projection ahead)</span>
                                         </div>
                                         <p className="text-[11px] opacity-90 mt-1">
                                             Current values for {activeNodeName} from {sourceText}.

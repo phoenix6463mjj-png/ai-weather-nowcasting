@@ -972,8 +972,12 @@ test('Approach page: status table, IWV attribution from AGGREGATE_VAL, IMERG evi
         await expect(page.locator(`[data-testid="approach-row"][data-item="${item}"]`)).toHaveAttribute('data-status', status);
     }
     expect(st['Wind shear']).toBe('Tested, no gain');
-    expect(st['Alert API / CAP']).toBe('File export built');
-    await expect(page.locator('[data-testid="approach-row"][data-item="Alert API / CAP"]')).toContainText('CAP 1.2 file export built; live feed not built');
+    expect(st['Alert API / CAP']).toBe('Export + Atom feed built');
+    await expect(page.locator('[data-testid="approach-row"][data-item="Alert API / CAP"]')).toContainText('CAP 1.2 file export and Atom feed built (Exercise status, not connected to any official system)');
+    const capNote = a.rows.find((r) => r.item === 'Alert API / CAP').status_note;
+    const nApproved = (await (await page.request.get(`${ML_API}/ml/cap/approvals`)).json()).n_approved;
+    expect(capNote).toMatch(new RegExp(`^${nApproved} forecaster-approved message`));                // the real state
+    await expect(page.locator('[data-testid="approach-row"][data-item="Alert API / CAP"]').getByTestId('approach-status-note')).toHaveText(capNote);
     await expect(page.getByTestId('iwv-attribution')).toHaveText(a.rows[0].attribution);
     await expect(page.getByTestId('iwv-attribution')).toContainText('Validation 2022–23, alert-selected rows');
     await expect(page.getByTestId('approach-page')).not.toContainText('core driver');
@@ -1144,10 +1148,23 @@ for (const [path, id, name] of [['/nowcast/results', 'results-page', 'results'],
 
 // ---------------------------------------------------------------- CAP 1.2 + forecaster review (checkpoint 05)
 const CAP_LABEL = "CAP 1.2 compatible (format used by India's Sachet alerting platform)";
+const ML_API = process.env.E2E_API_URL || 'http://127.0.0.1:8000';
+
+// Forecaster decisions are server state now (they feed /ml/cap/feed.atom): put every stored decision back to
+// "pending" so each run starts from an unreviewed alert.
+async function resetCapReviews(page) {
+    const { items } = await (await page.request.get(`${ML_API}/ml/cap/approvals`)).json();
+    for (const it of items) {
+        if (it.status === 'pending' && !it.edited) continue;
+        const r = await page.request.post(`${ML_API}/ml/cap/review`, { data: { ...it.src, alert_id: it.alert_id, status: 'pending' } });
+        expect(r.ok()).toBe(true);
+    }
+}
 
 for (const [w, h] of [[1920, 1080], [1366, 768]]) {
     test(`CAP review ${w}x${h}: download blocked until approved, edits kept, Exercise status, nothing sent`, async ({ page }) => {
         await page.setViewportSize({ width: w, height: h });
+        await resetCapReviews(page);
         const offsite = [];
         page.on('request', (r) => {
             const u = new URL(r.url());
@@ -1370,7 +1387,8 @@ test('Approach page: cloud-top temperature row (INSAT observation layer, not a m
     await expect(row.getByTestId('approach-status-note')).toHaveText(
         '10.8 µm cloud-top temperature on the two case studies. Using it in the model needs INSAT history + retraining (roadmap).');
     await expect(page.getByTestId('approach-table')).not.toContainText('Blocked by data access');
-    await expect(page.getByTestId('approach-status-note')).toHaveCount(1);
+    // status notes: this row and the Alert API / CAP row (approved count in the feed, from the real state)
+    await expect(page.getByTestId('approach-status-note')).toHaveCount(2);
     await shot(page, 'approach_ctt_row_1920x1080');
 });
 

@@ -50,7 +50,7 @@ const Sidebar = ({
                             <Bell size={18} />
                             <span className="text-sm">Alerts</span>
                         </div>
-                        {live && <span data-testid="sidebar-live" className="bg-red-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full">LIVE</span>}
+                        {live && <span data-testid="sidebar-live" className="bg-emerald-600 text-white text-[10px] font-black px-2 py-0.5 rounded-full whitespace-nowrap">Current weather</span>}
                     </NavLink>
                     <NavLink to="/analytics" className={navLinkClass}>
                         <BarChart2 size={18} />

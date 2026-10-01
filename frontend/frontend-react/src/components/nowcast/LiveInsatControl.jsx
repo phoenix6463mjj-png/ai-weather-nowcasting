@@ -17,6 +17,12 @@ const LiveInsatControl = ({ layer, on, setOn, frameId, setFrameId, opacity, setO
                 <span>{LIVE_INSAT_LABEL}</span>
             </label>
             {!layer.available && <p data-testid="live-insat-unavailable" className="mt-1 text-[10px] text-slate-500 dark:text-slate-400">{layer.note}</p>}
+            {(layer.by_satellite || []).length > 0 && (
+                <ul data-testid="live-insat-by-satellite" className="mt-1 space-y-0.5 text-[10px] leading-snug text-slate-700 dark:text-slate-200"
+                    title={layer.age_note || ''}>
+                    {layer.by_satellite.map((s) => <li key={s.satellite} data-testid="live-insat-sat-age" data-satellite={s.satellite}>{s.text}</li>)}
+                </ul>
+            )}
             {layer.available && on && frame && (
                 <div className="mt-1 space-y-1">
                     {layer.snapshot && (

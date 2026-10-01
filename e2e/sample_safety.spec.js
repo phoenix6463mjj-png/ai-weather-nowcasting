@@ -103,16 +103,7 @@ test('everything fails -> sample: Forecast shows current values only, no level, 
     await expect(page.getByTestId('forecast-risk-level')).toHaveCount(0);
     await expect(page.getByTestId('forecast-summary-title')).toHaveCount(0);
     await expect(page.getByTestId('forecast-fired-rules')).toHaveCount(0);
-    await expect(page.getByText('Nowcast Panel (sample data)')).toBeVisible();
-    await noAlarmWords(page);
-});
-
-test('everything fails -> sample: Analytics shows no distribution, insights or ranking', async ({ page }) => {
-    await mockSource(page, 'sample');
-    await page.goto('/analytics');
-    await expectNet(page);
-    await expect(page.getByText('City Rainfall Comparison (sample data)')).toBeVisible();
-    await expect(page.getByTestId('analytics-summary-source')).toHaveCount(0);
+    await expect(page.getByText('Current conditions (sample data)')).toBeVisible();
     await noAlarmWords(page);
 });
 
@@ -132,7 +123,7 @@ test('sample safety net screenshots of /, Alerts, Forecast, Analytics at 1920x10
     await mockSource(page, 'sample');
     for (const [w, h] of [[1920, 1080], [1366, 768]]) {
         await page.setViewportSize({ width: w, height: h });
-        for (const r of ['', 'alerts', 'forecast', 'analytics']) {
+        for (const r of ['', 'alerts', 'forecast']) {
             await page.goto(`/${r}`);
             await expect(page.getByTestId('sample-safety-net')).toBeVisible();
             await page.waitForTimeout(1200);

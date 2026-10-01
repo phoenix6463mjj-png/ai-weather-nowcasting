@@ -5,6 +5,7 @@ import NationalView from '../components/nowcast/NationalView';
 import LiveView from '../components/nowcast/LiveView';
 import DataCredits from '../components/nowcast/DataCredits';
 import { NowcastPageLinks } from '../components/nowcast/PageShell';
+import { nowcastTarget } from '../utils/nowcastUrl';
 
 // lgbm_v0 nowcast outputs (served by nowcast_data/serve through the backend's /ml proxy).
 const TABS = [
@@ -14,7 +15,7 @@ const TABS = [
 ];
 
 const Nowcast = () => {
-    const [tab, setTab] = useState('replay');
+    const [tab, setTab] = useState(() => nowcastTarget().view || 'replay');
     return (
         <div className="flex flex-col h-screen bg-slate-50 dark:bg-[#0b0f19] text-slate-900 dark:text-slate-100 font-sans overflow-hidden">
             <TopHeader />

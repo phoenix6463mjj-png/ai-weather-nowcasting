@@ -18,6 +18,7 @@ import LayersPanel from './LayersPanel';
 import IngredientsTab from './IngredientsTab';
 import CaveatsPanel from './CaveatsPanel';
 import ShelterPanel, { SHELTER_LABEL } from './ShelterPanel';
+import { nowcastTarget } from '../../utils/nowcastUrl';
 import { MapBadges } from './MapFrame';
 import useEventDrawerWidth from './useEventDrawerWidth';
 
@@ -57,6 +58,7 @@ const ReplayView = () => {
     const terrain = useTerrain(ep);
     const insat = useInsat(ep, ts);
     const pendingRef = useRef(null);            // jump target waiting for its issue to load
+    const urlTargetRef = useRef(nowcastTarget());
     const setters = { setLead, setShowWatch, setHazards, setSelected };
 
     useEffect(() => {
@@ -83,7 +85,15 @@ const ReplayView = () => {
                 if (p.lead == null) setLead(issueDefaultLead(m, a.alerts, ep, ts));
                 applyTarget(p, a.alerts, { setLead, setShowWatch, setHazards, setSelected });
             } else {
-                setLead(issueDefaultLead(m, a.alerts, ep, ts));
+                const tg = urlTargetRef.current;              // link from Analytics: lead / hazard / watch, once
+                if (tg && tg.ep === ep && tg.ts === ts) {
+                    urlTargetRef.current = null;
+                    setLead(tg.lead && m.leads_available.includes(tg.lead) ? tg.lead : issueDefaultLead(m, a.alerts, ep, ts));
+                    if (tg.hazard) setHazards([tg.hazard]);
+                    if (tg.watch) setShowWatch(true);
+                } else {
+                    setLead(issueDefaultLead(m, a.alerts, ep, ts));
+                }
             }
             setError(null);
         }).catch((e) => live && setError(e.message));

@@ -1,647 +1,488 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { Link } from 'react-router-dom';
-import { API_BASE } from '../config';
-import { fetchWithWake, WAKE_UNAVAILABLE } from '../utils/serverWake';
-import { isMixedList, isUnratedZone, mixedBadge, sourceBadge, unratedNote, zonesSummary } from '../utils/dashboardRisk';
-import HonestyBanner from '../components/HonestyBanner';
-import DonutChart from '../components/DonutChart';
-import OpenMeteoCredit from '../components/OpenMeteoCredit';
-import OpenWeatherCredit from '../components/OpenWeatherCredit';
-import {
-    BarChart2,
-    ArrowLeft,
-    RefreshCw,
-    Wind,
-    Droplets,
-    CloudRain,
-    Sparkles,
-    Filter,
-    MapPin
-} from 'lucide-react';
-import {
-    ResponsiveContainer,
-    BarChart,
-    Bar,
-    Cell,
-    XAxis,
-    YAxis,
-    CartesianGrid,
-    Tooltip
-} from 'recharts';
-import SampleSafetyNotice from '../components/SampleSafetyNotice';
+// Nowcast analytics (ML model): what the lgbm_v0 nowcast is warning about, how that changes with lead time,
+// why the model thinks so, and how good it is. Built only from the ML API (alerts, maps) and its documented
+// files (/analytics: validation attribution, CSI, quoted limits, INSAT status). Rule-based current-weather
+// indicators live on the Dashboard, not here.
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Play, Pause, CloudRain, Droplets, Zap, Wind, Mountain, Waves, Clock, ChevronDown, Satellite, ArrowRight } from 'lucide-react';
 import TopHeader from '../components/TopHeader';
+import {
+    getAnalytics, getEpisodes, getIssueAlerts, getIssueMeta, getIndiaMeta, getLiveAlerts, getLiveMeta, getLiveRuns,
+    issueMapUrl, indiaMapUrl, liveMapUrl,
+} from '../services/nowcastApi';
+import { HAZARD_STYLE } from '../utils/hazardLabels';
+import { HAZARD_IDS, LEADS, LEVELS, areaByLead, fmtAreaText, sentenceLeads, sentenceWarning, tileStats } from '../utils/nowcastAnalytics';
+import { nowcastLink } from '../utils/nowcastUrl';
 
-const POPULAR_STATES = [
-    "All India",
-    "Andhra Pradesh",
-    "Maharashtra",
-    "Tamil Nadu",
-    "Karnataka",
-    "Kerala",
-    "Gujarat",
-    "West Bengal",
-    "Rajasthan",
-    "Delhi NCR",
-    "Telangana",
-    "Himachal Pradesh"
-];
+const TERMS = {
+    lead: 'Lead time: how far ahead the forecast is valid. +2 h means two hours after the forecast was issued.',
+    Watch: 'Watch: the lower alert level (moderate severity; for flash flood a risk ratio from 0.5 to 1).',
+    Warning: 'Warning: the higher alert level (severe or extreme; for flash flood a risk ratio of 1 or more).',
+    CSI: 'CSI (critical success index): hits ÷ (hits + misses + false alarms) for rain of at least 10 mm/hr. 1 is perfect, 0 means no useful forecast.',
+    advection: 'Moving the current rain forward: the satellite rain now, shifted along its own motion. A simple standard to beat.',
+    persistence: 'Keeping the current rain where it is: “it will keep raining where it rains now”.',
+    attribution: 'Attribution: how much each group of inputs moved the model’s scores (SHAP values), as a share of the total.',
+    area: 'Area: the total area of the alert shapes at this lead, in square kilometres.',
+};
+const ICONS = { rain: CloudRain, moisture: Droplets, instability: Zap, wind: Wind, terrain: Mountain, ground: Waves, clock: Clock };
+const GROUP_COLOURS = { observed_rain_motion: '#2563eb', moisture: '#0d9488', instability: '#d97706', lift_wind: '#7c3aed',
+    terrain: '#78716c', ground_wetness: '#0369a1', lead_time: '#cbd5e1' };
+const stripMd = (s) => s.replace(/\*\*/g, '');
 
+const Term = ({ k, children }) => (
+    <span className="relative inline-block group">
+        <button type="button" aria-describedby={`term-${k}`} data-testid={`term-${k}`}
+            className="underline decoration-dotted decoration-slate-400 underline-offset-2 cursor-help focus:outline-none focus:ring-2 focus:ring-blue-400 rounded-sm">
+            {children}
+        </button>
+        <span role="tooltip" id={`term-${k}`}
+            className="invisible opacity-0 group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100 transition-opacity duration-150 absolute z-30 left-0 top-full mt-1 w-64 max-w-[80vw] rounded-lg bg-slate-900 text-white text-sm font-normal leading-snug p-2.5 shadow-lg">
+            {TERMS[k]}
+        </span>
+    </span>
+);
+
+function useWidth(ref) {
+    const [w, setW] = useState(600);
+    useEffect(() => {
+        if (!ref.current) return undefined;
+        const ro = new ResizeObserver(([e]) => setW(Math.max(260, Math.floor(e.contentRect.width))));
+        ro.observe(ref.current);
+        return () => ro.disconnect();
+    }, [ref]);
+    return w;
+}
+
+const Section = ({ n, q, sentence, testid, children }) => (
+    <section data-testid={testid} className="py-10 border-b border-slate-200 dark:border-slate-800 last:border-0">
+        <p className="text-sm font-black uppercase tracking-wider text-blue-700 dark:text-blue-400">{n}</p>
+        <h2 className="text-2xl font-black text-slate-900 dark:text-white mt-1">{q}</h2>
+        {sentence && <p data-testid={`${testid}-sentence`} className="text-lg text-slate-700 dark:text-slate-200 mt-2 leading-snug transition-opacity duration-200">{sentence}</p>}
+        <div className="mt-6">{children}</div>
+    </section>
+);
+
+const Chip = ({ on, onClick, children, colour, testid }) => (
+    <button type="button" aria-pressed={on} onClick={onClick} data-testid={testid}
+        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-bold border transition-colors ${on
+            ? 'bg-slate-900 text-white border-slate-900 dark:bg-white dark:text-slate-900'
+            : 'bg-white text-slate-500 border-slate-300 dark:bg-slate-900 dark:text-slate-400 dark:border-slate-600'}`}>
+        {colour && <span className="w-2.5 h-2.5 rounded-full" style={{ background: colour, opacity: on ? 1 : 0.4 }} />}
+        {children}
+    </button>
+);
+
+// ---------------------------------------------------------------- section 1: thumbnail
+const mercY = (lat) => Math.log(Math.tan(Math.PI / 4 + (lat * Math.PI) / 360));
+
+const Thumbnail = ({ meta, alerts, bg, onOpen, label }) => {
+    if (!meta) return null;
+    const [[s, w], [n, e]] = meta.bounds;
+    const W = 1000;
+    const H = Math.round((W * (mercY(n) - mercY(s))) / (((e - w) * Math.PI) / 180));
+    const px = (lon) => ((lon - w) / (e - w)) * W;
+    const py = (lat) => ((mercY(n) - mercY(lat)) / (mercY(n) - mercY(s))) * H;
+    const path = (g) => (g.type === 'Polygon' ? [g.coordinates] : g.coordinates)
+        .map((poly) => poly.map((ring) => ring.map(([lo, la], i) => `${i ? 'L' : 'M'}${px(lo).toFixed(1)},${py(la).toFixed(1)}`).join(' ') + 'Z').join(' '))
+        .join(' ');
+    return (
+        <button type="button" data-testid="analytics-thumbnail" onClick={onOpen} aria-label={label}
+            className="block w-full max-w-md rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 hover:ring-2 hover:ring-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow">
+            <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto block" role="img" aria-hidden="true">
+                {bg && <image href={bg} x="0" y="0" width={W} height={H} preserveAspectRatio="none" opacity="0.9" />}
+                {alerts.map((a) => (
+                    <path key={a.alert_id} d={path(a.geometry)} fill={HAZARD_STYLE[a.hazard].color}
+                        fillOpacity={a.level === 'Warning' ? 0.55 : 0.25} stroke={HAZARD_STYLE[a.hazard].color}
+                        strokeWidth="3" strokeDasharray={a.level === 'Warning' ? null : '10 8'} />
+                ))}
+            </svg>
+            <span className="flex items-center justify-between px-3 py-2 text-sm font-bold text-blue-700 dark:text-blue-400">
+                {label} <ArrowRight size={16} />
+            </span>
+        </button>
+    );
+};
+
+// ---------------------------------------------------------------- section 2: area by lead
+const AreaChart = ({ rows, hazards, lead, onLead }) => {
+    const box = useRef(null);
+    const W = useWidth(box);
+    const [hover, setHover] = useState(null);
+    const H = 240;
+    const pad = { l: 8, r: 8, t: 14, b: 34 };
+    const max = Math.max(1, ...rows.map((r) => r.total));
+    const bw = (W - pad.l - pad.r) / rows.length;
+    const y = (v) => pad.t + (1 - v / max) * (H - pad.t - pad.b);
+    const info = hover ?? { lead, text: null };
+    const row = rows.find((r) => r.lead === info.lead);
+    return (
+        <div ref={box} data-testid="analytics-area-chart">
+            <svg width={W} height={H} role="img" aria-label="Alert area by lead time, stacked by hazard">
+                {rows.map((r, i) => {
+                    let acc = 0;
+                    const x = pad.l + i * bw + bw * 0.18;
+                    const w = bw * 0.64;
+                    const sel = r.lead === lead;
+                    return (
+                        <g key={r.lead}>
+                            {hazards.map((h) => {
+                                const v = r.byHazard[h]?.area || 0;
+                                if (!v) return null;
+                                const y0 = y(acc + v);
+                                const hgt = y(acc) - y0;
+                                acc += v;
+                                return (
+                                    <rect key={h} data-testid="area-bar" data-lead={r.lead} data-hazard={h} data-area={Math.round(v)}
+                                        x={x} y={y0} width={w} height={Math.max(1, hgt)} rx="3" fill={HAZARD_STYLE[h].color}
+                                        opacity={sel ? 1 : 0.45} tabIndex={0} className="cursor-pointer transition-opacity duration-200 focus:outline-none"
+                                        onMouseEnter={() => setHover({ lead: r.lead, h })} onMouseLeave={() => setHover(null)}
+                                        onFocus={() => setHover({ lead: r.lead, h })} onBlur={() => setHover(null)}
+                                        onClick={() => onLead(r.lead)} aria-label={`+${r.lead} h, ${HAZARD_STYLE[h].name}: ${fmtAreaText(v)} km²`} />
+                                );
+                            })}
+                            {sel && <rect x={x - 4} y={pad.t - 6} width={w + 8} height={H - pad.t - pad.b + 6} fill="none" stroke="#0f172a" strokeWidth="2" rx="6" />}
+                            <text x={x + w / 2} y={H - 12} textAnchor="middle" fontSize="14" fontWeight={sel ? 800 : 500} fill="currentColor">+{r.lead} h</text>
+                        </g>
+                    );
+                })}
+            </svg>
+            <p data-testid="area-chart-info" aria-live="polite" className="text-base text-slate-700 dark:text-slate-200 min-h-[1.5rem]">
+                {row && `+${row.lead} h: ${hazards.map((h) => `${HAZARD_STYLE[h].name} ${fmtAreaText(row.byHazard[h]?.area || 0)} km²`).join(' · ')}`}
+            </p>
+        </div>
+    );
+};
+
+// ---------------------------------------------------------------- section 3: attribution
+const AttributionChart = ({ a, lead, dim }) => {
+    const box = useRef(null);
+    const W = useWidth(box);
+    const [hover, setHover] = useState(null);
+    const leads = Object.keys(a.per_lead);
+    const rowH = 30;
+    const labelW = 52;
+    const H = leads.length * (rowH + 12) + 4;
+    const cur = hover ?? { lead: String(lead), key: null };
+    const g = a.groups.find((x) => x.key === cur.key);
+    const sh = a.per_lead[cur.lead]?.shares;
+    return (
+        <div ref={box} data-testid="analytics-attribution-chart" className={`transition-opacity duration-200 ${dim ? 'opacity-30' : ''}`}>
+            <svg width={W} height={H} role="img" aria-label="Share of the model's attribution by input group, per lead time">
+                {leads.map((L, i) => {
+                    let x = labelW;
+                    const sel = L === String(lead);
+                    const y = i * (rowH + 12) + 2;
+                    return (
+                        <g key={L}>
+                            <text x={0} y={y + rowH / 2 + 5} fontSize="14" fontWeight={sel ? 800 : 500} fill="currentColor">+{L} h</text>
+                            {a.groups.map((gr) => {
+                                const v = a.per_lead[L].shares[gr.key] || 0;
+                                const w = (v / 100) * (W - labelW - 4);
+                                const r = (
+                                    <rect key={gr.key} data-testid="attr-seg" data-lead={L} data-group={gr.key} data-share={v}
+                                        x={x} y={y} width={Math.max(0.5, w)} height={rowH} fill={GROUP_COLOURS[gr.key]}
+                                        opacity={sel ? 1 : 0.5} tabIndex={0} className="transition-opacity duration-200 focus:outline-none"
+                                        onMouseEnter={() => setHover({ lead: L, key: gr.key })} onMouseLeave={() => setHover(null)}
+                                        onFocus={() => setHover({ lead: L, key: gr.key })} onBlur={() => setHover(null)}
+                                        aria-label={`+${L} h, ${gr.name}: ${v}% of the attribution`} />
+                                );
+                                x += w;
+                                return r;
+                            })}
+                            {sel && <rect x={labelW - 3} y={y - 3} width={W - labelW - 1} height={rowH + 6} fill="none" stroke="#0f172a" strokeWidth="2" rx="4" />}
+                        </g>
+                    );
+                })}
+            </svg>
+            <p data-testid="attribution-info" aria-live="polite" className="text-base text-slate-700 dark:text-slate-200 min-h-[3rem] mt-1">
+                {g ? <><b>{g.name}</b>: {sh[g.key]}% of the attribution at +{cur.lead} h. {g.explain}.</>
+                    : sh && <>At +{cur.lead} h: rain now {sh.observed_rain_motion}%, everything else {a.per_lead[cur.lead].not_rain_now}%.</>}
+            </p>
+            <ul className="flex flex-wrap gap-x-4 gap-y-2 mt-3">
+                {a.groups.map((gr) => {
+                    const I = ICONS[gr.icon];
+                    return (
+                        <li key={gr.key} className="flex items-center gap-1.5 text-sm" title={gr.explain}>
+                            <span className="w-3 h-3 rounded-sm" style={{ background: GROUP_COLOURS[gr.key] }} />
+                            {I && <I size={16} className="text-slate-500" />} {gr.name}
+                        </li>
+                    );
+                })}
+            </ul>
+        </div>
+    );
+};
+
+// ---------------------------------------------------------------- section 4: CSI by lead
+const SKILL_LINES = [['model', 'The model', '#2563eb', null], ['advection', 'Moving the current rain forward', '#94a3b8', '6 4'],
+    ['persistence', 'Keeping the current rain where it is', '#f59e0b', '2 4']];
+
+const SkillChart = ({ s, lead }) => {
+    const box = useRef(null);
+    const W = useWidth(box);
+    const [hover, setHover] = useState(null);
+    const H = 260;
+    const pad = { l: 44, r: 16, t: 14, b: 34 };
+    const rows = s.rows;
+    const max = Math.ceil(Math.max(...rows.flatMap((r) => [r.model, r.advection, r.persistence])) * 10) / 10;
+    const x = (i) => pad.l + (i / (rows.length - 1)) * (W - pad.l - pad.r);
+    const y = (v) => pad.t + (1 - v / max) * (H - pad.t - pad.b);
+    const li = rows.findIndex((r) => r.lead === lead);
+    const show = hover ?? (li >= 0 ? { i: li } : null);
+    const r = show ? rows[show.i] : null;
+    return (
+        <div ref={box} data-testid="analytics-skill-chart">
+            <svg width={W} height={H} role="img" aria-label="CSI at 10 mm/hr by lead time: model, moving the current rain forward, keeping it where it is">
+                {[0, max / 2, max].map((v) => (
+                    <g key={v}>
+                        <line x1={pad.l} x2={W - pad.r} y1={y(v)} y2={y(v)} stroke="#e2e8f0" />
+                        <text x={pad.l - 6} y={y(v) + 5} textAnchor="end" fontSize="14" fill="#64748b">{v.toFixed(1)}</text>
+                    </g>
+                ))}
+                {li >= 0 && <line x1={x(li)} x2={x(li)} y1={pad.t} y2={H - pad.b} stroke="#0f172a" strokeWidth="2" strokeDasharray="3 3" />}
+                {SKILL_LINES.map(([k, , col, dash]) => (
+                    <g key={k}>
+                        <polyline points={rows.map((rr, i) => `${x(i)},${y(rr[k])}`).join(' ')} fill="none" stroke={col} strokeWidth={k === 'model' ? 3.5 : 2.5} strokeDasharray={dash} />
+                        {rows.map((rr, i) => (
+                            <circle key={rr.lead} data-testid="skill-point" data-line={k} data-lead={rr.lead} data-csi={rr[k]}
+                                cx={x(i)} cy={y(rr[k])} r={k === 'model' ? 6 : 5} fill={col} tabIndex={0} className="focus:outline-none"
+                                onMouseEnter={() => setHover({ i })} onMouseLeave={() => setHover(null)}
+                                onFocus={() => setHover({ i })} onBlur={() => setHover(null)} aria-label={`+${rr.lead} h: CSI ${rr[k]}`} />
+                        ))}
+                    </g>
+                ))}
+                {rows.map((rr, i) => <text key={rr.lead} x={x(i)} y={H - 12} textAnchor="middle" fontSize="14" fontWeight={rr.lead === lead ? 800 : 500} fill="currentColor">+{rr.lead} h</text>)}
+            </svg>
+            <ul className="flex flex-wrap gap-x-5 gap-y-1 text-sm mt-1">
+                {SKILL_LINES.map(([k, name, col, dash]) => (
+                    <li key={k} className="flex items-center gap-2">
+                        <svg width="26" height="8"><line x1="0" x2="26" y1="4" y2="4" stroke={col} strokeWidth="3" strokeDasharray={dash} /></svg>
+                        {k === 'model' ? name : <Term k={k}>{name}</Term>}
+                    </li>
+                ))}
+            </ul>
+            <p data-testid="skill-info" aria-live="polite" className="text-base text-slate-700 dark:text-slate-200 min-h-[1.5rem] mt-2">
+                {r && <>At +{r.lead} h: model <b>{r.model.toFixed(3)}</b> · moving forward {r.advection.toFixed(3)} · keeping in place {r.persistence.toFixed(3)} (<Term k="CSI">CSI</Term>)</>}
+            </p>
+        </div>
+    );
+};
+
+const More = ({ title, children, testid }) => (
+    <details data-testid={testid} className="group mt-5 rounded-xl border border-slate-200 dark:border-slate-700">
+        <summary className="cursor-pointer list-none flex items-center justify-between px-4 py-3 text-base font-bold text-slate-800 dark:text-slate-100">
+            {title} <ChevronDown size={18} className="transition-transform duration-200 group-open:rotate-180" />
+        </summary>
+        <div className="px-4 pb-4 text-sm text-slate-700 dark:text-slate-300 space-y-3 leading-relaxed">{children}</div>
+    </details>
+);
+
+// ---------------------------------------------------------------- page
 const Analytics = () => {
-    const [data, setData] = useState([]);
-    // "backend" = /batch_predict answered; "fallback" = server unavailable (no figures are shown then)
-    const [dataOrigin, setDataOrigin] = useState(null);
-    const [loading, setLoading] = useState(true);
-    const [, setError] = useState(null);
-    const isFetchingRef = useRef(false);
-    const srcOf = (d) => d.source || d.weather?.source;
-    const liveWeather = dataOrigin === "backend" && data.length > 0 && data.every((d) => ["openweather", "open-meteo"].includes(srcOf(d)));
-    const openMeteo = liveWeather && data.every((d) => srcOf(d) === "open-meteo");
-    // backend sample data (no weather feed): no risk distribution, insights, ranking or risk colours
-    const sampleOnly = dataOrigin === "backend" && data.length > 0 && data.every((d) => (srcOf(d) || "sample") === "sample");
-    const unavailable = dataOrigin === "fallback";
-    // mixed list: every figure and risk chart uses only the zones with weather data (sample zones: no risk)
-    const mixed = dataOrigin === "backend" && isMixedList(data);
-    const nUnrated = mixed ? data.filter(isUnratedZone).length : 0;
-    const base = useMemo(() => (mixed ? data.filter((d) => !isUnratedZone(d)) : data), [data, mixed]);
-    const dataLabel = mixed ? `${mixedBadge(zonesSummary(data), data)}; ${unratedNote(nUnrated)}`
-        : openMeteo ? "Open-Meteo data (model data)" : liveWeather ? "OpenWeather data" : "sample data";
-
-    // page subtitle: the real weather source and the zones' rule-based counts (before the page filters)
-    const subtitle = useMemo(() => {
-        if (unavailable) return 'No figures: the team backend did not answer';
-        if (sampleOnly) return `Sample data for ${data.length} zones: risk indicators are not shown`;
-        if (!base.length) return null;
-        const lvl = (d) => String(d.risk_level || d.risk || 'LOW').toUpperCase();
-        const n = { HIGH: 0, MODERATE: 0, LOW: 0 };
-        base.forEach((d) => { const l = lvl(d) === 'MEDIUM' ? 'MODERATE' : lvl(d); n[l] = (n[l] || 0) + 1; });
-        const src = mixed ? mixedBadge(zonesSummary(data), data)
-            : sourceBadge(openMeteo ? 'open-meteo' : 'openweather', null, zonesSummary(data).data_time);
-        return `Rule-based indicators from ${src}: ${n.HIGH} HIGH, ${n.MODERATE} MODERATE, ${n.LOW} LOW of ${base.length} zones`;
-    }, [unavailable, sampleOnly, mixed, openMeteo, data, base]);
-
-    // 1. FILTER BAR STATE
-    const [hazardType, setHazardType] = useState("All"); // "All" | "Flood" | "Storm" | "Wind"
-    const [selectedRegion, setSelectedRegion] = useState("All India");
-
-    const loadData = useCallback(async () => {
-        if (isFetchingRef.current) return;
-        isFetchingRef.current = true;
-
-        setLoading(true);
-        setError(null);
-        try {
-            const res = await fetchWithWake(`${API_BASE}/batch_predict?limit=100`);
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            const json = await res.json();
-            if (Array.isArray(json) && json.length > 0) {
-                setData(json);
-                setDataOrigin("backend");
-            } else {
-                setData([]);
-                setDataOrigin("fallback");
-            }
-        } catch (err) {
-            console.warn("Analytics fetch error (no figures shown):", err);
-            setData([]);
-            setDataOrigin("fallback");
-        } finally {
-            setLoading(false);
-            isFetchingRef.current = false;
-        }
-    }, []);
+    const navigate = useNavigate();
+    const [sources, setSources] = useState(null);           // [{ id, kind, label, badge, ep, ts, run, issue }]
+    const [srcId, setSrcId] = useState(null);
+    const [data, setData] = useState({ id: null, meta: null, alerts: [] });
+    const [doc, setDoc] = useState(null);                   // /analytics
+    const [leadIdx, setLeadIdx] = useState(3);
+    const [playing, setPlaying] = useState(false);
+    const [hazards, setHazards] = useState(HAZARD_IDS);
+    const [levels, setLevels] = useState(LEVELS);
+    const [error, setError] = useState(null);
 
     useEffect(() => {
-        let isMounted = true;
-        const init = async () => {
-            if (isMounted) await loadData();
-        };
-        init();
-
-        // 5-minute auto-refresh interval
-        const interval = setInterval(() => {
-            if (isMounted) loadData();
-        }, 300000);
-
-        return () => {
-            isMounted = false;
-            clearInterval(interval);
-        };
-    }, [loadData]);
-
-    // Active dataset filtered by Region & Hazard Type
-    const filteredDataset = useMemo(() => {
-        const raw = base;
-
-        return raw.filter(item => {
-            // Region filter
-            if (selectedRegion !== "All India") {
-                const itemState = String(item.state || '').toLowerCase();
-                const targetState = selectedRegion.toLowerCase();
-                if (!itemState.includes(targetState) && !targetState.includes(itemState)) {
-                    return false;
-                }
+        let live = true;
+        Promise.all([getLiveRuns().catch(() => ({ runs: [] })), getEpisodes()]).then(([lr, eps]) => {
+            if (!live) return;
+            const list = [];
+            if (lr.runs.length) list.push({ id: 'live', kind: 'live', run: lr.runs[0].run, issue: lr.runs[0].issue_time,
+                label: `Live run (not validated) · issued ${lr.runs[0].issue_time.slice(5, 16).replace('T', ' ')}Z`, badge: 'Not validated' });
+            list.push({ id: 'india', kind: 'india', label: 'National sample (probability maps only)', badge: 'Sample' });
+            for (const e of eps.episodes) {
+                const it = e.episode === eps.default.episode ? e.issues.find((i) => i.ts === eps.default.ts) : e.issues[Math.floor(e.issues.length / 2)];
+                list.push({ id: e.episode, kind: 'replay', ep: e.episode, ts: it.ts, issue: it.issue_time, forecastOnly: it.explain_available === false,
+                    label: `Event replay ${e.episode} · ${e.sites?.length ? e.sites.map((x) => x.name).join(' + ') : e.location}${e.in_sample ? ' · IN-SAMPLE' : ''}`,
+                    badge: e.in_sample ? e.sample_label : e.badge });
             }
+            setSources(list);
+            setSrcId(list[0].id);
+        }).catch((e) => live && setError(e.message));
+        getAnalytics().then((d) => live && setDoc(d)).catch((e) => live && setError(e.message));
+        return () => { live = false; };
+    }, []);
 
-            // Hazard Type filter
-            if (hazardType === "Flood") {
-                const rain = Number(item.rainfall ?? item.weather?.rainfall ?? 0);
-                const hasFlood = (item.alert || item.hazard || '').toLowerCase().includes("flood");
-                if (rain < 15 && !hasFlood) return false;
-            } else if (hazardType === "Storm") {
-                const wind = Number(item.wind_speed ?? item.weather?.wind_speed ?? 0);
-                const hasStorm = (item.alert || item.hazard || '').toLowerCase().includes("thunder");
-                if (wind < 8 && !hasStorm) return false;
-            } else if (hazardType === "Wind") {
-                const wind = Number(item.wind_speed ?? item.weather?.wind_speed ?? 0);
-                if (wind < 7) return false;
-            }
+    const src = sources?.find((s) => s.id === srcId) || null;
+    useEffect(() => {
+        if (!src) return undefined;
+        let live = true;
+        const p = src.kind === 'live' ? Promise.all([getLiveMeta(src.run), getLiveAlerts(src.run)])
+            : src.kind === 'india' ? Promise.all([getIndiaMeta(), Promise.resolve({ alerts: [] })])
+                : Promise.all([getIssueMeta(src.ep, src.ts), getIssueAlerts(src.ep, src.ts)]);
+        p.then(([m, a]) => live && setData({ id: src.id, meta: m, alerts: a.alerts || [] })).catch((e) => live && setError(e.message));
+        return () => { live = false; };
+    }, [src]);
 
-            return true;
-        });
-    }, [base, selectedRegion, hazardType]);
+    useEffect(() => {
+        if (!playing) return undefined;
+        const t = setInterval(() => setLeadIdx((i) => {
+            if (i >= LEADS.length - 1) { setPlaying(false); return i; }
+            return i + 1;
+        }), 1300);
+        return () => clearInterval(t);
+    }, [playing]);
 
-    // Compute key telemetry summary metrics
-    const { avgRain, avgWind, avgHum, highCount, modCount, lowCount, totalNodes } = useMemo(() => {
-        const dataset = filteredDataset.length > 0 ? filteredDataset : base;
-        let tRain = 0, tWind = 0, tHum = 0;
-        let hCount = 0, mCount = 0, lCount = 0;
-
-        dataset.forEach(item => {
-            const r = String(item.risk_level || item.risk || "LOW").toUpperCase();
-            if (r === "HIGH") hCount++;
-            else if (r === "MODERATE" || r === "MEDIUM") mCount++;
-            else lCount++;
-
-            const rain = Number(item.rainfall ?? item.weather?.rainfall ?? 0);
-            const wind = Number(item.wind_speed ?? item.weather?.wind_speed ?? 0);
-            const hum = Number(item.humidity ?? item.weather?.humidity ?? 0);
-
-            tRain += isNaN(rain) ? 0 : rain;
-            tWind += isNaN(wind) ? 0 : wind;
-            tHum += isNaN(hum) ? 0 : hum;
-        });
-
-        const total = dataset.length || 1;
-        return {
-            avgRain: (tRain / total).toFixed(1),
-            avgWind: (tWind / total).toFixed(1),
-            avgHum: Math.round(tHum / total),
-            highCount: hCount,
-            modCount: mCount,
-            lowCount: lCount,
-            totalNodes: dataset.length
-        };
-    }, [filteredDataset, base]);
-
-    // 2B. City Risk Comparison Bar Chart Data (Top 5 cities by rainfall / intensity)
-    const barChartData = useMemo(() => {
-        const dataset = filteredDataset.length > 0 ? filteredDataset : base;
-        const sorted = [...dataset].sort((a, b) => {
-            const rA = Number(a.rainfall ?? a.weather?.rainfall ?? 0);
-            const rB = Number(b.rainfall ?? b.weather?.rainfall ?? 0);
-            return rB - rA;
-        });
-
-        return sorted.slice(0, 5).map(item => {
-            const rain = Number(item.rainfall ?? item.weather?.rainfall ?? 0);
-            const wind = Number(item.wind_speed ?? item.weather?.wind_speed ?? 0);
-            const risk = String(item.risk_level || item.risk || "LOW").toUpperCase();
-            return {
-                city: item.city,
-                rainfall: +rain.toFixed(1),
-                wind: +wind.toFixed(1),
-                risk: risk,
-                fill: sampleOnly ? "#64748b" : risk === "HIGH" ? "#ef4444" : risk === "MODERATE" ? "#f59e0b" : "#10b981"
-            };
-        });
-    }, [filteredDataset, base, sampleOnly]);
-
-    // 2C. Risk Distribution Pie / Doughnut Chart Data
-    const pieChartData = useMemo(() => {
-        return [
-            { name: "High Risk", value: highCount, color: "#ef4444" },
-            { name: "Moderate Risk", value: modCount, color: "#f59e0b" },
-            { name: "Low Risk", value: lowCount, color: "#10b981" }
-        ].filter(item => item.value > 0);
-    }, [highCount, modCount, lowCount]);
-
-    // 5. TOP RISK CITIES (Ranked List)
-    const topRiskCities = useMemo(() => {
-        const dataset = filteredDataset.length > 0 ? filteredDataset : base;
-
-        // Priority sort: HIGH -> MODERATE -> LOW, then rainfall
-        const sorted = [...dataset].sort((a, b) => {
-            const getRank = (r) => {
-                const s = String(r || '').toUpperCase();
-                if (s === 'HIGH') return 3;
-                if (s === 'MODERATE' || s === 'MEDIUM') return 2;
-                return 1;
-            };
-            const rankDiff = getRank(b.risk_level || b.risk) - getRank(a.risk_level || a.risk);
-            if (rankDiff !== 0) return rankDiff;
-
-            const rainA = Number(a.rainfall ?? a.weather?.rainfall ?? 0);
-            const rainB = Number(b.rainfall ?? b.weather?.rainfall ?? 0);
-            return rainB - rainA;
-        });
-
-        return sorted.slice(0, 6);
-    }, [filteredDataset, base]);
-
-    // 4. KEY INSIGHTS: every sentence is built from the zones' own values (the rule that fired, rain in
-    // the last hour, humidity, wind) and counts; no fixed thresholds, places or meteorology.
-    const keyInsights = useMemo(() => {
-        const dataset = filteredDataset.length > 0 ? filteredDataset : base;
-        const num = (z, k) => {
-            const v = Number(z[k] ?? z.weather?.[k]);
-            return Number.isFinite(v) ? v : null;
-        };
-        const level = (z) => String(z.risk_level || z.risk || '').toUpperCase();
-        const n = dataset.length;
-        const insights = [];
-        if (!n) return insights;
-
-        const high = dataset.filter((z) => level(z) === 'HIGH')
-            .sort((x, y) => (num(y, 'rainfall') ?? -1) - (num(x, 'rainfall') ?? -1));
-        if (high.length > 0) {
-            const zones = high.slice(0, 3).map((z) => {
-                const rules = Array.isArray(z.rules_fired) ? z.rules_fired.filter(Boolean) : [];
-                const rain = num(z, 'rainfall');
-                return `${z.city}: ${rules.length ? rules.join('; ') : 'rule not reported'}`
-                    + (rain != null ? ` (rain ${rain.toFixed(1)} mm in the last hour)` : '');
-            });
-            insights.push({ type: "danger", text: `Rule-based HIGH in ${high.length} of ${n} zones. ${zones.join('. ')}.` });
-        } else {
-            const mod = dataset.filter((z) => level(z) === 'MODERATE').length;
-            insights.push({ type: "info", text: `No zone at rule-based HIGH; ${mod} of ${n} zones at MODERATE.` });
-        }
-
-        const extreme = (k, unit, digits) => {
-            const vals = dataset.map((z) => [z, num(z, k)]).filter(([, v]) => v != null);
-            if (!vals.length) return null;
-            const avg = vals.reduce((t, [, v]) => t + v, 0) / vals.length;
-            const [zMax, vMax] = vals.reduce((m, cur) => (cur[1] > m[1] ? cur : m));
-            return `average ${avg.toFixed(digits)} ${unit} across ${vals.length} zones; highest ${vMax.toFixed(digits)} ${unit} at ${zMax.city}`;
-        };
-        const wind = extreme('wind_speed', 'm/s', 1);
-        if (wind) insights.push({ type: "info", text: `Wind: ${wind}.` });
-        const hum = extreme('humidity', '%', 0);
-        if (hum) insights.push({ type: "info", text: `Relative humidity: ${hum}.` });
-        return insights;
-    }, [filteredDataset, base]);
+    const lead = LEADS[leadIdx];
+    const ready = data.id === srcId && data.meta;
+    const alerts = useMemo(() => (ready ? data.alerts : []), [ready, data.alerts]);
+    const stats = useMemo(() => tileStats(alerts, lead, hazards, levels), [alerts, lead, hazards, levels]);
+    const byLead = useMemo(() => areaByLead(alerts, hazards, levels), [alerts, hazards, levels]);
+    const shown = alerts.filter((a) => a.lead_time_h === lead && hazards.includes(a.hazard) && levels.includes(a.level));
+    const toggle = (list, set, v) => set(list.includes(v) ? (list.length > 1 ? list.filter((x) => x !== v) : list) : [...list, v]);
+    const noAlerts = src?.kind === 'india';
+    const open = (hz) => navigate(nowcastLink({
+        view: src.kind, ep: src.ep, ts: src.ts, lead, hazard: hz,
+        watch: levels.includes('Watch'),
+        field: src.kind === 'india' ? (hz === 'cloudburst' ? 'cloudburst_index' : 'thunderstorm') : undefined,
+    }));
+    const bg = !src || !ready ? null : src.kind === 'live' ? liveMapUrl(src.run, lead, 'rain_p10')
+        : src.kind === 'india' ? indiaMapUrl(lead, hazards.includes('cloudburst') && !hazards.includes('thunderstorm') ? 'cloudburst_index' : 'thunderstorm')
+            : issueMapUrl(src.ep, src.ts, lead, 'rain_p10');
+    const attrApplies = doc?.attribution?.applies_to?.filter((h) => hazards.includes(h)) || [];
 
     return (
-        <div className="min-h-screen bg-slate-50 dark:bg-[#0b0f19] text-slate-900 dark:text-slate-100 flex flex-col font-sans transition-colors duration-200">
+        <div className="min-h-screen bg-white dark:bg-[#0b0f19] text-slate-900 dark:text-slate-100 font-sans overflow-x-hidden">
             <TopHeader showCredits selectedCity="All India" />
-
-            <main className="flex-1 p-6 md:p-8 max-w-7xl mx-auto w-full">
-                <HonestyBanner kind="rule-figures" />
-                {/* Header Title Bar */}
-                <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div className="flex items-center gap-3">
-                        <div className="p-3 bg-blue-100 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 rounded-xl border border-blue-200 dark:border-blue-900/50">
-                            <BarChart2 size={26} />
-                        </div>
-                        <div>
-                            <h1 className="text-2xl font-black text-slate-900 dark:text-white">
-                                Meteorological Analytics Dashboard
-                            </h1>
-                            {subtitle && <p data-testid="analytics-subtitle" className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
-                                {subtitle}
-                            </p>}
+            <div data-testid="analytics-topbar" className="sticky top-0 z-40 bg-white/95 dark:bg-[#0b0f19]/95 backdrop-blur border-b border-slate-200 dark:border-slate-800">
+                <div className="max-w-3xl mx-auto px-4 py-3 flex flex-wrap items-center gap-x-5 gap-y-3">
+                    <label className="flex flex-col gap-1 min-w-0 flex-1 basis-60">
+                        <span className="text-sm font-bold text-slate-500">Source</span>
+                        <select data-testid="analytics-source" value={srcId || ''} onChange={(e) => setSrcId(e.target.value)}
+                            className="text-base font-bold rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-2 py-1.5 min-w-0 w-full">
+                            {(sources || []).map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
+                        </select>
+                    </label>
+                    <div className="flex flex-col gap-1 basis-56 flex-1">
+                        <span className="text-sm font-bold text-slate-500"><Term k="lead">Lead time</Term>: <b data-testid="analytics-lead" className="text-slate-900 dark:text-white">+{lead} h</b></span>
+                        <div className="flex items-center gap-2">
+                            <button type="button" data-testid="analytics-play" onClick={() => { if (!playing && leadIdx === LEADS.length - 1) setLeadIdx(0); setPlaying(!playing); }}
+                                aria-label={playing ? 'Pause' : 'Play through the lead times'}
+                                className="p-1.5 rounded-full bg-blue-600 text-white hover:bg-blue-700">{playing ? <Pause size={16} /> : <Play size={16} />}</button>
+                            <input type="range" min="0" max={LEADS.length - 1} step="1" value={leadIdx} data-testid="analytics-lead-slider"
+                                onChange={(e) => { setPlaying(false); setLeadIdx(Number(e.target.value)); }} aria-label="Lead time"
+                                aria-valuetext={`+${lead} h`} className="flex-1 accent-blue-600" />
                         </div>
                     </div>
-
-                    <div className="flex items-center gap-2.5 self-start sm:self-center">
-                        <button
-                            onClick={loadData}
-                            disabled={loading}
-                            className="flex items-center gap-2 px-3 py-2 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs rounded-xl border border-slate-200 dark:border-slate-700 transition-colors shadow-xs cursor-pointer disabled:opacity-50"
-                            title="Refresh analytics"
-                        >
-                            <RefreshCw size={13} className={loading ? "animate-spin text-blue-500" : ""} />
-                            <span>{loading ? "Updating..." : "Refresh"}</span>
-                        </button>
-                        <Link
-                            to="/"
-                            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl transition-colors shadow-xs"
-                        >
-                            <ArrowLeft size={14} />
-                            <span>Dashboard</span>
-                        </Link>
+                    <div className="flex flex-wrap gap-2 basis-full">
+                        {HAZARD_IDS.map((h) => <Chip key={h} testid={`chip-${h}`} on={hazards.includes(h)} colour={HAZARD_STYLE[h].color}
+                            onClick={() => toggle(hazards, setHazards, h)}>{HAZARD_STYLE[h].name}</Chip>)}
+                        <span className="w-px bg-slate-200 dark:bg-slate-700 mx-1" />
+                        {LEVELS.map((l) => <Chip key={l} testid={`chip-${l}`} on={levels.includes(l)} onClick={() => toggle(levels, setLevels, l)}>{l}</Chip>)}
                     </div>
                 </div>
+            </div>
 
-                {unavailable ? (
-                    <div className="space-y-2">
-                        <SampleSafetyNotice />
-                        <p data-testid="analytics-unavailable" className="text-xs text-slate-500 dark:text-slate-400 px-1">{WAKE_UNAVAILABLE}</p>
-                    </div>
-                ) : dataOrigin === null ? (
-                    <p data-testid="analytics-loading" className="text-sm text-slate-500 dark:text-slate-400">Loading analytics…</p>
-                ) : (<>
-                {mixed && (
-                    <p data-testid="analytics-mixed-note" className="mb-4 text-xs font-semibold text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg px-3 py-2">
-                        {mixedBadge(zonesSummary(data), data)}. {unratedNote(nUnrated)}; figures and charts below use the {base.length} zones with weather data.
-                    </p>
-                )}
-                {/* 1. FILTER BAR (TOP - HORIZONTALLY ALIGNED) */}
-                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3.5 mb-6 shadow-xs flex flex-wrap items-center justify-between gap-4">
-                    <div className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                        <Filter size={15} className="text-blue-500" />
-                        <span>Dashboard Filters</span>
-                    </div>
+            <main className="max-w-3xl mx-auto px-4">
+                <header className="pt-8">
+                    <h1 className="text-3xl font-black">Nowcast analytics (ML model)</h1>
+                    <p className="text-base text-slate-600 dark:text-slate-300 mt-1">What the frozen lgbm_v0 model is warning about, how that changes with lead time, why, and how far to trust it.</p>
+                    {src && <p data-testid="analytics-badge" className="inline-block mt-3 text-sm font-bold px-2.5 py-1 rounded-full bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-200">{src.badge}{src.forecastOnly ? ' · forecast-only issue' : ''}</p>}
+                    {error && <p className="text-base text-red-600 mt-2">{error}</p>}
+                </header>
 
-                    <div className="flex flex-wrap items-center gap-3">
-                        {/* Hazard Type Filter */}
-                        <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 p-1 rounded-lg">
-                            <span className="text-[11px] font-bold text-slate-400 pl-2 pr-1">
-                                Hazard:
-                            </span>
-                            {["All", "Flood", "Storm", "Wind"].map((type) => (
-                                <button
-                                    key={type}
-                                    onClick={() => setHazardType(type)}
-                                    className={`px-3 py-1 rounded-md text-xs font-bold transition-colors cursor-pointer ${
-                                        hazardType === type
-                                            ? "bg-blue-600 text-white shadow-xs"
-                                            : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-                                    }`}
-                                >
-                                    {type}
-                                </button>
-                            ))}
-                        </div>
-
-                        {/* Region (State Selector) */}
-                        <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-lg">
-                            <MapPin size={13} className="text-slate-400" />
-                            <select
-                                value={selectedRegion}
-                                onChange={(e) => setSelectedRegion(e.target.value)}
-                                className="bg-transparent text-xs font-bold text-slate-700 dark:text-slate-200 outline-none cursor-pointer pr-2"
-                            >
-                                {POPULAR_STATES.map((state) => (
-                                    <option key={state} value={state} className="dark:bg-slate-900 text-slate-800 dark:text-slate-200">
-                                        {state}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-                    </div>
-                </div>
-
-                {sampleOnly && <SampleSafetyNotice className="mb-6" />}
-
-                {/* 3. EXISTING METRIC CARDS (IMPROVED STYLING) */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-                    {/* Metric 1: Avg Precipitation */}
-                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 hover:border-slate-300 dark:hover:border-slate-700 transition-colors shadow-xs flex items-center justify-between">
-                        <div>
-                            <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
-                                Avg Precipitation
-                            </span>
-                            <div className="text-2xl font-black text-blue-600 dark:text-blue-400 mt-1">
-                                {avgRain} mm
-                            </div>
-                            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                                Mean of {totalNodes} zones
-                            </p>
-                        </div>
-                        <div className="p-3 bg-blue-50 dark:bg-blue-950/40 text-blue-500 rounded-xl">
-                            <CloudRain size={24} />
-                        </div>
-                    </div>
-
-                    {/* Metric 2: Avg Relative Humidity */}
-                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 hover:border-slate-300 dark:hover:border-slate-700 transition-colors shadow-xs flex items-center justify-between">
-                        <div>
-                            <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
-                                Avg Relative Humidity
-                            </span>
-                            <div className="text-2xl font-black text-teal-600 dark:text-teal-400 mt-1">
-                                {avgHum}%
-                            </div>
-                            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                                Mean of {totalNodes} zones
-                            </p>
-                        </div>
-                        <div className="p-3 bg-teal-50 dark:bg-teal-950/40 text-teal-500 rounded-xl">
-                            <Droplets size={24} />
-                        </div>
-                    </div>
-
-                    {/* Metric 3: Avg Wind Velocity */}
-                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 hover:border-slate-300 dark:hover:border-slate-700 transition-colors shadow-xs flex items-center justify-between">
-                        <div>
-                            <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
-                                Avg Wind Velocity
-                            </span>
-                            <div className="text-2xl font-black text-purple-600 dark:text-purple-400 mt-1">
-                                {avgWind} m/s
-                            </div>
-                            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                                Mean of {totalNodes} zones
-                            </p>
-                        </div>
-                        <div className="p-3 bg-purple-50 dark:bg-purple-950/40 text-purple-500 rounded-xl">
-                            <Wind size={24} />
-                        </div>
-                    </div>
-                </div>
-
-                {/* 2. CHART: the zones with the most rain now */}
-                <div className="mb-6">
-                    {/* Chart B: Bar Chart - City Risk Comparison */}
-                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-xs flex flex-col justify-between">
-                        <div className="flex items-center justify-between mb-4">
-                            <div>
-                                <h3 className="font-bold text-base text-slate-900 dark:text-white">
-                                    {sampleOnly ? 'City Rainfall Comparison (sample data)' : 'City Risk Comparison'}
-                                </h3>
-                                <p className="text-xs text-slate-500 dark:text-slate-400">
-                                    Top 5 zones by rain (mm)
-                                </p>
-                            </div>
-                            <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
-                                Rain (mm)
-                            </span>
-                        </div>
-
-                        <div className="h-64 w-full">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={barChartData} margin={{ top: 10, right: 15, left: -15, bottom: 0 }}>
-                                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" className="dark:stroke-slate-800" />
-                                    <XAxis
-                                        dataKey="city"
-                                        tick={{ fill: '#64748b', fontSize: 11 }}
-                                        stroke="#cbd5e1"
-                                        className="dark:stroke-slate-700"
-                                    />
-                                    <YAxis
-                                        tick={{ fill: '#64748b', fontSize: 11 }}
-                                        stroke="#cbd5e1"
-                                        className="dark:stroke-slate-700"
-                                        unit="mm"
-                                    />
-                                    <Tooltip
-                                        contentStyle={{
-                                            backgroundColor: '#0f172a',
-                                            borderColor: '#334155',
-                                            borderRadius: '8px',
-                                            color: '#f8fafc',
-                                            fontSize: '12px',
-                                            fontWeight: 'bold'
-                                        }}
-                                        formatter={(val, name, item) => [
-                                            sampleOnly ? `${val} mm` : `${val} mm (${item.payload.risk})`,
-                                            'Precipitation'
-                                        ]}
-                                    />
-                                    <Bar dataKey="rainfall" radius={[6, 6, 0, 0]}>
-                                        {barChartData.map((entry, index) => (
-                                            <Cell key={`cell-${index}`} fill={entry.fill} />
-                                        ))}
-                                    </Bar>
-                                </BarChart>
-                            </ResponsiveContainer>
-                        </div>
-                    </div>
-                </div>
-
-                {/* 2C. PIE CHART + 4. INSIGHTS PANEL (2 COLUMNS) */}
-                {!sampleOnly && <>
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-                    {/* Chart C: Pie / Doughnut Chart - Risk Distribution */}
-                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-xs flex flex-col justify-between">
-                        <div>
-                            <h3 className="font-bold text-base text-slate-900 dark:text-white">
-                                Risk Distribution
-                            </h3>
-                            <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">
-                                Rule-based levels of {totalNodes} zones
-                            </p>
-                        </div>
-
-                        <div className="h-60 w-full flex items-center justify-center">
-                            <DonutChart data={pieChartData.map((d) => ({ name: d.name, value: d.value, color: d.color }))} />
-                        </div>
-                    </div>
-
-                    {/* 4. INSIGHTS PANEL (VERY IMPORTANT) */}
-                    <div className="lg:col-span-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-xs flex flex-col justify-between">
-                        <div>
-                            <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-100 dark:border-slate-800">
-                                <div className="flex items-center gap-2">
-                                    <div className="p-1.5 bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 rounded-lg">
-                                        <Sparkles size={16} />
-                                    </div>
-                                    <h3 className="font-bold text-base text-slate-900 dark:text-white">
-                                        Key Insights
-                                    </h3>
-                                </div>
-                                <span className="text-[10px] font-black uppercase tracking-wider text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 px-2 py-0.5 rounded border border-blue-200 dark:border-blue-900">
-                                    Rule-based summary
-                                </span>
-                            </div>
-
-                            <p className="text-xs text-slate-500 dark:text-slate-400 mb-3.5">
-                                <span data-testid="analytics-summary-source">Rule-based summary of {dataLabel}</span> for {selectedRegion}:
-                                {(openMeteo || (mixed && data.some((d) => srcOf(d) === "open-meteo"))) && <><br /><OpenMeteoCredit /></>}
-                                {(liveWeather || mixed) && data.some((d) => srcOf(d) === "openweather") && <><br /><OpenWeatherCredit /></>}
-                            </p>
-
-                            <div data-testid="analytics-insights" className="space-y-2.5">
-                                {keyInsights.map((insight, idx) => (
-                                    <div
-                                        key={idx}
-                                        className="flex items-start gap-2.5 p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 text-xs font-medium text-slate-700 dark:text-slate-300"
-                                    >
-                                        <span className="text-blue-500 shrink-0 mt-0.5">•</span>
-                                        <span className="leading-relaxed">{insight.text}</span>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-
-                        <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[11px] text-slate-400">
-                            <span data-testid="analytics-model-label">Rule-based indicator (not the ML model)</span>
-                        </div>
-                    </div>
-                </div>
-
-                {/* 5. TOP RISK CITIES SECTION */}
-                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-xs">
-                    <div className="flex items-center justify-between mb-4">
-                        <div>
-                            <h3 className="font-bold text-base text-slate-900 dark:text-white">
-                                Top Risk Cities
-                            </h3>
-                            <p className="text-xs text-slate-500 dark:text-slate-400">
-                                Zones ranked by rule-based level, then rain
-                            </p>
-                        </div>
-                        <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
-                            Rule-based (not the ML model)
-                        </span>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                        {topRiskCities.map((item, index) => {
-                            const r = String(item.risk_level || item.risk || "LOW").toUpperCase();
-                            const isHigh = r === "HIGH";
-                            const isMod = r === "MODERATE" || r === "MEDIUM";
-
-                            // Color indicators: Red (High), Yellow (Moderate), Green (Low)
-                            const badgeColor = isHigh
-                                ? "bg-red-50 text-red-700 border-red-200 dark:bg-red-950/40 dark:text-red-400 dark:border-red-900"
-                                : isMod
-                                    ? "bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-900"
-                                    : "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-900";
-
-                            const dotColor = isHigh ? "bg-red-500" : isMod ? "bg-amber-400" : "bg-emerald-500";
-                            const rain = Number(item.rainfall ?? item.weather?.rainfall ?? 0);
-                            const wind = Number(item.wind_speed ?? item.weather?.wind_speed ?? 0);
-
+                <Section n="1" q="What is the model warning about?" testid="analytics-s1"
+                    sentence={!ready ? 'Loading…' : noAlerts ? `The national sample has probability maps only: no alerts are produced (absence of alerts does not mean no risk).`
+                        : sentenceWarning(stats, lead, hazards, levels)}>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        {HAZARD_IDS.map((h) => {
+                            const s = stats[h];
                             return (
-                                <div
-                                    key={index}
-                                    className="p-3.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-800/40 flex items-center justify-between hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
-                                >
-                                    <div className="flex items-center gap-3">
-                                        <span className="w-6 h-6 rounded-full bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 flex items-center justify-center font-black text-xs text-slate-700 dark:text-slate-300 shrink-0">
-                                            {index + 1}
-                                        </span>
-                                        <div>
-                                            <div className="flex items-center gap-2">
-                                                <h4 className="font-bold text-sm text-slate-900 dark:text-white">
-                                                    {item.city}
-                                                </h4>
-                                                <span className="text-[10px] text-slate-400">
-                                                    ({item.state || 'India'})
-                                                </span>
-                                            </div>
-                                            <div className="flex items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                                                <span>Rain: {rain.toFixed(1)} mm</span>
-                                                <span>•</span>
-                                                <span>Wind: {wind.toFixed(1)} m/s</span>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div className="flex items-center gap-1.5 shrink-0">
-                                        <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider border flex items-center gap-1.5 ${badgeColor}`}>
-                                            <span className={`w-1.5 h-1.5 rounded-full ${dotColor}`} />
-                                            {r}
-                                        </span>
-                                    </div>
-                                </div>
+                                <button key={h} type="button" data-testid="hazard-tile" data-hazard={h} data-n={s.n} data-area={Math.round(s.area)}
+                                    onClick={() => open(h)} disabled={!ready}
+                                    className={`text-left rounded-2xl border-2 p-4 transition-all duration-200 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${s.selected ? '' : 'opacity-40'}`}
+                                    style={{ borderColor: HAZARD_STYLE[h].color }}>
+                                    <p className="text-base font-bold flex items-center gap-2"><span className="w-3 h-3 rounded-full" style={{ background: HAZARD_STYLE[h].color }} />{HAZARD_STYLE[h].name}</p>
+                                    <p className="text-4xl font-black mt-2 tabular-nums">{noAlerts ? '—' : s.n}</p>
+                                    <p className="text-sm text-slate-600 dark:text-slate-300">{noAlerts ? 'no alerts in this source' : `alert${s.n === 1 ? '' : 's'} at +${lead} h`}</p>
+                                    {!noAlerts && (
+                                        <p className="text-sm text-slate-700 dark:text-slate-200 mt-2">
+                                            <Term k="Warning">Warning</Term> {s.warning} · <Term k="Watch">Watch</Term> {s.watch}<br />
+                                            <Term k="area">{fmtAreaText(s.area)} km²</Term>
+                                        </p>
+                                    )}
+                                </button>
                             );
                         })}
                     </div>
-                </div>
-                </>}
-                </>)}
+                    <div className="mt-6">
+                        <Thumbnail meta={ready ? data.meta : null} alerts={shown} bg={bg} onOpen={() => open(hazards[0])}
+                            label={`Open in ML Nowcast at +${lead} h`} />
+                    </div>
+                </Section>
+
+                <Section n="2" q="How does it change with lead time?" testid="analytics-s2"
+                    sentence={!ready ? null : noAlerts ? 'No alerts in the national sample, so there is no alert area to compare.' : sentenceLeads(byLead)}>
+                    {ready && !noAlerts && <AreaChart rows={byLead} hazards={hazards} lead={lead} onLead={(L) => { setPlaying(false); setLeadIdx(LEADS.indexOf(L)); }} />}
+                </Section>
+
+                <Section n="3" q="Why does the model think so?" testid="analytics-s3" sentence={doc?.attribution?.sentence}>
+                    {doc?.attribution?.available && (
+                        <>
+                            <p className="text-sm text-slate-600 dark:text-slate-300 mb-3">
+                                <Term k="attribution">Attribution</Term> of the {doc.attribution.model}, {doc.attribution.label}.{' '}
+                                <span data-testid="attribution-applies">{attrApplies.length
+                                    ? `Describes ${attrApplies.map((h) => HAZARD_STYLE[h].name.toLowerCase()).join(' and ')}.`
+                                    : 'Not shown for flash flood alone: it is a basin rain-accumulation ratio, not this model’s output.'}</span>{' '}
+                                <span data-testid="attribution-levels">Model-wide: the same for {levels.join(' and ')} alerts.</span>
+                            </p>
+                            <AttributionChart a={doc.attribution} lead={lead} dim={!attrApplies.length} />
+                            <More title="More about this chart" testid="attribution-more">
+                                <p>{doc.attribution.applies_note}</p>
+                                <p>Rows: {doc.attribution.rows?.toLocaleString('en-US')} validation rows (2022–23) at or above the alert cut-off. {doc.attribution.definition}.</p>
+                                <p>Source: {doc.attribution.source}.</p>
+                            </More>
+                        </>
+                    )}
+                </Section>
+
+                <Section n="4" q="How good is it?" testid="analytics-s4" sentence={doc?.skill?.sentence}>
+                    {doc?.skill && (
+                        <>
+                            <p data-testid="skill-caption" className="text-sm text-slate-600 dark:text-slate-300 mb-3">
+                                <Term k="CSI">CSI</Term> for rain of at least 10 mm/hr, validation 2022–23. The same scores apply to every hazard shown
+                                ({hazards.map((h) => HAZARD_STYLE[h].name.toLowerCase()).join(', ')}) and to {levels.join(' and ')} alerts: the hazards are built from these rain forecasts.
+                            </p>
+                            <SkillChart s={doc.skill} lead={lead} />
+                            <More title="Known weaknesses" testid="analytics-weaknesses">
+                                <ul className="space-y-3">
+                                    {doc.weaknesses.map((w) => (
+                                        <li key={w.id} data-testid="weakness">
+                                            <p className="font-bold text-slate-800 dark:text-slate-100">{w.plain}</p>
+                                            {w.count && <p>{w.count}</p>}
+                                            <p className="text-slate-500">“{stripMd(w.quote)}” ({w.source})</p>
+                                        </li>
+                                    ))}
+                                </ul>
+                            </More>
+                            <Link to="/nowcast/results" data-testid="analytics-results-link" className="inline-flex items-center gap-1 mt-4 text-base font-bold text-blue-700 dark:text-blue-400 hover:underline">
+                                All results <ArrowRight size={16} />
+                            </Link>
+                        </>
+                    )}
+                </Section>
+
+                <footer className="py-10 space-y-4">
+                    {doc?.insat && (
+                        <div data-testid="analytics-insat" className="rounded-2xl border border-slate-200 dark:border-slate-700 p-4">
+                            <p className="text-base font-bold flex items-center gap-2"><Satellite size={18} /> INSAT satellite (observation, INSAT via MOSDAC)</p>
+                            <ul className="mt-2 space-y-1 text-base">
+                                {doc.insat.by_satellite.map((s) => <li key={s.satellite} data-testid="analytics-insat-sat">{s.text}</li>)}
+                            </ul>
+                            {doc.insat.listing_delay && <p data-testid="analytics-insat-delay" className="text-sm text-slate-600 dark:text-slate-300 mt-2">{doc.insat.listing_delay}</p>}
+                            <p className="text-sm text-slate-500 mt-1">Observation only: not used by the model.</p>
+                        </div>
+                    )}
+                    <p data-testid="analytics-rule-link" className="text-base">Current-weather rule-based indicators: see <Link to="/" className="font-bold text-blue-700 dark:text-blue-400 hover:underline">Dashboard</Link>.</p>
+                </footer>
             </main>
         </div>
     );

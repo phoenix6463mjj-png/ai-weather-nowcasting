@@ -87,18 +87,6 @@ for (const src of ['sample', 'openweather', 'open-meteo']) {
         const ftext = await page.locator('body').innerText();
         expect(ftext).not.toMatch(/hybrid ML|sensor/i);
         if (src !== 'openweather') expect(ftext).not.toMatch(/observ/i);      // model or sample data are never "observed"
-        // Analytics
-        await page.goto('/analytics');
-        const label = { sample: 'sample data', openweather: 'OpenWeather data', 'open-meteo': 'Open-Meteo data (model data)' }[src];
-        await expect(page.getByTestId('open-meteo-credit')).toHaveCount(e.credit);
-        await expect(page.locator('body')).not.toContainText('convective probability');
-        if (src === 'sample') {
-            await expect(page.getByTestId('sample-safety-net')).toBeVisible();
-            await expect(page.getByTestId('analytics-summary-source')).toHaveCount(0);
-        } else {
-            await expect(page.getByTestId('analytics-summary-source')).toHaveText(`Rule-based summary of ${label}`);
-            await expect(page.getByTestId('analytics-model-label')).toHaveText('Rule-based indicator (not the ML model)');
-        }
     });
 }
 

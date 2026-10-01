@@ -97,28 +97,6 @@ test('Alerts: the source badge states the real source (no "Live Feed")', async (
     await expect(page.locator('body')).not.toContainText(/Live •/);
 });
 
-test('Analytics: subtitle from the real source and counts; no invented trend chart or narrative', async ({ page }) => {
-    await stubImages(page);
-    const zones = await (await page.request.get(`${API}/batch_predict?limit=100`)).json();
-    await page.goto('/analytics');
-    const main = page.locator('main');
-    await expect(page.getByTestId('analytics-loading')).toHaveCount(0);
-    for (const s of ['Real-Time', 'Telemetry', 'Rainfall Trend', 'Warning Threshold', 'Convective moisture', 'isobar',
-        'physical meteorological', 'Threat Urgency', 'monitored sectors', '7 Days', '30 Days']) {
-        await expect(main, s).not.toContainText(s);
-    }
-    const src = (z) => z.source || z.weather?.source || 'sample';
-    if (zones.every((z) => src(z) === 'sample')) {
-        await expect(page.getByTestId('analytics-subtitle')).toHaveText(`Sample data for ${zones.length} zones: risk indicators are not shown`);
-        return;
-    }
-    const rated = zones.filter((z) => src(z) !== 'sample');
-    const n = (l) => rated.filter((z) => lvl(z) === l).length;
-    await expect(page.getByTestId('analytics-subtitle')).toContainText('Rule-based indicators from ');
-    await expect(page.getByTestId('analytics-subtitle')).toContainText(
-        `: ${n('HIGH')} HIGH, ${n('MODERATE')} MODERATE, ${n('LOW')} LOW of ${rated.length} zones`);
-});
-
 test('Reports: every figure is counted from the current zone list; exports hold the same rows', async ({ page }) => {
     await stubImages(page);
     const { summary: s, alerts } = await (await page.request.get(`${API}/alerts?limit=380`)).json();

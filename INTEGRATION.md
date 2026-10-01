@@ -1370,6 +1370,152 @@ Satellite observation (INSAT via MOSDAC). It is not a model input.
 - `profile_REF045_50km_*`, `profile_REF051_*`;
 - `terrain3d_REF045_50km_*`, `terrain3d_REF051_*` (1920×1080 and 1366×768).
 
+### Poller session fix, CAP Atom feed, Analytics redesign (2 Oct 2026)
+
+**0. INSAT poller: session handling** (`nowcast_data/scratch/mdapi_env/`, gitignored, not committed).
+- **Why the 1 Oct run stopped:** both token refreshes failed exactly 30 min 01 s after a login.
+  - The poller only uses the token when it downloads (about every 30 min), so the access token had
+    always just expired. The refresh token apparently expires with it.
+  - Our refresh request is the same as MOSDAC's own client (`mdapi_env.refresh_access_token`), so the
+    request itself is not the cause.
+  - This is a diagnosis from the code and the log; MOSDAC was not contacted. The next run's log will
+    confirm or refute it.
+- **Fix (`strict_session.py`, shared by the poller and the event downloader):**
+  - The token is refreshed **proactively** while the session is still valid: once the access token is
+    20 min old, or within 5 min of its JWT expiry.
+  - Each refresh logs its HTTP status and server message (credentials and tokens masked; only the
+    expiry time is logged).
+- **Login rules:**
+  - A re-login after the session expired is allowed at most once per 20 min, and each one is logged.
+    If one is needed sooner, downloads wait for the next cycle (no login). The event downloader sleeps
+    instead.
+  - **Any failed login stops the poller at once with "STOP:"** and is never retried: wrong credentials,
+    any non-200 answer, an unexpected or non-JSON answer, a network error or a timeout.
+  - Hard cap of 60 logins per run, then STOP.
+- **Tests:** `scratch/mdapi_env/test_strict_session.py`, 12 tests with a mocked client and clock:
+  - expiry → re-login OK;
+  - failed login (401, 500, non-JSON, no token, network error) → STOP, one request, no retry;
+  - the 20-min spacing;
+  - the 60 cap;
+  - proactive refresh;
+  - nothing secret in the log.
+- **Live layer: per-satellite ages.**
+  - `insat_live.prune` now keeps the newest 4 frames **per satellite**, so a stalled satellite keeps its
+    last frames.
+  - `/ml/live-insat` → `by_satellite`, shown in the layers panel, e.g. "INSAT-3DR: newest 28 Sep 21:45Z,
+    3 d 1 h 35 min old". The age is computed from the frame files and the clock, with no fresh/stale
+    threshold; gaps show as "no frame yet".
+  - Cooling is still same-satellite only.
+- **Read of the real `live_insat/` (read-only, once):** a quick API check read it without the fixture
+  env. Newest frames: 3DR 16:45Z and 3DS 20:00Z, 1 Oct. Every later check and test used the fixture
+  folder.
+
+**A. CAP Atom feed** (`serve/cap_feed.py`).
+- **Storing decisions:** the CAP review drawer now posts each decision (approve / reject / edit →
+  pending) to `/ml/cap/review`.
+  - Decisions are stored in `cap_approvals.json` in the ML app's output directory (`NOWCAST_OUTPUT_DIR`,
+    default `nowcast_data/output/`, gitignored).
+  - On the host (`NOWCAST_EPHEMERAL_STORAGE=1` in `hosting/Dockerfile`) the drawer says "Hosted demo:
+    approvals are kept only while the server runs; approvals reset when the server restarts."
+- **The feed:** `/ml/cap/feed.atom` (Atom 1.0, standard library only) lists approved messages, newest
+  approval first.
+  - Title: "Exercise feed — not an official warning; not connected to IMD, NDMA or Sachet".
+  - Each entry links to `messages/{id}.cap.xml`, built by `serve/cap.py` exactly as the existing export.
+- **Status, as in the export:**
+  - replay messages keep `<status>Exercise</status>`;
+  - **live-run messages keep `<status>Test</status>`**. The existing export uses Test for the
+    not-validated live run, and it was kept, not changed to Exercise. The feed subtitle and the Approach
+    note say so.
+  - Never `Actual`.
+- **Drawer:** a "Feed (Atom)" link, "N approved message(s) in the feed", the storage line and the
+  Exercise-feed line.
+- **Approach CAP row:**
+  - text: "CAP 1.2 file export and Atom feed built (Exercise status, not connected to any official
+    system).";
+  - status "Export + Atom feed built";
+  - note with the approved count, read from the real state (tested against `/ml/cap/approvals`).
+- **Tests:**
+  - `serve/tests/test_cap_feed.py` (6):
+    - the Atom parses with the standard library;
+    - every linked message passes the CAP 1.2 XSD;
+    - rejected or pending alerts never appear;
+    - Exercise on replays, Test on live;
+    - unknown alert → 404.
+  - `e2e/cap_feed.spec.js` (2): approve → the feed lists it → its link opens a valid CAP 1.2 message with
+    Exercise status; drawer screenshots.
+  - The older CAP review e2e now resets stored decisions to pending first (they are server state now).
+
+**B. Analytics → "Nowcast analytics (ML model)"** (`pages/Analytics.jsx`, `serve/analytics.py`,
+`/ml/analytics`).
+- **Removed:** the rule-based charts, filters and Key Insights. A footer line points to them: "Current-weather
+  rule-based indicators: see Dashboard".
+- **Layout:** one column, four sections, each with one question, one visual and one generated sentence.
+- **Sticky top bar:**
+  - source: Live run "(not validated)" with its issue time; National sample; each event replay, REF025
+    with its in-sample badge;
+  - lead slider 1/2/3/4/6 with play;
+  - hazard chips and Watch/Warning chips.
+- **Sections:**
+  1. **What is the model warning about?** Three hazard tiles (alerts, Warning/Watch counts, km², hazard
+     colours as on the map) and a map thumbnail. A tile or the thumbnail opens ML Nowcast at that source,
+     lead and hazard (new `/nowcast` URL params `view`, `ep`, `ts`, `lead`, `hazard`, `watch`). Sentence,
+     e.g. "At +4 h the model has 1 thunderstorm Watch covering 4,600 km²." The national sample has no
+     alerts and says so.
+  2. **How does it change with lead time?** Alert area by lead, stacked by hazard; the selected lead is
+     outlined; numbers on hover or focus.
+  3. **Why does the model think so?** Per-lead stacked bars of ingredient-group shares (≥30 mm/hr model,
+     validation 2022–23, descriptive, from `AGGREGATE_VAL.json`; one model, one row set), with plain names
+     and icons. Sentence from those numbers: "…together go from 18% of the attribution at +1 h to 39% at
+     +6 h."
+  4. **How good is it?** CSI ≥10 mm/hr by lead, model vs moving the current rain forward (advection) vs
+     keeping it where it is (persistence), validation. A "Known weaknesses" expander quotes the docs plus
+     one count from `scores_test.csv` (FAR above advection in 7 of 15 cells, labelled as counted). Link
+     to Results.
+- **Footer:** an INSAT card with the newest frame per satellite and its age, and the measured listing
+  delay from `docs/insat_latency.json`.
+- **Design rules:**
+  - "More" expanders are collapsed by default; text is ≥14 px;
+  - term tooltips are buttons, so the keyboard reaches them;
+  - % appears only for thunderstorm;
+  - SVG charts with no new dependency (no npm packages added);
+  - no horizontal scroll at 390 px.
+- **Wording:**
+  - Forecast: "Live Nowcast Panel" → "Current conditions"; "Current weather only (no projection ahead)";
+    "Loading current conditions…".
+  - Dashboard sidebar Alerts pill: "LIVE" → "Current weather".
+- **Tests:**
+  - `serve/tests/test_analytics.py` (4).
+  - `e2e/analytics_ml.spec.js` (6):
+    - numbers equal the API for REF045, Live and National;
+    - the slider, play and every chip update all four sections;
+    - tiles and the thumbnail open the right view;
+    - sentences equal the data;
+    - no % on cloudburst or flash flood;
+    - keyboard tooltip; no horizontal scroll at 390 px.
+  - **Retired** (they tested the removed rule-based Analytics content):
+    - `honesty_batch1` 2;
+    - `mixed_zones` 2, plus its Analytics screenshot;
+    - `openweather` 2 Key Insights tests, plus its Analytics lines;
+    - `sample_safety` 1, plus its Analytics screenshot;
+    - `honesty_fixes` 1;
+    - `weather_sources` the Analytics block;
+    - `team_pages` the Analytics banner.
+
+**Results:**
+- serve pytest all pass (`NOWCAST_TEST_REPLAY=1`); team backend tests all pass, including host parity
+  with the new `/ml/analytics`, `/ml/cap/approvals` and `/ml/cap/feed.atom` paths.
+- e2e: 162 tests in 22 files. Run in groups, all pass; host parity views against `:10000`.
+- `models/v0/*` sha256 unchanged.
+
+**Screenshots** (`e2e/screenshots/`):
+- `analytics_live_*`, `analytics_REF051_*`, `analytics_*_s3s4_*`, `analytics_*_390x844`;
+- `cap_drawer_*`, `cap_feed_drawer_1600x1000`;
+- `insat_live_*`;
+- `approach_*`;
+- `prehost_forecast_*`, `threat_alerts_*`, `dashboard_*`.
+- At 1366×768 the layers panel's INSAT lines continue below the fold inside the panel, which scrolls.
+  Both per-satellite age lines stay visible.
+
 ## 7. Troubleshooting
 
 | symptom | cause / fix |
@@ -1445,6 +1591,9 @@ Satellite observation (INSAT via MOSDAC). It is not a model input.
   - Analytics Key Insights are built from the zones' own values (A3).
   - Still illustrative: the Analytics Rainfall Trend chart (multiples of the average; banner
     "Illustrative figures"). Removed in the honesty fixes batch (1 Oct 2026).
+  - Since 2 Oct 2026 Analytics shows the ML model only ("Nowcast analytics (ML model)"); the rule-based
+    charts, filters and Key Insights above were removed from it (see "Poller session fix, CAP Atom feed,
+    Analytics redesign").
   - Primary Threat and hazard levels come from fixed rule scores. A HIGH zone with any rain above
     0.0 mm gets flash-flood score 0.85 and so shows "Flash Flood", even with 0.4 mm (seen in the A3
     screenshots). Not changed.

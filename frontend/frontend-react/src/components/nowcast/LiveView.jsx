@@ -15,6 +15,7 @@ import IngredientsTab from './IngredientsTab';
 import CaveatsPanel from './CaveatsPanel';
 import ShelterPanel, { SHELTER_LABEL } from './ShelterPanel';
 import LiveInsatControl from './LiveInsatControl';
+import { nowcastTarget } from '../../utils/nowcastUrl';
 import { MapBadges } from './MapFrame';
 
 const LIVE_FIELDS = FIELD_OPTIONS.filter((o) => o.id !== 'flash_flood');
@@ -147,7 +148,10 @@ const LiveView = () => {
             if (!live) return;
             setMeta(m);
             setAlerts(a.alerts);
-            setLead(defaultLead(a.alerts, m.leads_available));
+            const tg = nowcastTarget();                       // link from Analytics: lead / hazard / watch
+            setLead(tg.view === 'live' && tg.lead && m.leads_available.includes(tg.lead) ? tg.lead : defaultLead(a.alerts, m.leads_available));
+            if (tg.view === 'live' && tg.hazard) setHazards([tg.hazard]);
+            if (tg.view === 'live' && tg.watch) setShowWatch(true);
         }).catch((e) => live && setError(e.message));
         return () => { live = false; };
     }, []);
