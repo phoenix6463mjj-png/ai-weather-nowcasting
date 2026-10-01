@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BellRing, FlaskConical, CalendarClock, Info, Building2 } from 'lucide-react';
-import { getEpisodes, getEventCheck, getTimeline, getIssueMeta, getIssueAlerts, getAlertDetail, getShelters, issueMapUrl, issueMissedUrl } from '../../services/nowcastApi';
+import { getEpisodes, getEventCheck, getTimeline, getIssueMeta, getIssueAlerts, getAlertDetail, getShelters, getShelterDefault, issueMapUrl, issueMissedUrl } from '../../services/nowcastApi';
 import { HAZARDS, fmtUtc, fmtIssueShort, issueDefaultLead, FF_VERIFY_NOTE } from '../../utils/hazardLabels';
 import AlertMap from './AlertMap';
 import MapControls from './MapControls';
@@ -48,7 +48,10 @@ const ReplayView = () => {
     const [check, setCheck] = useState({ ep: null, data: null, timeline: null });
     const [detail, setDetail] = useState({ id: null, d: null, error: null });
     const [reviews, setReviews] = useState({});            // forecaster review per alert (this page only; never sent)
-    const [shelterPt, setShelterPt] = useState(null);       // { lat, lon, source: 'click' | 'alert' }
+    const [shelterPt, setShelterPtRaw] = useState(null);    // { lat, lon, source: 'click' | 'alert' | 'site', text? }
+    const [radius, setRadius] = useState(25);               // 25 km, or 50 km after "Widen the search"
+    const [insideOpen, setInsideOpen] = useState(false);    // "Inside a current alert (N)" group, collapsed by default
+    const setShelterPt = (p) => { setShelterPtRaw(p); setRadius(25); setInsideOpen(false); };
     const [shelter, setShelter] = useState({ key: null, data: null, error: null });
     const eventWidth = useEventDrawerWidth();
     const terrain = useTerrain(ep);
@@ -107,11 +110,11 @@ const ReplayView = () => {
     const det = selId && detail.id === selId ? detail : { d: null, error: null };
 
     // nearby shelter options for the chosen point, checked against every alert of this issue
-    const shelterKey = shelterPt && ep && ts ? `${ep}/${ts}/${shelterPt.lat.toFixed(4)}/${shelterPt.lon.toFixed(4)}` : null;
+    const shelterKey = shelterPt && ep && ts ? `${ep}/${ts}/${shelterPt.lat.toFixed(4)}/${shelterPt.lon.toFixed(4)}/${radius}` : null;
     useEffect(() => {
         if (!shelterKey) return undefined;
         let live = true;
-        getShelters({ kind: 'issue', ep, ts }, shelterPt.lat, shelterPt.lon)
+        getShelters({ kind: 'issue', ep, ts }, shelterPt.lat, shelterPt.lon, radius)
             .then((r) => live && setShelter({ key: shelterKey, data: r, error: null }))
             .catch((e) => live && setShelter({ key: shelterKey, data: null, error: e.message }));
         return () => { live = false; };
@@ -129,10 +132,19 @@ const ReplayView = () => {
     const closeDrawer = useCallback(() => setDrawer(null), []);
     // opening "Nearby shelter options" with an alert selected (and no point yet) starts from its peak cell
     const pointFromAlert = () => selected?.peak_cell && setShelterPt({ lat: selected.peak_cell[0], lon: selected.peak_cell[1], source: 'alert' });
+    // default point: the issue's alert peak nearest the documented event site (stated in the panel)
+    const pointFromSite = () => getShelterDefault(ep, ts).then((d) => d.available
+        && setShelterPt({ lat: d.lat, lon: d.lon, source: 'site', text: d.text })).catch(() => {});
     const openDrawer = (id) => {
-        if (id === 'shelter' && !shelterPt) pointFromAlert();
+        if (id === 'shelter' && !shelterPt) pointFromSite();
         setDrawer(id);
     };
+    // another issue or event with the section open: the default point follows it (a clicked or
+    // alert-chosen point is kept)
+    useEffect(() => {
+        if (drawer === 'shelter' && ep && ts && (!shelterPt || shelterPt.source === 'site')) pointFromSite();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [ep, ts]);
     const shelterOpen = active === 'shelter';
     const select = (a) => { setSelected(a); if (a) setDrawer('alert'); };
     const issueInfo = episode?.issues.find((i) => i.ts === ts);
@@ -189,7 +201,7 @@ const ReplayView = () => {
 
     const changeEpisode = (id) => {
         const e = episodes.find((x) => x.episode === id);
-        setSelected(null); setError(null); setShelterPt(null);
+        setSelected(null); setError(null); setShelterPtRaw(null);
         setEp(id);
         setTs(e.issues[Math.floor(e.issues.length / 2)].ts);
     };
@@ -269,7 +281,9 @@ const ReplayView = () => {
                             onSelect={select} sites={meta.sites || []} overlays={overlays} dimFill={!!field}
                             terrain={terrain.layers} terrainNotice={terrain.fullNotice}
                             onPick={shelterOpen ? (p) => setShelterPt({ ...p, source: 'click' }) : null}
-                            shelter={shelterOpen && shelterPt ? { point: shelterPt, radiusKm: sh.data?.radius_km, candidates: sh.data?.candidates || [] } : null} />
+                            shelter={shelterOpen && shelterPt ? { point: shelterPt, radiusKm: sh.data?.radius_km, candidates: [
+                                ...(sh.data?.candidates || []),
+                                ...(insideOpen ? (sh.data?.inside_candidates || []).map((c) => ({ ...c, prefix: 'i' })) : [])] } : null} />
                     )}
                     <div className="absolute top-3 left-3 bottom-3 z-[400] flex flex-col pointer-events-none">
                         <LayersPanel summary={meta && lead ? `${ep} · ${fmtIssueShort(meta.issue_time)} · L${lead} h · ${showWatch ? 'Watch + Warning' : 'Warnings'}${insat.on && insat.available ? ' · INSAT-3DR' : ''}` : ''}>
@@ -327,7 +341,8 @@ const ReplayView = () => {
                         : id === 'ingredients' ? <IngredientsTab selected={selected} d={det.d} error={det.error} />
                             : id === 'event' ? <EventCheckPanel check={eventCheck} timeline={check.ep === ep ? check.timeline : null} onJump={jumpTo} />
                                 : id === 'shelter' ? <ShelterPanel point={shelterPt} data={sh.data} error={sh.error}
-                                    loading={!!shelterKey && shelter.key !== shelterKey} selected={selected} onUseAlert={pointFromAlert} lead={lead} />
+                                    loading={!!shelterKey && shelter.key !== shelterKey} selected={selected} onUseAlert={pointFromAlert} lead={lead}
+                                    onWiden={setRadius} insideOpen={insideOpen} onInsideToggle={() => setInsideOpen((o) => !o)} />
                                     : <CaveatsPanel />
                 )}
             </Drawer>

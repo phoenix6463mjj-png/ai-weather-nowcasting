@@ -1139,6 +1139,51 @@ which may be incomplete; unnamed ones show as "Unnamed <type>".
     both sides are compared as before.
   - The click-through also opens "Nearby shelter options" for each episode.
 
+### Shelter fixes (1 Oct 2026)
+
+**Why:** the first screenshots listed 5 candidates that were all inside a current alert, several low in
+the valley near streams. The default point was also the issue's first alert, not one near the event.
+
+1. **Order:**
+   - Candidates outside all current alerts at every lead are listed first, nearest first ("Outside all
+     current alerts (n)").
+   - Candidates inside an alert form a separate group, collapsed by default: "Inside a current alert
+     (N)", with the nearest 5 listed when opened. Their hollow "i" markers show only while it is open.
+   - When none in the radius is outside, the panel says so plainly, e.g. REF045 at its default point:
+     "None of the 25 mapped public buildings within 25 km lies outside the current alerts." One button,
+     "Widen the search to 50 km", re-asks with `radius=50` (the API accepts 25 or 50 only).
+   - At 50 km REF045 has 2 outside: Government Inter College Maujkhal at 36.6 km and Government
+     Hospital Chipalghat at 48.9 km. The map re-zooms to the new circle.
+2. **Default point in Event replay:** the peak cell of the issue's alert nearest the episode's documented
+   event site, over every alert of the issue (any lead, level, hazard).
+   - New endpoint `/api/issues/{ep}/{ts}/shelters/default-point`. The panel states the alert and its
+     distance, e.g. "Peak of the alert nearest the documented event site (Pipalkoti area): Cloudburst
+     Watch, +2 h, 17.2 km from the site."
+   - REF051: Malana river, Thunderstorm Warning +4 h, 30.8 km.
+   - The point follows the issue while the section is open. A map click or "Use the selected alert's
+     peak cell" still overrides it. Live has no event site, so there is no default there.
+3. **Elevation in words:** "748 m lower than the chosen point" / "26 m higher than the chosen point" /
+   "same elevation as the chosen point" (API `elevation_rel_text`), instead of a bare −748 m.
+4. **Hazard advice:** one sentence quoted verbatim from NDMA's "Floods: Do's & Don'ts", under "If a flood
+   is likely to hit your area, you should:": "Be aware of streams, drainage channels, canyons, and other
+   areas known to flood suddenly."
+   - Stored with URL (https://ndma.gov.in/index.php/floods-dos-donts), check date 2026-10-01 and page
+     sha256 in `nowcast_data/serve/assets/advice/SOURCES.json`; shown with a link.
+   - Not used: the sentence before it ("…move immediately to higher ground. Do not wait for instructions
+     to move."), which conflicts with the fixed wording to follow evacuation instructions.
+   - Quoting public guidance is not an integration with NDMA.
+
+**Tests:**
+- `nowcast_data/serve/tests/test_shelters.py` (13): groups and their order and counts; the "none outside"
+  text and the 50 km widening; the default point is the nearest alert peak to the site (brute force) and
+  its text; elevation wording; the stored NDMA quote; radius other than 25/50 → 422.
+- `e2e/shelters.spec.js` (7): REF045 default + "none outside" + widen; REF051 default + outside first;
+  NDMA line and link; alert/click override; REF025 badge; Live outside-region.
+- The host-parity probe also requests `default-point` and `radius=50`.
+
+**Screenshots:** `e2e/screenshots/shelters_REF045_{1920x1080,1366x768}.png`,
+`shelters_REF045_50km_*.png` and `shelters_REF051_*.png`.
+
 ## 7. Troubleshooting
 
 | symptom | cause / fix |

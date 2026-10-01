@@ -46,6 +46,7 @@ def discover(get):
             paths += [f"{base}/meta", f"{base}/ui-alerts?level=all", f"{base}/insat", f"{base}/files/manifest.json",
                       f"{base}/alerts.cap.xml"]
             paths += [f"{base}/shelters?{p}" for p in pts]
+            paths += [f"{base}/shelters/default-point", f"{base}/shelters?{pts[0]}&radius=50"]
             alerts = get(f"{base}/ui-alerts?level=all").json().get("alerts", [])
             if alerts:
                 paths += [f"{base}/alerts/{alerts[0]['alert_id']}",

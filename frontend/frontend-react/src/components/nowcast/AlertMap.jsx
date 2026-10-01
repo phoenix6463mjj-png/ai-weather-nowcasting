@@ -50,7 +50,7 @@ const FitShelter = ({ point, radiusKm }) => {
         const dLon = radiusKm / (111.2 * Math.cos((point.lat * Math.PI) / 180));
         map.fitBounds([[point.lat - dLat, point.lon - dLon], [point.lat + dLat, point.lon + dLon]], { padding: [16, 16] });
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [point?.lat, point?.lon, map]);
+    }, [point?.lat, point?.lon, radiusKm, map]);
     return null;
 };
 
@@ -156,7 +156,7 @@ const AlertMap = ({ bounds, alerts = [], selectedId, onSelect: onSelectProp, sit
                 pathOptions={{ color: '#6d28d9', weight: 2.5, fillColor: c.outside_all_alerts ? '#6d28d9' : '#ffffff', fillOpacity: 1,
                     className: `nowcast-shelter-marker ${c.outside_all_alerts ? 'outside' : 'inside'}` }}>
                 <Tooltip permanent direction="right" offset={[7, 0]} className="nowcast-shelter-label">
-                    <span className="text-[10px] font-black">{c.rank}</span>
+                    <span className="text-[10px] font-black">{c.prefix || ''}{c.rank}</span>
                 </Tooltip>
             </CircleMarker>
         ))}

@@ -51,8 +51,10 @@ export const getReplayStatus = () => request('replay/status');
 
 // Nearby shelter options: OSM public buildings near a point, checked against every alert of the issue/run
 const fix = (v) => Number(v).toFixed(4);
-export const getShelters = (src, lat, lon) =>
-    request(`${src.kind === 'live' ? `live/${src.run}` : `issues/${src.ep}/${src.ts}`}/shelters${q({ lat: fix(lat), lon: fix(lon) })}`);
+export const getShelters = (src, lat, lon, radius = 25) =>
+    request(`${src.kind === 'live' ? `live/${src.run}` : `issues/${src.ep}/${src.ts}`}/shelters${q({ lat: fix(lat), lon: fix(lon), radius: radius === 25 ? null : radius })}`);
+// Event replay default point: the issue's alert peak nearest the documented event site
+export const getShelterDefault = (ep, ts) => request(`issues/${ep}/${ts}/shelters/default-point`);
 export const runReplay = (body) => request('replay', {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
 });

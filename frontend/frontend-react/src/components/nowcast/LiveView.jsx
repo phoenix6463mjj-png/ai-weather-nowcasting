@@ -86,7 +86,10 @@ const LiveView = () => {
     const [reviews, setReviews] = useState({});            // forecaster review per alert (this page only; never sent)
     const closeDrawer = useCallback(() => setDrawer(null), []);
     const select = (a) => { setSelected(a); if (a) setDrawer('alert'); };
-    const [shelterPt, setShelterPt] = useState(null);       // { lat, lon, source: 'click' | 'alert' }
+    const [shelterPt, setShelterPtRaw] = useState(null);    // { lat, lon, source: 'click' | 'alert' }
+    const [radius, setRadius] = useState(25);               // 25 km, or 50 km after "Widen the search"
+    const [insideOpen, setInsideOpen] = useState(false);    // "Inside a current alert (N)" group, collapsed by default
+    const setShelterPt = (p) => { setShelterPtRaw(p); setRadius(25); setInsideOpen(false); };
     const [shelter, setShelter] = useState({ key: null, data: null, error: null });
     const pointFromAlert = () => selected?.peak_cell && setShelterPt({ lat: selected.peak_cell[0], lon: selected.peak_cell[1], source: 'alert' });
     const openDrawer = (id) => {
@@ -95,11 +98,11 @@ const LiveView = () => {
     };
     const shelterOpen = drawer === 'shelter';
     const run = meta?.run;
-    const shelterKey = shelterPt && run ? `${run}/${shelterPt.lat.toFixed(4)}/${shelterPt.lon.toFixed(4)}` : null;
+    const shelterKey = shelterPt && run ? `${run}/${shelterPt.lat.toFixed(4)}/${shelterPt.lon.toFixed(4)}/${radius}` : null;
     useEffect(() => {
         if (!shelterKey) return undefined;
         let live = true;
-        getShelters({ kind: 'live', run }, shelterPt.lat, shelterPt.lon)
+        getShelters({ kind: 'live', run }, shelterPt.lat, shelterPt.lon, radius)
             .then((r) => live && setShelter({ key: shelterKey, data: r, error: null }))
             .catch((e) => live && setShelter({ key: shelterKey, data: null, error: e.message }));
         return () => { live = false; };
@@ -163,7 +166,9 @@ const LiveView = () => {
                     {meta && <AlertMap bounds={meta.bounds} alerts={shown} selectedId={selected?.alert_id} onSelect={select} overlays={overlays} dimFill={!!field}
                         terrain={terrain.layers} terrainNotice={terrain.fullNotice}
                         onPick={shelterOpen ? (p) => setShelterPt({ ...p, source: 'click' }) : null}
-                        shelter={shelterOpen && shelterPt ? { point: shelterPt, radiusKm: sh.data?.radius_km, candidates: sh.data?.candidates || [] } : null} />}
+                        shelter={shelterOpen && shelterPt ? { point: shelterPt, radiusKm: sh.data?.radius_km, candidates: [
+                                ...(sh.data?.candidates || []),
+                                ...(insideOpen ? (sh.data?.inside_candidates || []).map((c) => ({ ...c, prefix: 'i' })) : [])] } : null} />}
                     {meta && lead && (
                         <div className="absolute top-3 left-3 bottom-3 z-[400] flex flex-col pointer-events-none">
                             <LayersPanel summary={`Live ${meta.run} · L${lead} h · ${showWatch ? 'Watch + Warning' : 'Warnings'}`}>
@@ -199,7 +204,8 @@ const LiveView = () => {
                     )
                 ) : id === 'ingredients' ? <IngredientsTab selected={selected} d={selected} liveNote={LIVE_INGREDIENTS_NOTE} />
                     : id === 'shelter' ? <ShelterPanel point={shelterPt} data={sh.data} error={sh.error} live
-                        loading={!!shelterKey && shelter.key !== shelterKey} selected={selected} onUseAlert={pointFromAlert} lead={lead} />
+                        loading={!!shelterKey && shelter.key !== shelterKey} selected={selected} onUseAlert={pointFromAlert} lead={lead}
+                        onWiden={setRadius} insideOpen={insideOpen} onInsideToggle={() => setInsideOpen((o) => !o)} />
                         : <CaveatsPanel />)}
             </Drawer>
         </div>
