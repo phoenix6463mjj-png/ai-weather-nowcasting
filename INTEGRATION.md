@@ -1301,7 +1301,8 @@ Satellite observation (INSAT via MOSDAC). It is not a model input.
 - **Label now:** "INSAT listing delay (measured): Scan end to first listed in MOSDAC's search (real L1C
   files…)", followed by the full definition and the comparison sentence.
 - **The poller has run:** one cycle at 2026-10-01T20:11Z (3RIMG 16:45Z and 3SIMG 19:30Z slots).
-  - Both files were listed at its start, so they are excluded: the count stays 32.
+  - Both files were listed at its start, so they are excluded. Its later files add real measurements: at
+    its 20:41Z rewrite there were 33 (one more 3DS file, 17 in all); median 14 min, range 9–19 min.
   - The newest 3DR file listed then was about 3.5 h old.
   - The poller rewrites `docs/insat_latency.json` with the code it started with. The new label shows the
     measurement period only when the file contains it, and the definition always.
