@@ -25,9 +25,9 @@ const Sidebar = ({
         <aside className="w-[260px] bg-white dark:bg-[#0f172a] border-r border-slate-200 dark:border-slate-800 flex flex-col justify-between overflow-y-auto shrink-0 z-40">
             <div className="p-4">
                 <nav className="space-y-1">
-                    <NavLink to="/" end className={navLinkClass}>
+                    <NavLink to="/dashboard" end className={navLinkClass}>
                         <Home size={18} />
-                        <span className="text-sm">Home</span>
+                        <span className="text-sm">Dashboard</span>
                     </NavLink>
                     {/* the ML Nowcast map (calibrated probability maps for India) */}
                     <NavLink to="/nowcast" data-testid="sidebar-live-map" className={({ isActive }) => `${navLinkClass({ isActive })} justify-between`}>
@@ -35,7 +35,7 @@ const Sidebar = ({
                             <Map size={18} />
                             <span className="text-sm">Live Map</span>
                         </div>
-                        <span className="bg-blue-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-sm">ML</span>
+                        <span className="bg-blue-500 text-white text-xs font-black px-1.5 py-0.5 rounded-sm">ML</span>
                     </NavLink>
                     <NavLink to="/forecast" className={navLinkClass}>
                         <CloudRain size={18} />
@@ -50,7 +50,7 @@ const Sidebar = ({
                             <Bell size={18} />
                             <span className="text-sm">Alerts</span>
                         </div>
-                        {live && <span data-testid="sidebar-live" className="bg-emerald-600 text-white text-[10px] font-black px-2 py-0.5 rounded-full whitespace-nowrap">Current weather</span>}
+                        {live && <span data-testid="sidebar-live" className="bg-emerald-600 text-white text-xs font-black px-2 py-0.5 rounded-full whitespace-nowrap">Current weather</span>}
                     </NavLink>
                     <NavLink to="/analytics" className={navLinkClass}>
                         <BarChart2 size={18} />
@@ -63,7 +63,7 @@ const Sidebar = ({
                 </nav>
 
                 <div className="mt-8">
-                    <h3 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-4 px-4">Event Layers</h3>
+                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 px-4">Event Layers</h3>
                     <div className="space-y-3 px-4">
                         {/* Thunderstorm Layer */}
                         <div
@@ -131,7 +131,7 @@ const Sidebar = ({
                 </div>
 
                 <div className="mt-8 px-4">
-                    <h3 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">Region</h3>
+                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Region</h3>
                     <select
                         onChange={(e) => onRegionSelect && onRegionSelect(e.target.value)}
                         className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5 font-bold outline-none"
@@ -170,13 +170,13 @@ const Sidebar = ({
                 <div className="relative rounded-xl overflow-hidden shadow-sm h-32 flex flex-col justify-end p-4 border border-slate-200 dark:border-slate-800">
                     <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1542224566-6e85f2e6772f?auto=format&fit=crop&w=600&q=80')] bg-cover bg-center"></div>
                     <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent"></div>
-                    <a data-testid="photo-credit" href="https://unsplash.com/license" target="_blank" rel="noreferrer" className="absolute top-1 right-2 z-20 px-1.5 py-px rounded bg-black/45 text-[9px] font-semibold text-white hover:bg-black/70">Photo: Unsplash</a>
+                    <a data-testid="photo-credit" href="https://unsplash.com/license" target="_blank" rel="noreferrer" className="absolute top-1 right-2 z-20 px-1.5 py-px rounded bg-black/45 text-xs font-semibold text-white hover:bg-black/70">Photo: Unsplash</a>
                     <Link to="/nowcast" data-testid="sidebar-nowcast-card" className="relative z-10 flex items-center justify-between hover:opacity-90">
                         <div>
                             <p className="text-white font-bold leading-tight text-sm">ML Nowcast<br/>maps and alerts</p>
                         </div>
                         <div className="w-6 h-6 bg-white/20 backdrop-blur rounded-full flex items-center justify-center">
-                            <span className="text-white text-[10px]">➔</span>
+                            <span className="text-white text-xs">➔</span>
                         </div>
                     </Link>
                 </div>

@@ -19,7 +19,7 @@ import IngredientsTab from './IngredientsTab';
 import CaveatsPanel from './CaveatsPanel';
 import ShelterPanel, { SHELTER_LABEL } from './ShelterPanel';
 import { nowcastTarget } from '../../utils/nowcastUrl';
-import { MapBadges } from './MapFrame';
+import { StatusLine } from './MapFrame';
 import useEventDrawerWidth from './useEventDrawerWidth';
 
 const tsOf = (iso) => iso.replace(/[-:]/g, '');       // '2023-08-13T12:00Z' -> '20230813T1200Z'
@@ -36,7 +36,11 @@ function applyTarget(t, list, set) {
 // jump: a replay target from Start here / the case links ({ episode, ts, lead, hazard, level, alert_id }); the
 // parent remounts this view for each jump, so it is the opening view, like /api/episodes `start`;
 // startHere: the /api/start-here payload (Pipalkoti / Malana links, IMERG under-reporting line)
-const ReplayView = ({ jump = null, onJump = null, startHere = null, mapOverlay = null }) => {
+// holdDrawer: Start here is open on a window narrower than 1600 px; the opening view's drawer section then
+// waits (collapsed) and opens when Start here closes.
+// URL: ?ep=&ts=&alert=<id>&lead=&level=&hazard=&tab=<section> opens that alert with that drawer section.
+const DEEP_TABS = ['alert', 'ingredients', 'event', 'shelter', 'caveats'];
+const ReplayView = ({ jump = null, onJump = null, startHere = null, mapOverlay = null, holdDrawer = false }) => {
     const [episodes, setEpisodes] = useState([]);
     const [ep, setEp] = useState(null);
     const [ts, setTs] = useState(null);
@@ -49,6 +53,14 @@ const ReplayView = ({ jump = null, onJump = null, startHere = null, mapOverlay =
     const [selected, setSelected] = useState(null);
     const [error, setError] = useState(null);
     const [drawer, setDrawer] = useState(null);             // open drawer section, null = collapsed
+    const [deferred, setDeferred] = useState(null);         // opening section held while Start here is open
+    const [prevHold, setPrevHold] = useState(holdDrawer);
+    if (prevHold !== holdDrawer) {
+        setPrevHold(holdDrawer);
+        if (!holdDrawer && deferred) { setDrawer(deferred); setDeferred(null); }
+    }
+    const holdRef = useRef(holdDrawer);
+    useEffect(() => { holdRef.current = holdDrawer; }, [holdDrawer]);
     const [check, setCheck] = useState({ ep: null, data: null, timeline: null });
     const [detail, setDetail] = useState({ id: null, d: null, error: null });
     const [reviews, setReviews] = useState({});            // forecaster review per alert (this page only; never sent)
@@ -70,16 +82,22 @@ const ReplayView = ({ jump = null, onJump = null, startHere = null, mapOverlay =
             const q = new URLSearchParams(window.location.search);
             const e = r.episodes.find((x) => x.episode === q.get('ep'));
             const i = e?.issues.find((x) => x.ts === q.get('ts'));
+            // an alert named in the URL (Overview "Explore it yourself" cards)
+            const urlAlert = e && i && q.get('alert') ? { episode: e.episode, ts: i.ts, lead: Number(q.get('lead')) || null,
+                level: q.get('level'), hazard: q.get('hazard'), alert_id: q.get('alert') } : null;
             // judge-first opening view: the Malana cloudburst Warning issued 15:00Z, selected (or a Start-here jump)
-            const want = jump || (!e ? r.start : null);
+            const want = jump || urlAlert || (!e ? r.start : null);
             const st = want && r.episodes.some((x) => x.episode === want.episode && x.issues.some((y) => y.ts === want.ts)) ? want : null;
             if (st) {
                 pendingRef.current = { key: `${st.episode}/${st.ts}`, lead: st.lead, level: st.level, hazard: st.hazard, alertId: st.alert_id };
-                setDrawer('alert');
+                const sec = !jump && urlAlert && DEEP_TABS.includes(q.get('tab')) ? q.get('tab') : 'alert';
+                if (holdRef.current) setDeferred(sec);
+                else setDrawer(sec);
             }
             setEp(st ? st.episode : e ? e.episode : r.default.episode);
             setTs(st ? st.ts : e ? (i ? i.ts : e.issues[0].ts) : r.default.ts);
             if (!st && e && q.get('tab') === 'event') setDrawer('event');
+            if (!st && e && q.get('tab') === 'shelter') setDrawer('shelter');
         }).catch((e) => setError(e.message));
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);                                     // `jump` is fixed for this mount (the parent remounts per jump)
@@ -159,6 +177,7 @@ const ReplayView = ({ jump = null, onJump = null, startHere = null, mapOverlay =
     const openDrawer = (id) => {
         if (id === 'shelter' && !shelterPt) pointFromSite();
         setDrawer(id);
+        setDeferred(null);
     };
     // another issue or event with the section open: the default point follows it (a clicked or
     // alert-chosen point is kept)
@@ -281,30 +300,35 @@ const ReplayView = ({ jump = null, onJump = null, startHere = null, mapOverlay =
         <div className="flex-1 flex overflow-hidden min-h-0" data-testid="replay-view" data-loaded={data.key || ''}>
             <div className="flex-1 flex flex-col min-w-0">
                 {/* badges stay visible at the top of the map (never inside the drawer) */}
-                <MapBadges>
-                    <EpisodeBadge episode={episode} />
+                <StatusLine details={<>
                     {episode?.case_study && (
-                        <span data-testid="case-study-banner" className="text-[11px] text-violet-950 dark:text-violet-100">
+                        <p data-testid="case-study-banner" className="text-violet-950 dark:text-violet-100">
                             <span className="font-black">{episode.sample_label}</span>
                             {' '}The official 2024 test result is unchanged; sites shown: {episode.sites.map((s) => s.name).join(', ')}.
-                        </span>
+                        </p>
                     )}
                     {issueInfo?.explain_available === false && (
-                        <span data-testid="forecast-only-banner" className="text-[11px] px-2 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-100">
-                            <span className="font-black">Forecast-only issue: {issueInfo.note}.</span>{' '}
+                        <p data-testid="forecast-only-detail">
                             Alerts and maps come from the same frozen model; there is no explanation panel and no per-alert IMERG verification for this issue.
+                        </p>
+                    )}
+                    <p className="text-slate-600 dark:text-slate-300">
+                        Replay of archived inputs (IMERG Final + ERA5) · model lgbm_v0 (frozen), {meta?.cutset} cut-offs
+                    </p>
+                </>}>
+                    <EpisodeBadge episode={episode} />
+                    {issueInfo?.explain_available === false && (
+                        <span data-testid="forecast-only-banner" className="text-sm px-2 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-100">
+                            <span className="font-black">Forecast-only issue: {issueInfo.note}.</span>
                         </span>
                     )}
                     {caseLink && (
                         <button type="button" data-testid="case-link" onClick={() => onJump(caseLink.t)}
-                            className="text-[11px] font-bold px-2 py-0.5 rounded border border-blue-600 text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-slate-800">
+                            className="text-sm font-bold px-2 py-0.5 rounded border border-blue-600 text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-slate-800">
                             {caseLink.label}
                         </button>
                     )}
-                    <span className="ml-auto text-[10px] text-slate-500 dark:text-slate-400">
-                        Replay of archived inputs (IMERG Final + ERA5) · model lgbm_v0 (frozen), {meta?.cutset} cut-offs
-                    </span>
-                </MapBadges>
+                </StatusLine>
                 {error && <div className="bg-red-600 text-white px-6 py-2 text-sm font-semibold">{error}</div>}
 
                 <div className="flex-1 relative min-h-0">
@@ -318,14 +342,14 @@ const ReplayView = ({ jump = null, onJump = null, startHere = null, mapOverlay =
                                 ...(insideOpen ? (sh.data?.inside_candidates || []).map((c) => ({ ...c, prefix: 'i' })) : [])] } : null} />
                     )}
                     <div className="absolute top-3 left-3 bottom-3 z-[400] flex flex-col pointer-events-none">
-                        <LayersPanel summary={meta && lead ? `${ep} · ${fmtIssueShort(meta.issue_time)} · L${lead} h · ${showWatch ? 'Watch + Warning' : 'Warnings'}${insat.on && insat.available ? ' · INSAT-3DR' : ''}` : ''}>
+                        <LayersPanel summary={meta && lead ? `${episode?.sites?.length ? episode.sites[0].name : episode?.location || ''} · ${fmtIssueShort(meta.issue_time)} · L${lead} h · ${showWatch ? 'Watch + Warning' : 'Warnings'}${insat.on && insat.available ? ' · INSAT-3DR' : ''}` : ''}>
                             <div className="space-y-1.5">
-                                <p className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400">Event and issue</p>
+                                <p className="text-xs font-black uppercase text-slate-500 dark:text-slate-400">Event and issue</p>
                                 <select data-testid="episode-select" value={ep || ''} onChange={(e) => changeEpisode(e.target.value)}
                                     className="w-full text-xs font-bold bg-slate-100 dark:bg-slate-700 dark:text-white rounded-md px-2 py-1 border border-slate-200 dark:border-slate-600">
                                     {episodes.map((e) => (
                                         <option key={e.episode} value={e.episode}>
-                                            {e.episode} · {e.sites?.length ? e.sites.map((s) => s.name).join(' + ') : e.location} ({e.site?.date}){e.in_sample ? ' · IN-SAMPLE' : ''}{e.case_study ? ` · ${e.badge.toUpperCase()} CASE STUDY` : ''}
+                                            {e.sites?.length ? e.sites.map((s) => s.name).join(' + ') : e.location} ({e.site?.date}){e.in_sample ? ' · IN-SAMPLE' : ''}{e.case_study ? ` · ${e.badge.toUpperCase()} CASE STUDY` : ''}
                                         </option>
                                     ))}
                                 </select>

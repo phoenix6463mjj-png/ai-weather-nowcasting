@@ -35,7 +35,7 @@ const CsiChart = ({ rows, split, th }) => {
 const ReliabilityChart = ({ rel, split }) => (
     <div data-testid={`reliability-${split}`}>
         <p className="text-sm font-bold text-center">{split === 'val' ? 'Validation 2022–23' : 'Test 2024'} · ≥{rel.threshold} mm/hr</p>
-        <SvgPlot w={560} h={215} xDomain={[0, 1]} yDomain={[0, 1]} xTicks={[0, 0.2, 0.4, 0.6, 0.8, 1]} yTicks={[0, 0.2, 0.4, 0.6, 0.8, 1]}
+        <SvgPlot w={560} h={330} xDomain={[0, 1]} yDomain={[0, 1]} xTicks={[0, 0.2, 0.4, 0.6, 0.8, 1]} yTicks={[0, 0.2, 0.4, 0.6, 0.8, 1]}
             xFmt={(v) => v.toFixed(1)} yFmt={(v) => v.toFixed(1)} diagonal xLabel="forecast probability" yLabel="observed frequency"
             series={Object.entries(rel.splits[split]).map(([L, pts]) => ({
                 key: `${L} h`, color: LEAD_COLORS[L],
@@ -62,7 +62,7 @@ const CaseStudies = ({ cases }) => {
     const vs = (a) => VERIFY_STYLE[a.imerg_verification?.status]?.label;
     const precisions = [...new Set([mc, mt].map((a) => a.precision))].join(', ');
     return (
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div data-testid="case-study-REF045" className="rounded-lg border border-slate-200 dark:border-slate-700 p-3 space-y-1.5">
                 <p className="text-base font-black">Pipalkoti, Uttarakhand, 13 Aug 2023 <span className="font-semibold text-emerald-700">(validation)</span></p>
                 <p className="text-base">
@@ -113,13 +113,13 @@ const NowcastResults = () => {
             subtitle="General skill = CSI against the advection and persistence baselines. Case studies are documented events, not a lead-time claim.">
             {error && <p className="text-base text-red-600">{error}</p>}
             {r && (
-                <div className="grid grid-cols-12 gap-4">
-                    <div className="col-span-8 space-y-4">
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+                    <div className="lg:col-span-8 space-y-4 min-w-0">
                     <Card title="CSI by lead and threshold: v0 vs advection vs persistence (FAR-capped cut-offs)" testid="csi-section">
                         {['val', 'test'].map((split) => (
                             <div key={split} className="mb-1">
                                 <p className="text-sm font-black uppercase text-slate-500">{split === 'val' ? 'Validation 2022–23' : 'Official test 2024 (scored once)'}</p>
-                                <div className="grid grid-cols-3 gap-2">{[1, 10, 30].map((th) => <CsiChart key={th} rows={r.csi} split={split} th={th} />)}</div>
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">{[1, 10, 30].map((th) => <CsiChart key={th} rows={r.csi} split={split} th={th} />)}</div>
                             </div>
                         ))}
                         <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm mt-1">
@@ -129,7 +129,7 @@ const NowcastResults = () => {
                             <span data-testid="far-caveat-legend"><span className="inline-block w-2.5 h-2.5 rounded-full border-2 border-red-600 align-middle mr-1" />FAR caveat: v0's false-alarm ratio is above advection's at this cell</span>
                             <span><span className="inline-block w-2.5 h-2.5 rounded-full bg-amber-500 border border-amber-900 align-middle mr-1" />persistence ties or beats v0</span>
                         </div>
-                        <div className="grid grid-cols-2 gap-x-4 gap-y-1 mt-2">{r.notes.map((q) => <Quote key={q.id} q={q} testid={`note-${q.id}`} />)}</div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 mt-2">{r.notes.map((q) => <Quote key={q.id} q={q} testid={`note-${q.id}`} />)}</div>
                     </Card>
                     <Card title="Case studies (documented events)" testid="case-studies">
                         <CaseStudies cases={cases} />
@@ -141,7 +141,7 @@ const NowcastResults = () => {
                         </Card>
                     )}
                     </div>
-                    <div className="col-span-4 space-y-4">
+                    <div className="lg:col-span-4 space-y-4 min-w-0">
                     <Card title="Calibration (reliability) at ≥30 mm/hr" testid="reliability-section">
                         <div className="space-y-1">
                             <ReliabilityChart rel={r.reliability} split="val" />
@@ -157,8 +157,8 @@ const NowcastResults = () => {
                         {r.negative.unet.map((q) => <Quote key={q.id} q={q} />)}
                     </Card>
                     </div>
-                    <Card title="Limitations" testid="limitations" className="col-span-12">
-                        <ul className="grid grid-cols-2 gap-x-6 gap-y-1">
+                    <Card title="Limitations" testid="limitations" className="lg:col-span-12">
+                        <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1">
                             {caveats.map((c) => <li key={c.id} className="text-base text-slate-700 dark:text-slate-300" title={`"${c.quote}" (${c.source})`}>• {c.short}</li>)}
                         </ul>
                     </Card>

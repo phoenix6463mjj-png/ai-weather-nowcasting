@@ -450,14 +450,14 @@ const Forecast = () => {
                             {weatherSource === 'open-meteo' && <OpenMeteoCredit />}
                             {weatherSource === 'openweather' && <OpenWeatherCredit />}
                             {listMixed && (
-                                <p data-testid="forecast-list-source" className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 mt-0.5">
+                                <p data-testid="forecast-list-source" className="text-xs font-semibold text-slate-500 dark:text-slate-400 mt-0.5">
                                     Node list: {mixedBadge(zonesSummary(citiesList), citiesList)}; {unratedNote(mixedCounts(null, citiesList).sample)}.
                                 </p>
                             )}
                         </div>
                     </div>
                     <Link
-                        to="/"
+                        to="/dashboard"
                         className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm rounded-xl transition-all duration-300 shadow-sm hover:shadow-md hover:-translate-y-0.5 hover:scale-[1.02] shrink-0 self-start sm:self-auto"
                     >
                         <ArrowLeft size={16} />
@@ -502,7 +502,7 @@ const Forecast = () => {
                             {/* Dropdown Suggestions (Max 5 matching nodes) */}
                             {showDropdown && filteredNodes.length > 0 && (
                                 <div className="absolute left-0 right-0 top-full mt-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-50 overflow-hidden">
-                                    <div className="p-2 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider px-3 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800">
+                                    <div className="p-2 text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider px-3 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800">
                                         Available Network Nodes (Top {filteredNodes.length})
                                     </div>
                                     {filteredNodes.map((nodeName, idx) => {
@@ -521,13 +521,13 @@ const Forecast = () => {
                                                     <MapPin size={13} className="text-blue-500" />
                                                     <span>{nodeName}</span>
                                                     {nodeObj?.state && (
-                                                        <span className="text-[11px] text-slate-400 font-normal">
+                                                        <span className="text-xs text-slate-400 font-normal">
                                                             ({nodeObj.state})
                                                         </span>
                                                     )}
                                                 </span>
                                                 {nodeObj?.risk_level && !sampleOnly && !isUnratedZone(nodeObj) && (
-                                                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
+                                                    <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${
                                                         nodeObj.risk_level === "HIGH" ? "bg-red-100 text-red-700 dark:bg-red-950/60 dark:text-red-400" :
                                                         nodeObj.risk_level === "MODERATE" ? "bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-400" :
                                                         "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400"
@@ -565,7 +565,7 @@ const Forecast = () => {
                         <div style={{
                             marginTop: "6px",
                             color: "#b45309",
-                            fontSize: "13px"
+                            fontSize: "15px"
                         }}>
                             {fallbackMessage}
                         </div>
@@ -605,7 +605,7 @@ const Forecast = () => {
                                     <span>Back to Monitoring Nodes</span>
                                 </button>
                             )}
-                            <div className="text-slate-400 text-[11px] font-medium">
+                            <div className="text-slate-400 text-xs font-medium">
                                 {citiesList.length > 0 ? `${citiesList.length} Network Nodes Available` : "Loading nodes..."}
                             </div>
                         </div>
@@ -696,7 +696,7 @@ const Forecast = () => {
                                 <div className="flex items-center justify-between mb-1">
                                     <h3 data-testid="forecast-panel-title" className="font-bold text-sm">{liveWeather ? 'Current conditions' : 'Current conditions (sample data)'}</h3>
                                     {!sampleOnly && (
-                                    <span data-testid="forecast-panel-risk" className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${currentRiskInfo.badgeClass}`}>
+                                    <span data-testid="forecast-panel-risk" className={`text-xs font-black px-2 py-0.5 rounded-full border ${currentRiskInfo.badgeClass}`}>
                                         {currentRiskInfo.label}
                                     </span>
                                     )}
@@ -720,7 +720,7 @@ const Forecast = () => {
                                             <Info size={14} className="shrink-0" />
                                             <span>Current weather only (no projection ahead)</span>
                                         </div>
-                                        <p className="text-[11px] opacity-90 mt-1">
+                                        <p className="text-xs opacity-90 mt-1">
                                             Current values for {activeNodeName} from {sourceText}.
                                         </p>
                                     </div>
@@ -729,7 +729,7 @@ const Forecast = () => {
                                 {/* LIVE NOWCAST METRICS (Dynamic from forecast[selectedHour]) */}
                                 <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
                                     <div className="bg-white dark:bg-slate-900/90 p-2 rounded-lg border border-slate-200/80 dark:border-slate-700/60 transition-all duration-300 hover:border-blue-300">
-                                        <div className="flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400 mb-0.5">
+                                        <div className="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400 mb-0.5">
                                             <CloudRain size={12} className="text-blue-500" />
                                             <span>Rainfall</span>
                                         </div>
@@ -738,7 +738,7 @@ const Forecast = () => {
                                         </span>
                                     </div>
                                     <div className="bg-white dark:bg-slate-900/90 p-2 rounded-lg border border-slate-200/80 dark:border-slate-700/60 transition-all duration-300 hover:border-blue-300">
-                                        <div className="flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400 mb-0.5">
+                                        <div className="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400 mb-0.5">
                                             <Droplets size={12} className="text-teal-500" />
                                             <span>Humidity</span>
                                         </div>
@@ -747,7 +747,7 @@ const Forecast = () => {
                                         </span>
                                     </div>
                                     <div className="bg-white dark:bg-slate-900/90 p-2 rounded-lg border border-slate-200/80 dark:border-slate-700/60 transition-all duration-300 hover:border-blue-300">
-                                        <div className="flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400 mb-0.5">
+                                        <div className="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400 mb-0.5">
                                             <Wind size={12} className="text-sky-500" />
                                             <span>Wind Speed</span>
                                         </div>
@@ -756,7 +756,7 @@ const Forecast = () => {
                                         </span>
                                     </div>
                                     <div className="bg-white dark:bg-slate-900/90 p-2 rounded-lg border border-slate-200/80 dark:border-slate-700/60 transition-all duration-300 hover:border-blue-300">
-                                        <div className="flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400 mb-0.5">
+                                        <div className="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400 mb-0.5">
                                             <Thermometer size={12} className="text-amber-500" />
                                             <span>Temperature</span>
                                         </div>
@@ -789,7 +789,7 @@ const Forecast = () => {
                                 </div>
 
                                 <div className="flex items-center gap-2">
-                                    <span className={`text-[11px] font-black px-2.5 py-0.5 rounded-full border ${
+                                    <span className={`text-xs font-black px-2.5 py-0.5 rounded-full border ${
                                         aiInsightData.severity === "HIGH"
                                             ? "bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-400 border-rose-300 dark:border-rose-800"
                                             : aiInsightData.severity === "MODERATE"
@@ -814,7 +814,7 @@ const Forecast = () => {
                                         <p data-testid="forecast-summary-text" className="text-base font-black text-slate-900 dark:text-white leading-snug">
                                             "{aiInsightData.text}"
                                         </p>
-                                        <p data-testid="forecast-summary-source" className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                                        <p data-testid="forecast-summary-source" className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                                             {aiInsightData.subtext}
                                         </p>
                                     </div>
@@ -845,7 +845,7 @@ const Forecast = () => {
                                     </div>
                                     <h2 className="text-base font-bold tracking-tight">Risk Indicator Bar</h2>
                                 </div>
-                                <span className={`text-[11px] font-black px-2.5 py-0.5 rounded-full border ${currentRiskInfo.badgeClass}`}>
+                                <span className={`text-xs font-black px-2.5 py-0.5 rounded-full border ${currentRiskInfo.badgeClass}`}>
                                     {currentRiskInfo.label}
                                 </span>
                             </div>
@@ -874,7 +874,7 @@ const Forecast = () => {
                                     </div>
                                 </div>
 
-                                <div className="flex justify-between text-[10px] font-bold tracking-wider uppercase text-slate-400 dark:text-slate-500">
+                                <div className="flex justify-between text-xs font-bold tracking-wider uppercase text-slate-400 dark:text-slate-500">
                                     <span className="text-emerald-600 dark:text-emerald-400">Green • Low</span>
                                     <span className="text-amber-600 dark:text-amber-400">Yellow • Moderate</span>
                                     <span className="text-rose-600 dark:text-rose-400">Red • High</span>

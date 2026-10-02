@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { ChevronDown, ChevronUp, Layers } from 'lucide-react';
 
-const OPEN_MIN_WIDTH = 1400;
+const OPEN_MIN_WIDTH = 1600;     // open at >= 1600 px, collapsed below (the map keeps >= ~70 % uncovered)
 const OPEN_MIN_HEIGHT = 900;
 
 /**
@@ -19,8 +19,8 @@ const LayersPanel = ({ summary, children }) => {
                 className="w-full flex items-start gap-2 px-3 py-2 text-left shrink-0">
                 <Layers size={15} className="text-slate-500 shrink-0 mt-0.5" />
                 <span className="min-w-0">
-                    <span className="block text-[11px] font-black uppercase text-slate-700 dark:text-slate-200">Layers</span>
-                    <span data-testid="layers-summary" className="block text-[10px] text-slate-500 dark:text-slate-400 leading-snug">{summary}</span>
+                    <span className="block text-xs font-black uppercase text-slate-700 dark:text-slate-200">Layers</span>
+                    <span data-testid="layers-summary" className="block text-xs text-slate-500 dark:text-slate-400 leading-snug">{summary}</span>
                 </span>
                 <span className="ml-auto text-slate-500 mt-0.5">{open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}</span>
             </button>

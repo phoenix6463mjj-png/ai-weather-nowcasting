@@ -8,7 +8,6 @@ import LiveView from '../components/nowcast/LiveView';
 import DataCredits from '../components/nowcast/DataCredits';
 import StartHere from '../components/nowcast/StartHere';
 import { startHereDismissed, rememberStartHereDismissed } from '../utils/startHereStorage';
-import { NowcastPageLinks } from '../components/nowcast/PageShell';
 import { nowcastTarget } from '../utils/nowcastUrl';
 import { getStartHere } from '../services/nowcastApi';
 
@@ -25,6 +24,13 @@ const Nowcast = () => {
     const [startOpen, setStartOpen] = useState(() => !startHereDismissed());
     const [start, setStart] = useState({ data: null, error: null });
     const [jump, setJump] = useState(null);             // replay target picked in Start here (or the Pipalkoti link)
+    // below 1600 px the opening alert waits (drawer collapsed) while Start here is open
+    const [narrow, setNarrow] = useState(() => window.innerWidth < 1600);
+    useEffect(() => {
+        const on = () => setNarrow(window.innerWidth < 1600);
+        window.addEventListener('resize', on);
+        return () => window.removeEventListener('resize', on);
+    }, []);
 
     useEffect(() => {
         let live = true;
@@ -54,17 +60,16 @@ const Nowcast = () => {
             <TopHeader />
             <div className="px-6 pt-2 bg-white dark:bg-[#0f172a] border-b border-slate-200 dark:border-slate-800 flex items-end gap-5 shrink-0">
                 <div className="pb-2 min-w-0 flex-1">
-                    <h2 className="text-[15px] 2xl:text-lg font-black leading-tight truncate" title="ML Nowcast: thunderstorm, cloudburst and flash-flood risk, 1–6 h">ML Nowcast: thunderstorm, cloudburst and flash-flood risk, 1–6 h</h2>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">LightGBM model lgbm_v0 (frozen) · 0.1° grid · Himalaya cloudburst study</p>
+                    <h2 className="text-lg font-black leading-tight truncate" title="ML Nowcast: thunderstorm, cloudburst and flash-flood risk, 1–6 h · LightGBM model lgbm_v0 (frozen) · 0.1° grid · Himalaya cloudburst study">ML Nowcast: thunderstorm, cloudburst and flash-flood risk, 1–6 h</h2>
+                    <p className="hidden min-[1600px]:block text-sm text-slate-500 dark:text-slate-400 truncate">LightGBM model lgbm_v0 (frozen) · 0.1° grid · Himalaya cloudburst study</p>
                 </div>
                 <div className="pb-2 shrink-0 flex items-center gap-2">
                     <button type="button" data-testid="start-here-open" aria-pressed={startOpen}
                         onClick={() => (startOpen ? closeStart() : setStartOpen(true))}
-                        className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap border border-blue-600 text-blue-700 dark:text-blue-300 ${startOpen
+                        className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-bold whitespace-nowrap border border-blue-600 text-blue-700 dark:text-blue-300 ${startOpen
                             ? 'bg-blue-100 dark:bg-blue-950' : 'hover:bg-blue-50 dark:hover:bg-slate-800'}`}>
-                        <Compass size={14} /> Start here
+                        <Compass size={16} /> Start here
                     </button>
-                    <NowcastPageLinks />
                 </div>
                 <nav className="flex gap-1 shrink-0">
                     {TABS.map((t) => (
@@ -76,7 +81,7 @@ const Nowcast = () => {
                     ))}
                 </nav>
             </div>
-            {tab === 'replay' && <ReplayView key={jump ? jump.nonce : 'open'} jump={jump} onJump={goReplay} startHere={start.data} mapOverlay={overlay} />}
+            {tab === 'replay' && <ReplayView key={jump ? jump.nonce : 'open'} jump={jump} onJump={goReplay} startHere={start.data} mapOverlay={overlay} holdDrawer={startOpen && narrow} />}
             {tab === 'india' && <NationalView mapOverlay={overlay} />}
             {tab === 'live' && <LiveView mapOverlay={overlay} />}
             <DataCredits />

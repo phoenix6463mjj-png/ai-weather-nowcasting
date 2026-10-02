@@ -18,7 +18,7 @@ const FreshnessStrip = ({ meta, insat, compute }) => {
     const runAgeMin = (now - new Date(meta.issue_time).getTime()) / 60000;
     return (
         <div data-testid="freshness-strip" className="px-4 py-1 flex flex-wrap items-center gap-x-4 gap-y-0.5 text-xs text-slate-800 dark:text-slate-100 bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 shrink-0">
-            <span className="flex items-center gap-1 font-black uppercase text-[11px] text-slate-600 dark:text-slate-300"><Clock size={13} /> Data freshness</span>
+            <span className="flex items-center gap-1 font-black uppercase text-xs text-slate-600 dark:text-slate-300"><Clock size={13} /> Data freshness</span>
             <Item testid="fresh-run" label="Run issued">{fmtIssueShort(meta.issue_time)} ({hours(Math.max(0, runAgeMin))} ago)</Item>
             <Item testid="fresh-imerg" label="Rain input (IMERG Early) at issue:">{hours(meta.latency_min.imerg)} old</Item>
             <Item testid="fresh-gfs" label="Environment (GFS) at issue:">{hours(meta.latency_min.gfs)} old</Item>

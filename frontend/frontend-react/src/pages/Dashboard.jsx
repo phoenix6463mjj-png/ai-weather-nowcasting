@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { API_BASE } from '../config';
 import { fetchWithWake, isServerUnavailable, WAKE_UNAVAILABLE } from '../utils/serverWake';
+import { askShownFirst, useFillPoll } from '../utils/weatherFill';
 import { RISK_COLOURS, isLiveSource, isSampleSource, isUnratedZone, mixedCounts, sourceBadge } from '../utils/dashboardRisk';
 import SampleSafetyNotice from '../components/SampleSafetyNotice';
 import OpenMeteoCredit from '../components/OpenMeteoCredit';
@@ -36,15 +37,15 @@ const Dashboard = () => {
     const [baseLayer, setBaseLayer] = useState('map');      // 'map' | 'satellite' | 'terrain'
 
     const isFetchingRef = useRef(false);
-    // the header search on the other pages opens "/?city=<name>": run that search here once
+    // the header search on the other pages opens "/dashboard?city=<name>": run that search here once
     const [searchParams, setSearchParams] = useSearchParams();
 
-    const loadAllData = async () => {
+    const loadAllData = async (silent = false) => {
         // Prevent overlapping/duplicate concurrent API calls
         if (isFetchingRef.current) return;
         isFetchingRef.current = true;
 
-        setLoading(true);
+        if (!silent) setLoading(true);
         setError(null);
         try {
             // Fetch ONLY from /alerts — SINGLE SOURCE OF TRUTH (380 ZONES)
@@ -90,6 +91,10 @@ const Dashboard = () => {
 
             console.log("Loaded cities:", formatted.length);
             setAllCities(formatted);
+            // OpenWeather still filling the list: the selected zone and the flagged zones first
+            let saved = null;
+            try { saved = localStorage.getItem('selected_city'); } catch { /* storage off */ }
+            askShownFirst(summaryData, [saved, ...formatted.filter((c) => c.risk && c.risk !== 'LOW').map((c) => c.city)]);
 
             // Maintain user selection across background refreshes
             setSelectedCity(prev => {
@@ -130,6 +135,8 @@ const Dashboard = () => {
             clearInterval(interval);
         };
     }, []);
+
+    useFillPoll(summary, loadAllData);
 
     // Sync selected city to localStorage so Forecast and other pages share the active city seamlessly
     useEffect(() => {
@@ -399,7 +406,7 @@ const Dashboard = () => {
                                 {/* Legend: markers are coloured by the zone's rule-based risk level (no percentages) */}
                                 {!sampleOnly && <div data-testid="dashboard-legend" className="absolute bottom-6 left-6 z-[400] bg-white/90 dark:bg-slate-800/90 backdrop-blur-md rounded-xl p-4 shadow-lg border border-slate-200 dark:border-slate-700 w-64">
                                     <p className="text-xs font-bold mb-2 uppercase text-slate-500 dark:text-slate-400">Risk level (rule-based)</p>
-                                    <div className="flex justify-between text-[11px] font-semibold text-slate-600 dark:text-slate-300">
+                                    <div className="flex justify-between text-xs font-semibold text-slate-600 dark:text-slate-300">
                                         {[['LOW', 'Low'], ['MODERATE', 'Moderate'], ['HIGH', 'High']].map(([k, label]) => (
                                             <span key={k} className="flex items-center gap-1.5">
                                                 <span className="w-3 h-3 rounded-full border-2 border-white shadow" style={{ background: RISK_COLOURS[k] }} />{label}
@@ -407,11 +414,11 @@ const Dashboard = () => {
                                         ))}
                                     </div>
                                     {mixed && (
-                                        <p data-testid="legend-unrated" className="mt-1.5 flex items-center gap-1.5 text-[11px] font-semibold text-slate-600 dark:text-slate-300">
+                                        <p data-testid="legend-unrated" className="mt-1.5 flex items-center gap-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300">
                                             <span className="w-3 h-3 rounded-full border-2 border-white shadow" style={{ background: RISK_COLOURS.NONE }} />Grey: sample data — risk not shown
                                         </p>
                                     )}
-                                    <p className="mt-1.5 text-[10px] text-slate-500 dark:text-slate-400 leading-snug">Marker colour = the zone&apos;s rule-based risk level (not the ML model).</p>
+                                    <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400 leading-snug">Marker colour = the zone&apos;s rule-based risk level (not the ML model).</p>
                                 </div>}
                             </div>
 
@@ -426,7 +433,7 @@ const Dashboard = () => {
                                 </div>
                                 {selectedCity?.geocoder === 'nominatim' && <NominatimCredit className="shrink-0 px-1" />}
                                 <Link to="/nowcast" data-testid="dashboard-ml-link"
-                                    className="shrink-0 text-[11px] font-bold text-blue-700 dark:text-blue-400 hover:underline px-1">
+                                    className="shrink-0 text-xs font-bold text-blue-700 dark:text-blue-400 hover:underline px-1">
                                     Calibrated 1–6 h nowcasts: ML Nowcast →
                                 </Link>
                             </div>

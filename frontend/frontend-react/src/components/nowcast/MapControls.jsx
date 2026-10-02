@@ -8,7 +8,7 @@ const MapControls = ({ leads, lead, setLead, leadInfo = {}, hazards, setHazards,
     field, setField, fieldOptions = FIELD_OPTIONS, alertControls = true, terrain }) => (
     <div data-testid="map-controls" className="space-y-2.5">
         <div>
-            <p className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 mb-1">Lead time</p>
+            <p className="text-xs font-black uppercase text-slate-500 dark:text-slate-400 mb-1">Lead time</p>
             <div className="flex gap-1">
                 {leads.map((L) => (
                     <button key={L} onClick={() => setLead(L)} data-testid={`lead-${L}`} aria-pressed={L === lead}
@@ -19,14 +19,14 @@ const MapControls = ({ leads, lead, setLead, leadInfo = {}, hazards, setHazards,
                 ))}
             </div>
             {leadInfo[lead] && (
-                <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                     valid {leadInfo[lead].valid} · probabilities are "within {leadInfo[lead].radius} km"
                 </p>
             )}
         </div>
         {setField && (
             <div>
-                <p className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 mb-1">Forecast map layer</p>
+                <p className="text-xs font-black uppercase text-slate-500 dark:text-slate-400 mb-1">Forecast map layer</p>
                 <select data-testid="field-select" value={field} onChange={(e) => setField(e.target.value)}
                     className="w-full text-xs bg-slate-100 dark:bg-slate-700 dark:text-white rounded-md px-2 py-1 border border-slate-200 dark:border-slate-600">
                     {fieldOptions.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
@@ -38,10 +38,10 @@ const MapControls = ({ leads, lead, setLead, leadInfo = {}, hazards, setHazards,
                 <label className="flex items-center gap-2 text-xs font-bold text-slate-800 dark:text-slate-100 cursor-pointer">
                     <input type="checkbox" data-testid="terrain-toggle" checked={terrain.on} onChange={(e) => terrain.setOn(e.target.checked)} />
                     Terrain (DEM)
-                    <span className="text-slate-400 font-normal text-[10px] truncate" title={terrain.fullNotice}>{TERRAIN_ATTRIBUTION}</span>
+                    <span className="text-slate-400 font-normal text-xs truncate" title={terrain.fullNotice}>{TERRAIN_ATTRIBUTION}</span>
                 </label>
                 {terrain.on && (
-                    <label className="flex items-center gap-2 mt-1 text-[10px] text-slate-500 dark:text-slate-400">
+                    <label className="flex items-center gap-2 mt-1 text-xs text-slate-500 dark:text-slate-400">
                         opacity
                         <input type="range" data-testid="terrain-opacity" min="0.1" max="1" step="0.05" value={terrain.opacity}
                             onChange={(e) => terrain.setOpacity(Number(e.target.value))} className="flex-1 accent-slate-600" />
@@ -51,7 +51,7 @@ const MapControls = ({ leads, lead, setLead, leadInfo = {}, hazards, setHazards,
         )}
         {alertControls && (<>
         <div>
-            <p className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 mb-1">Hazards</p>
+            <p className="text-xs font-black uppercase text-slate-500 dark:text-slate-400 mb-1">Hazards</p>
             {HAZARDS.map((h) => (
                 <label key={h} className="flex items-center gap-2 text-xs font-semibold text-slate-700 dark:text-slate-200 cursor-pointer py-0.5">
                     <input type="checkbox" checked={hazards.includes(h)}
@@ -66,7 +66,7 @@ const MapControls = ({ leads, lead, setLead, leadInfo = {}, hazards, setHazards,
         <label className="flex items-center gap-2 text-xs font-bold text-slate-800 dark:text-slate-100 cursor-pointer border-t border-slate-200 dark:border-slate-700 pt-2">
             <input type="checkbox" data-testid="watch-toggle" checked={showWatch} onChange={(e) => setShowWatch(e.target.checked)} />
             Also show Watch
-            <span className="ml-auto text-slate-400 font-normal text-[10px]">Warnings always shown</span>
+            <span className="ml-auto text-slate-400 font-normal text-xs">Warnings always shown</span>
         </label>
         </>)}
     </div>

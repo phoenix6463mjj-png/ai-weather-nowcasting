@@ -21,7 +21,13 @@ FIELDS = ["thunderstorm", "cloudburst_index", "flash_flood", "rain_p10", "rain_p
 
 def discover(get):
     paths = ["health", "episodes", "caveats", "credits", "results", "approach", "terrain", "insat",
-             "replay/status", "india/meta", "live", "shelters", "live-insat", "analytics", "cap/approvals", "cap/feed.atom"]
+             "replay/status", "india/meta", "live", "shelters", "live-insat", "analytics", "cap/approvals", "cap/feed.atom",
+             "start-here", "compute-latency", "overview"]
+    ov = get("overview")                                  # the Overview page ("/") and every image it shows
+    if ov.status_code == 200:
+        o = ov.json()
+        paths += [o["terrain"]["path"], o["malana"]["terrain"]["path"], o["malana"]["imerg_layer"]["path"], o["insat"]["path"]]
+        paths += [c["thumb"] for c in o["explore"] if c["thumb"]]
     lay = get("live-insat").json()                        # live INSAT: the latest frame only (the host ships one snapshot)
     if lay.get("available"):
         paths.append(f"live-insat/frames/{lay['latest']['id']}.png")

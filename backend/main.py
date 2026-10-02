@@ -37,7 +37,7 @@ from utils.api_fetcher import (
     get_coordinates, get_weather_by_coords, get_fallback_mock,
     fetch_weather, _GEO_CACHE, API_KEY, is_valid_api_key,
     async_fetch_open_meteo, fetch_open_meteo_point, OPEN_METEO_STATS, OPEN_METEO_STATUS, OPEN_METEO_ENABLED,
-    openweather_zones, OPENWEATHER_STATS, OPENWEATHER_STATUS, OPENWEATHER_MAX_PER_MIN, OPENWEATHER_TTL,
+    openweather_zones, openweather_first, openweather_pending, openweather_filling, OPENWEATHER_STATS, OPENWEATHER_STATUS, OPENWEATHER_MAX_PER_MIN, OPENWEATHER_TTL,
 )
 from utils.locations_manager import (
     get_india_locations, get_sampled_locations, find_location_by_name,
@@ -551,11 +551,16 @@ UNIFIED_CACHE_TTL = 300.0
 # With a key the zone list only reads the OpenWeather cache (the throttled refresher fills it), so it is
 # rebuilt every 2 min to show the refresher's progress; this makes no OpenWeather call.
 UNIFIED_CACHE_TTL_KEY = 120.0
+# while the refresher is still filling the list (after a cold start), every 20 s, so a page that re-polls
+# sees its zones switch to OpenWeather soon after they are fetched
+UNIFIED_CACHE_TTL_FILLING = 20.0
 _UNIFIED_LOCK = asyncio.Lock()
 
 
 def unified_ttl() -> float:
-    return UNIFIED_CACHE_TTL_KEY if is_valid_api_key(API_KEY) else UNIFIED_CACHE_TTL
+    if not is_valid_api_key(API_KEY):
+        return UNIFIED_CACHE_TTL
+    return UNIFIED_CACHE_TTL_FILLING if openweather_filling() else UNIFIED_CACHE_TTL_KEY
 
 
 async def get_unified_alerts_dataset(limit: int = 380) -> Dict[str, Any]:
@@ -770,6 +775,10 @@ async def get_unified_alerts_dataset(limit: int = 380) -> Dict[str, Any]:
                 summary["source_times"][src] = {"min": min(ts), "max": max(ts)}
         # some zones carry the last successful Open-Meteo data because the latest request failed
         summary["stale"] = any(a["weather"].get("stale") for a in alerts_list)
+        # OpenWeather key set and zones still waiting for it (the badge's counts say how many): pages
+        # re-poll every 30 s meanwhile and ask for the zones they show first (/zones/first)
+        summary["openweather_filling"] = openweather_filling()
+        summary["openweather_pending"] = openweather_pending()
 
         dataset = {
             "summary": summary,
@@ -788,6 +797,24 @@ async def get_alerts(limit: int = 380):
     Returns precomputed summary, deduplicated alerts, and cached timestamp.
     """
     return await get_unified_alerts_dataset(limit=limit)
+
+
+ZONES_FIRST_MAX = 60
+
+
+@app.get("/zones/first")
+async def zones_first(names: str = ""):
+    """The zones a page is showing ("|"-separated city names, at most 60): the OpenWeather refresher
+    fetches them before the rest of the list, under the same 50 calls/min throttle and 60-min cache.
+    Without a key this does nothing. Makes no weather request itself."""
+    wanted = [n.strip().lower() for n in names.split("|") if n.strip()][:ZONES_FIRST_MAX]
+    if not wanted or not is_valid_api_key(API_KEY):
+        return {"queued": 0, "pending": openweather_pending()}
+    by_name: Dict[str, Tuple[float, float]] = {}
+    for loc in get_sampled_locations(limit=380 + 25):
+        by_name.setdefault(loc["city"].strip().lower(), (loc["lat"], loc["lon"]))
+    points = [by_name[n] for n in wanted if n in by_name]
+    return {"queued": openweather_first(points), "pending": openweather_pending()}
 
 
 @app.get("/zones")

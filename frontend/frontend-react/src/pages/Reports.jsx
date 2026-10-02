@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { API_BASE } from '../config';
 import { fetchWithWake, WAKE_UNAVAILABLE } from '../utils/serverWake';
+import { askShownFirst, useFillPoll } from '../utils/weatherFill';
 import { fetchedLabel, firedRules, isSampleSource, mixedBadge, sourceBadge, unratedNote } from '../utils/dashboardRisk';
 import HonestyBanner from '../components/HonestyBanner';
 import SampleSafetyNotice from '../components/SampleSafetyNotice';
@@ -45,14 +46,16 @@ const Reports = () => {
     const [loading, setLoading] = useState(true);
     const [fetchedAt, setFetchedAt] = useState(null);
 
-    const load = useCallback(async () => {
-        setLoading(true);
+    const load = useCallback(async (silent = false) => {
+        if (!silent) setLoading(true);
         setError(null);
         try {
             const res = await fetchWithWake(`${API_BASE}/alerts?limit=380`);
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const json = await res.json();
             setData({ summary: json.summary || {}, alerts: json.alerts || [] });
+            // OpenWeather still filling the list: the flagged zones in the table first
+            askShownFirst(json.summary, (json.alerts || []).filter((z) => ['HIGH', 'MODERATE'].includes(level(z))).map((z) => z.city));
             setFetchedAt(new Date());
         } catch {
             setError(WAKE_UNAVAILABLE);
@@ -66,6 +69,8 @@ const Reports = () => {
         init();
         return () => { alive = false; };
     }, [load]);
+
+    useFillPoll(data?.summary, load);
 
     const s = data?.summary || {};
     const zones = data?.alerts || [];
@@ -136,7 +141,7 @@ const Reports = () => {
                             <RefreshCw size={13} className={loading ? 'animate-spin text-blue-500' : ''} />
                             <span>{loading ? 'Updating...' : 'Refresh'}</span>
                         </button>
-                        <Link to="/" className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl transition-colors shadow-xs">
+                        <Link to="/dashboard" className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl transition-colors shadow-xs">
                             <ArrowLeft size={14} />
                             <span>Back to Dashboard</span>
                         </Link>
@@ -174,7 +179,7 @@ const Reports = () => {
 
                             {/* level counts: one bar, widths from the counts (no percentages) */}
                             <div className="my-4">
-                                <div data-testid="report-counts" className="flex items-center gap-4 text-[11px] font-bold mb-1.5">
+                                <div data-testid="report-counts" className="flex items-center gap-4 text-xs font-bold mb-1.5">
                                     <span className="text-red-600 dark:text-red-400">HIGH {counts.HIGH}</span>
                                     <span className="text-amber-600 dark:text-amber-400">MODERATE {counts.MODERATE}</span>
                                     <span className="text-emerald-600 dark:text-emerald-400">LOW {counts.LOW}</span>
@@ -188,7 +193,7 @@ const Reports = () => {
                                 )}
                             </div>
 
-                            <span className="text-[11px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-400 block mb-2">
+                            <span className="text-xs font-black uppercase tracking-wider text-slate-600 dark:text-slate-400 block mb-2">
                                 {flagged.length ? `Zones at HIGH or MODERATE (${Math.min(TOP_N, flagged.length)} of ${flagged.length})` : 'No zone at rule-based HIGH or MODERATE'}
                             </span>
                             <div data-testid="report-zones" className="space-y-1.5 mb-4">
@@ -197,12 +202,12 @@ const Reports = () => {
                                         <div className="flex items-center gap-2 min-w-0">
                                             <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${level(z) === 'HIGH' ? 'bg-red-500' : 'bg-amber-400'}`} />
                                             <span className="font-bold text-slate-900 dark:text-slate-100">{z.city}</span>
-                                            <span className="text-[10px] text-slate-400 hidden sm:inline">({z.state})</span>
-                                            <span className="text-[10px] font-bold text-slate-500">{level(z)}</span>
+                                            <span className="text-xs text-slate-400 hidden sm:inline">({z.state})</span>
+                                            <span className="text-xs font-bold text-slate-500">{level(z)}</span>
                                         </div>
                                         <div className="flex items-center gap-2 min-w-0">
-                                            <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 truncate">{(firedRules(z) || []).join('; ') || 'rule not reported'}</span>
-                                            <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-700 px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-600 whitespace-nowrap">
+                                            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 truncate">{(firedRules(z) || []).join('; ') || 'rule not reported'}</span>
+                                            <span className="text-xs font-bold text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-700 px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-600 whitespace-nowrap">
                                                 {z.weather?.rainfall ?? z.rainfall} mm · {z.weather?.wind_speed ?? z.wind_speed} m/s
                                             </span>
                                         </div>

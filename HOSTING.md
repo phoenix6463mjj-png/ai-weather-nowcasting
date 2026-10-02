@@ -178,8 +178,18 @@ Render redeploys automatically on push. Check `/health` again afterwards.
         "HTTP 429: …");
       - `cooldown_until`.
       - The key itself is never shown or logged.
-- [ ] Deep links: open `https://<vercel-app>/nowcast/results` and `/nowcast/approach` directly (not by
-      clicking): they load.
+- [ ] Deep links: open `https://<vercel-app>/nowcast/results`, `/nowcast/approach`, `/dashboard`,
+      `/forecast`, `/alerts`, `/reports` and `/analytics` directly (not by clicking) and refresh: they load.
+- [ ] `https://<vercel-app>/` is the Overview ("System briefing"):
+  - the map and step 1 paint first;
+  - step 3 plays the Malana scrubber;
+  - step 8's cards open the exact views;
+  - `/ml/overview` returns JSON.
+- [ ] With `OPENWEATHER_API_KEY` set, right after a cold start:
+  - the badge counts OpenWeather and Open-Meteo zones honestly;
+  - the zones on screen switch to OpenWeather within about a minute (the page asks `/zones/first`), and all
+    380 within about 7 min (50 calls/min);
+  - pages re-poll every 30 s meanwhile.
 - [ ] `/nowcast`:
   - REF045, REF051 and REF025 load with their badges (REF025 in-sample, REF051 test 2024);
   - map layers, lead switch, drawer sections (Alert, Ingredients, Event check with the INSAT rows,
@@ -236,5 +246,13 @@ host folder still works on a Space (it listens on 7860 when `PORT` is unset).
   - After a final failure, the last successful data is served (stale, with its real time) and no
     request is sent for 30 min. Credit "Weather data by Open-Meteo.com" (CC BY 4.0) is shown next to its
   data.
+- **OpenWeather (primary) and Open-Meteo (fallback).**
+  - With `OPENWEATHER_API_KEY` set, the 380 zones come from OpenWeather at most 50 calls/min (60-min cache).
+  - Zones not fetched yet use Open-Meteo; the credits name it "fallback, used only when OpenWeather is
+    unavailable".
+  - After a cold start, the zones a page shows are fetched first (`/zones/first`), and the rest within
+    ~7 min.
+- **Host package contents.** `hosting/build_space.py` now also ships
+  `models/v0/cloudburst_reference_imerg.csv` (the Overview's 24 documented sites, 2 KB).
 - **Local development is unchanged:** `start_demo.ps1` still runs the two APIs separately with the
   `/ml` proxy.

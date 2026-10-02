@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 const SHOTS = path.join(path.dirname(fileURLToPath(import.meta.url)), 'screenshots');
 const API = process.env.E2E_API_URL || 'http://127.0.0.1:8000';
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64');
-const PAGES = ['/', '/forecast', '/analytics', '/alerts', '/reports', '/nowcast', '/nowcast/results', '/nowcast/approach'];
+const PAGES = ['/', '/dashboard', '/forecast', '/analytics', '/alerts', '/reports', '/nowcast', '/nowcast/results', '/nowcast/approach'];
 // No sentence on any page is approved to contain "safe" (no official-advice sentence is shown).
 const SAFE = /\bsaf(e|er|ety|ely)\b/i;
 const LONG = 'Thiruvananthapuram Municipal Corporation Ward';
@@ -46,9 +46,13 @@ test('header at 1366x768 with a long place name: the title is not clipped, the n
     await page.addInitScript(() => { try { localStorage.removeItem('selected_city'); } catch { /* ignore */ } });
     for (const [w, h] of [[1366, 768], [1920, 1080]]) {
         await page.setViewportSize({ width: w, height: h });
-        await page.goto('/');
+        await page.goto('/dashboard');
         const city = page.getByTestId('header-city');
         await expect(city).toHaveAttribute('title', LONG);
+        if (w < 1600) {                                   // declutter pass: the place pill is shown from 1600 px
+            await expect(city).toBeHidden();
+            continue;
+        }
         for (const id of ['header-title', 'header-subtitle']) {
             const fits = await page.getByTestId(id).evaluate((el) => el.scrollWidth <= el.clientWidth + 1);
             expect(fits, `${id} at ${w}`).toBe(true);
@@ -64,7 +68,7 @@ test('header at 1366x768 with a long place name: the title is not clipped, the n
 
 test('sidebar: Live Map opens the ML Nowcast map; no Locations / Settings; bottom card links to the ML Nowcast', async ({ page }) => {
     await stubImages(page);
-    await page.goto('/');
+    await page.goto('/dashboard');
     const aside = page.locator('aside');
     await expect(aside.getByText('Locations', { exact: true })).toHaveCount(0);
     await expect(aside.getByText('Settings', { exact: true })).toHaveCount(0);
@@ -81,7 +85,7 @@ test('header search on another page runs the search on the dashboard (was a no-o
     await page.goto('/alerts');
     await page.locator('header').getByPlaceholder(/Search city/).fill('Pune');
     await page.locator('header').getByRole('button', { name: 'Find' }).click();
-    await expect(page).toHaveURL(/\/$/);
+    await expect(page).toHaveURL(/\/dashboard$/);
     await expect(page.getByTestId('header-city')).toHaveText('Pune', { timeout: 30_000 });
 });
 

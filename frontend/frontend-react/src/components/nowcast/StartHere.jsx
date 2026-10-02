@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { X, ArrowRight, Compass } from 'lucide-react';
 
 // "Start here" (judge-first pass): shown on the first open of /nowcast, dismissible, reopened from the
@@ -28,9 +29,9 @@ const StartHere = ({ data, error, onClose, onGo }) => {
             {data && (
                 <ol className="px-4">
                     {data.findings.map((f) => (
-                        <li key={f.id} data-testid={`finding-${f.id}`} className="py-1.5 border-b border-slate-100 dark:border-slate-800 last:border-0 text-[15px] leading-normal">
+                        <li key={f.id} data-testid={`finding-${f.id}`} className="py-1.5 border-b border-slate-100 dark:border-slate-800 last:border-0 text-base leading-normal">
                             {f.case_study && (
-                                <span data-testid="finding-case-study" className="mr-1.5 align-[1px] text-[11px] font-black uppercase px-1.5 py-0.5 rounded bg-violet-100 text-violet-900 dark:bg-violet-900/50 dark:text-violet-100">case study</span>
+                                <span data-testid="finding-case-study" className="mr-1.5 align-[1px] text-xs font-black uppercase px-1.5 py-0.5 rounded bg-violet-100 text-violet-900 dark:bg-violet-900/50 dark:text-violet-100">case study</span>
                             )}
                             {f.text}{' '}
                             <button type="button" data-testid={`finding-go-${f.id}`} onClick={() => onGo(f)}
@@ -41,7 +42,12 @@ const StartHere = ({ data, error, onClose, onGo }) => {
                     ))}
                 </ol>
             )}
-            {data && <p data-testid="start-here-note" className="px-4 pt-1 pb-2.5 text-sm text-slate-500 dark:text-slate-400">{data.case_study_note.quote.replace(/\n/g, ' ')}</p>}
+            {data && <p data-testid="start-here-note" className="px-4 pt-1 text-sm text-slate-500 dark:text-slate-400">{data.case_study_note.quote.replace(/\n/g, ' ')}</p>}
+            <p className="px-4 pt-1 pb-2.5">
+                <Link to="/" data-testid="start-here-overview" className="inline-flex items-center gap-1 font-bold text-blue-700 dark:text-blue-300 hover:underline">
+                    See the overview (a 1-minute visual briefing) <ArrowRight size={16} />
+                </Link>
+            </p>
         </section>
     );
 };

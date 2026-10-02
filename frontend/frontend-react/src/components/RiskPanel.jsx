@@ -49,19 +49,19 @@ const RiskPanel = ({ cityData }) => {
             
             <div className="grid grid-cols-2 gap-4">
                 <div className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-700/50 dark:to-slate-800/50 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
-                    <p className="text-[10px] text-slate-500 dark:text-slate-400 uppercase font-bold tracking-wider">Temperature</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 uppercase font-bold tracking-wider">Temperature</p>
                     <p className="text-2xl font-black text-slate-800 dark:text-white mt-1">{weather.temperature}°C</p>
                 </div>
                 <div className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-700/50 dark:to-slate-800/50 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
-                    <p className="text-[10px] text-slate-500 dark:text-slate-400 uppercase font-bold tracking-wider">Rainfall</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 uppercase font-bold tracking-wider">Rainfall</p>
                     <p className="text-2xl font-black text-slate-800 dark:text-white mt-1">{weather.rainfall} mm</p>
                 </div>
                 <div className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-700/50 dark:to-slate-800/50 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
-                    <p className="text-[10px] text-slate-500 dark:text-slate-400 uppercase font-bold tracking-wider">Humidity</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 uppercase font-bold tracking-wider">Humidity</p>
                     <p className="text-2xl font-black text-slate-800 dark:text-white mt-1">{weather.humidity}%</p>
                 </div>
                 <div className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-700/50 dark:to-slate-800/50 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
-                    <p className="text-[10px] text-slate-500 dark:text-slate-400 uppercase font-bold tracking-wider">Wind</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 uppercase font-bold tracking-wider">Wind</p>
                     <p className="text-2xl font-black text-slate-800 dark:text-white mt-1">{weather.wind_speed} m/s</p>
                 </div>
             </div>

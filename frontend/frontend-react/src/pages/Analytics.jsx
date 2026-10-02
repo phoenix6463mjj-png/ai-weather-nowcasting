@@ -36,7 +36,7 @@ const Term = ({ k, children }) => (
             {children}
         </button>
         <span role="tooltip" id={`term-${k}`}
-            className="invisible opacity-0 group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100 transition-opacity duration-150 absolute z-30 left-0 top-full mt-1 w-64 max-w-[80vw] rounded-lg bg-slate-900 text-white text-sm font-normal leading-snug p-2.5 shadow-lg">
+            className="hidden group-hover:block group-focus-within:block absolute z-30 left-0 top-full mt-1 w-64 max-w-[calc(100vw-3rem)] rounded-lg bg-slate-900 text-white text-sm font-normal leading-snug p-2.5 shadow-lg">
             {TERMS[k]}
         </span>
     </span>
@@ -141,7 +141,7 @@ const AreaChart = ({ rows, hazards, lead, onLead }) => {
                                 );
                             })}
                             {sel && <rect x={x - 4} y={pad.t - 6} width={w + 8} height={H - pad.t - pad.b + 6} fill="none" stroke="#0f172a" strokeWidth="2" rx="6" />}
-                            <text x={x + w / 2} y={H - 12} textAnchor="middle" fontSize="14" fontWeight={sel ? 800 : 500} fill="currentColor">+{r.lead} h</text>
+                            <text x={x + w / 2} y={H - 12} textAnchor="middle" fontSize="15" fontWeight={sel ? 800 : 500} fill="currentColor">+{r.lead} h</text>
                         </g>
                     );
                 })}
@@ -174,7 +174,7 @@ const AttributionChart = ({ a, lead, dim }) => {
                     const y = i * (rowH + 12) + 2;
                     return (
                         <g key={L}>
-                            <text x={0} y={y + rowH / 2 + 5} fontSize="14" fontWeight={sel ? 800 : 500} fill="currentColor">+{L} h</text>
+                            <text x={0} y={y + rowH / 2 + 5} fontSize="15" fontWeight={sel ? 800 : 500} fill="currentColor">+{L} h</text>
                             {a.groups.map((gr) => {
                                 const v = a.per_lead[L].shares[gr.key] || 0;
                                 const w = (v / 100) * (W - labelW - 4);
@@ -236,7 +236,7 @@ const SkillChart = ({ s, lead }) => {
                 {[0, max / 2, max].map((v) => (
                     <g key={v}>
                         <line x1={pad.l} x2={W - pad.r} y1={y(v)} y2={y(v)} stroke="#e2e8f0" />
-                        <text x={pad.l - 6} y={y(v) + 5} textAnchor="end" fontSize="14" fill="#64748b">{v.toFixed(1)}</text>
+                        <text x={pad.l - 6} y={y(v) + 5} textAnchor="end" fontSize="15" fill="#64748b">{v.toFixed(1)}</text>
                     </g>
                 ))}
                 {li >= 0 && <line x1={x(li)} x2={x(li)} y1={pad.t} y2={H - pad.b} stroke="#0f172a" strokeWidth="2" strokeDasharray="3 3" />}
@@ -251,7 +251,7 @@ const SkillChart = ({ s, lead }) => {
                         ))}
                     </g>
                 ))}
-                {rows.map((rr, i) => <text key={rr.lead} x={x(i)} y={H - 12} textAnchor="middle" fontSize="14" fontWeight={rr.lead === lead ? 800 : 500} fill="currentColor">+{rr.lead} h</text>)}
+                {rows.map((rr, i) => <text key={rr.lead} x={x(i)} y={H - 12} textAnchor="middle" fontSize="15" fontWeight={rr.lead === lead ? 800 : 500} fill="currentColor">+{rr.lead} h</text>)}
             </svg>
             <ul className="flex flex-wrap gap-x-5 gap-y-1 text-sm mt-1">
                 {SKILL_LINES.map(([k, name, col, dash]) => (
@@ -301,7 +301,7 @@ const Analytics = () => {
             for (const e of eps.episodes) {
                 const it = e.episode === eps.default.episode ? e.issues.find((i) => i.ts === eps.default.ts) : e.issues[Math.floor(e.issues.length / 2)];
                 list.push({ id: e.episode, kind: 'replay', ep: e.episode, ts: it.ts, issue: it.issue_time, forecastOnly: it.explain_available === false,
-                    label: `Event replay ${e.episode} · ${e.sites?.length ? e.sites.map((x) => x.name).join(' + ') : e.location}${e.in_sample ? ' · IN-SAMPLE' : ''}`,
+                    label: `Event replay: ${e.sites?.length ? e.sites.map((x) => x.name).join(' + ') : e.location}${e.in_sample ? ' · IN-SAMPLE' : ''}`,
                     badge: e.in_sample ? e.sample_label : e.badge });
             }
             setSources(list);
@@ -351,8 +351,8 @@ const Analytics = () => {
     const attrApplies = doc?.attribution?.applies_to?.filter((h) => hazards.includes(h)) || [];
 
     return (
-        <div className="min-h-screen bg-white dark:bg-[#0b0f19] text-slate-900 dark:text-slate-100 font-sans overflow-x-hidden">
-            <TopHeader showCredits selectedCity="All India" />
+        <div data-testid="analytics-page" className="min-h-screen bg-white dark:bg-[#0b0f19] text-slate-900 dark:text-slate-100 font-sans overflow-x-hidden">
+            <TopHeader showCredits />
             <div data-testid="analytics-topbar" className="sticky top-0 z-40 bg-white/95 dark:bg-[#0b0f19]/95 backdrop-blur border-b border-slate-200 dark:border-slate-800">
                 <div className="max-w-3xl mx-auto px-4 py-3 flex flex-wrap items-center gap-x-5 gap-y-3">
                     <label className="flex flex-col gap-1 min-w-0 flex-1 basis-60">
@@ -485,7 +485,7 @@ const Analytics = () => {
                             <p className="text-sm text-slate-500 mt-1">Observation only: not used by the model.</p>
                         </div>
                     )}
-                    <p data-testid="analytics-rule-link" className="text-base">Current-weather rule-based indicators: see <Link to="/" className="font-bold text-blue-700 dark:text-blue-400 hover:underline">Dashboard</Link>.</p>
+                    <p data-testid="analytics-rule-link" className="text-base">Current-weather rule-based indicators: see <Link to="/dashboard" className="font-bold text-blue-700 dark:text-blue-400 hover:underline">Dashboard</Link>.</p>
                 </footer>
             </main>
         </div>

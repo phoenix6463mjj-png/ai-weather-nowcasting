@@ -54,7 +54,8 @@ for (const [source, name] of [['open-meteo', 'Open-Meteo model data'], ['openwea
         const text = await page.locator('main').innerText();
         expect(text).not.toContain('AI Forecast Insight');
         expect(text).not.toMatch(/\bXAI\b/);
-        if (source !== 'openweather') expect(text).not.toContain('OpenWeather');
+        // the Open-Meteo credit names it as the fallback used only when OpenWeather is unavailable
+        if (source !== 'openweather') expect(text.replace('the fallback used only when OpenWeather is unavailable', '')).not.toContain('OpenWeather');
     });
 }
 

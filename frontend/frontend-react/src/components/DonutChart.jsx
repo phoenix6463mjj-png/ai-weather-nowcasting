@@ -33,7 +33,7 @@ const DonutChart = ({ data, unit = 'nodes', inner = 55, outer = 80, gapDeg = 4 }
                     <path key={p.name} d={p.d} fill={p.color} fillRule="evenodd"><title>{`${p.name}: ${p.value} ${unit}`}</title></path>
                 ))}
             </svg>
-            <div className="flex flex-wrap justify-center gap-x-3 gap-y-1 mt-2.5 text-[11px]">
+            <div className="flex flex-wrap justify-center gap-x-3 gap-y-1 mt-2.5 text-xs">
                 {slices.map((d) => (
                     <span key={d.name} className="flex items-center gap-1 text-slate-600 dark:text-slate-300">
                         <span className="inline-block w-[9px] h-[9px]" style={{ background: d.color }} />{d.name}

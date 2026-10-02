@@ -45,14 +45,14 @@ const panelOf = (page, city) => page.locator('h2', { hasText: city }).locator('x
 test('primary-threat card: shown for a HIGH zone, hidden for a Moderate one (panel opens with the weather)', async ({ page: first }) => {
     let page = first;
     await mockZones(page, [HIGH, MOD], 'Highville');
-    await page.goto('/');
+    await page.goto('/dashboard');
     let panel = panelOf(page, 'Highville');
     await expect(panel.getByTestId('primary-threat')).toBeVisible();
     await expect(panel.getByTestId('primary-threat')).toContainText('Flash Flood');
 
     const p2 = await page.context().newPage();                       // fresh page with Mumbai selected
     await mockZones(p2, [HIGH, MOD], 'Mumbai');
-    await p2.goto('/');
+    await p2.goto('/dashboard');
     page = p2;
     panel = panelOf(page, 'Mumbai');
     await expect(panel).toContainText('MODERATE RISK');
@@ -76,7 +76,7 @@ test('primary-threat card: shown for a HIGH zone, hidden for a Moderate one (pan
 
 test('explanation: the reason once, never together with "No explanation available"', async ({ page }) => {
     await mockZones(page, [MOD, BARE], 'Mumbai');
-    await page.goto('/');
+    await page.goto('/dashboard');
     let expl = panelOf(page, 'Mumbai').getByTestId('rule-explanation');
     await expect(expl).toContainText(`Reason: ${MOD.reason}`);
     await expect(expl).not.toContainText('No explanation available');
@@ -84,7 +84,7 @@ test('explanation: the reason once, never together with "No explanation availabl
 
     const p2 = await page.context().newPage();
     await mockZones(p2, [MOD, BARE], 'Quietpur');
-    await p2.goto('/');
+    await p2.goto('/dashboard');
     expl = panelOf(p2, 'Quietpur').getByTestId('rule-explanation');
     await expect(expl).toContainText('No explanation available');
     await expect(expl).not.toContainText('Reason');
@@ -92,7 +92,7 @@ test('explanation: the reason once, never together with "No explanation availabl
 
 test('no warning banner with 0 HIGH zones: neutral info strip; warning banner only with HIGH zones', async ({ page }) => {
     await mockZones(page, [MOD, BARE], 'Mumbai');
-    await page.goto('/');
+    await page.goto('/dashboard');
     await expect(page.getByTestId('info-strip-text')).toHaveText(
         'Rule-based indicators: 2 moderate, 0 high zones (Open-Meteo model data). Not an official warning.');
     await expect(page.getByTestId('alert-banner-text')).toHaveCount(0);
@@ -101,7 +101,7 @@ test('no warning banner with 0 HIGH zones: neutral info strip; warning banner on
 
     const p2 = await page.context().newPage();
     await mockZones(p2, [HIGH, MOD], 'Highville');
-    await p2.goto('/');
+    await p2.goto('/dashboard');
     await expect(p2.getByTestId('alert-banner-text')).toHaveText('High Risk in 1 location');
     await expect(p2.getByTestId('info-strip')).toHaveCount(0);
 });
@@ -118,7 +118,7 @@ test('calm-down screenshots of / and /alerts at 1920x1080 and 1366x768 (live bac
     await page.route('https://images.unsplash.com/**', (r) => r.fulfill({ body: PNG, contentType: 'image/png' }));
     for (const [w, h] of [[1920, 1080], [1366, 768]]) {
         await page.setViewportSize({ width: w, height: h });
-        await page.goto('/');
+        await page.goto('/dashboard');
         await expect(page.getByTestId('dashboard-source-badge')).not.toHaveText('Loading weather source…');
         await expect(page.getByTestId('rule-explanation').or(page.getByTestId('sample-safety-net'))).toBeVisible();
         await page.screenshot({ path: path.join(SHOTS, `calm_dashboard_${w}x${h}.png`) });

@@ -87,7 +87,7 @@ test('mixed "/": badge states real counts; banner/strip counts exclude sample zo
     const sampleCity = alerts.find((a) => a.zone_source === 'sample').city;
     await mockMixed(page);
     await selectCity(page, sampleCity);
-    await page.goto('/');
+    await page.goto('/dashboard');
     const nOM = summary.zone_sources.open_meteo + summary.zone_sources.open_meteo_stale;
     await expect(page.getByTestId('dashboard-source-badge'))
         .toHaveText(`Open-Meteo (model data) for ${nOM} of ${summary.total} zones, updated 05:15–06:15 UTC`);
@@ -115,7 +115,7 @@ test('mixed "/": an Open-Meteo HIGH zone keeps its risk, primary threat and haza
     const highCity = alerts.find((a) => a.zone_source !== 'sample' && a.severity === 'HIGH').city;
     await mockMixed(page);
     await selectCity(page, highCity);
-    await page.goto('/');
+    await page.goto('/dashboard');
     await expect(page.getByRole('heading', { name: new RegExp(`^${highCity}`) })).toBeVisible();
     await expect(page.getByTestId('panel-no-risk')).toHaveCount(0);
     await expect(page.getByTestId('primary-threat')).toBeVisible();
@@ -135,7 +135,7 @@ test('mixed "/": the neutral strip counts exclude sample zones', async ({ page }
         const summary = summaryOf(alerts);
         await route.fulfill({ response: res, json: { ...body, alerts, summary } });
     });
-    await page.goto('/');
+    await page.goto('/dashboard');
     const strip = page.getByTestId('info-strip-text');
     await expect(strip).toContainText(/Rule-based indicators: \d+ moderate, 0 high zones \(zones with weather data only; \d+ zones with sample data: risk not shown\)\. Not an official warning\./);
     const text = await strip.innerText();
@@ -185,10 +185,10 @@ test('mixed screenshots of /, Alerts, Forecast, Analytics at 1920x1080 and 1366x
     await mockMixed(page, { tiles: true });                  // real map tiles for the screenshots
     for (const [w, h] of [[1920, 1080], [1366, 768]]) {
         await page.setViewportSize({ width: w, height: h });
-        for (const [r, id] of [['', 'dashboard-source-badge'], ['alerts', 'alerts-total-caption'], ['forecast', 'forecast-list-source']]) {
+        for (const [r, id] of [['dashboard', 'dashboard-source-badge'], ['alerts', 'alerts-total-caption'], ['forecast', 'forecast-list-source']]) {
             await page.goto(`/${r}`);
             await expect(page.getByTestId(id)).toBeVisible();
-            await page.waitForTimeout(r === '' ? 4000 : 1200);          // map tiles on "/"
+            await page.waitForTimeout(r === 'dashboard' ? 4000 : 1200);          // map tiles on the Dashboard
             await page.screenshot({ path: path.join(SHOTS, `mixed_${r || 'dashboard'}_${w}x${h}.png`) });
         }
     }

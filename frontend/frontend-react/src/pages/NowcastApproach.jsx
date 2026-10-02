@@ -33,9 +33,9 @@ const NowcastApproach = () => {
             subtitle="What the proposal asked for, what was built and tested, and what live operation needs.">
             {error && <p className="text-base text-red-600">{error}</p>}
             {a && (
-                <div className="grid grid-cols-12 gap-4">
-                    <Card title="Proposal item → implemented feature → status" testid="approach-table" className="col-span-7">
-                        <table className="w-full text-base">
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+                    <Card title="Proposal item → implemented feature → status" testid="approach-table" className="lg:col-span-7 min-w-0">
+                        <div className="overflow-x-auto"><table className="w-full min-w-[34rem] text-base">
                             <thead>
                                 <tr className="text-left text-sm uppercase text-slate-500 border-b border-slate-200 dark:border-slate-700">
                                     <th className="py-1.5 pr-2 w-[170px]">Proposal item</th><th className="py-1.5 pr-2">Implemented feature / evidence</th><th className="py-1.5 w-[150px]">Status</th>
@@ -57,21 +57,21 @@ const NowcastApproach = () => {
                                     </tr>
                                 ))}
                             </tbody>
-                        </table>
+                        </table></div>
                     </Card>
-                    <div className="col-span-5 space-y-4">
+                    <div className="lg:col-span-5 space-y-4 min-w-0">
                         <Card title="Evidence: satellite rain (IMERG) misses cloudbursts" testid="imerg-evidence">
                             <p className="text-base mb-1.5">Satellite rain (IMERG) is the model's rain input. At the documented cloudbursts it peaks far below a cloudburst's intensity; at Pipalkoti it never reached the 30 mm/hr threshold:</p>
                             {a.imerg_evidence.map((q) => <Quote key={q.id} q={q} />)}
                         </Card>
                         <Card title="Live readiness" testid="live-readiness">
                             <p className="text-sm font-black uppercase text-slate-500 mb-1">Open data today (measured latency)</p>
-                            <div className="grid grid-cols-2 gap-2 mb-2">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-2">
                                 <Stat testid="lat-imerg" label="IMERG Early" value={`~${n.imerg_early_min[0]} min`} sub={lat.imerg_early_label} />
                                 <Stat testid="lat-gfs" label="GFS analysis" value={`~${n.gfs_min[0]} min`} sub="age varies with the 6 h cycle (quoted below)" />
                             </div>
                             <p className="text-sm font-black uppercase text-slate-500 mb-1">INSAT via the MOSDAC API (measured, search only)</p>
-                            <div className="grid grid-cols-3 gap-2 mb-2">
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-2">
                                 <Stat testid="lat-3dr" label="INSAT-3DR" value={`${n.insat_3dr_min[0]} min`} sub={`every ${n.insat_cadence_min[0]} min, :15/:45`} />
                                 <Stat testid="lat-3ds" label="INSAT-3DS" value={`${n.insat_3ds_min[0]} min`} sub={`every ${n.insat_cadence_min[0]} min, :00/:30`} />
                                 <Stat testid="lat-combined" label="3DR + 3DS" value={`${n.insat_combined_min[0]} min`} sub="effective refresh" />
@@ -79,7 +79,7 @@ const NowcastApproach = () => {
                             <div data-testid="latency-arithmetic" className="rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 p-2.5 text-base space-y-0.5 mb-2">
                                 <p>A {lat.lead_h} h lead on IMERG Early data {lat.imerg_early_age_h} h old (our first live poll) ≈ <b>{lat.real_warning_imerg_h} h</b> of real warning;
                                     at the ~{lat.imerg_early_typical_h} h typical latency LIVE_PIPELINE.md also notes ≈ <b>{lat.real_warning_imerg_typical_h} h</b>.</p>
-                                <p>On ~{lat.insat_age_h} h-old INSAT data ≈ <b>{lat.real_warning_insat_h} h</b>.</p>
+                                <p>On ~{lat.insat_age_h} h-old INSAT data ≈ <b>{lat.real_warning_insat_h} h</b> (arithmetic, not a demonstrated result).</p>
                             </div>
                             {a.insat_latency && (
                                 <p data-testid="approach-insat-latency" className="text-base mb-2">

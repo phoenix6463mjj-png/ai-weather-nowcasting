@@ -152,6 +152,7 @@ export function mixedBadge(summary, zones = []) {
     const parts = [];
     if (m.openWeather > 0) parts.push(`OpenWeather (current weather) for ${m.openWeather} of ${m.total} zones${upd(st.openweather || listTimes)}`);
     if (m.openMeteo > 0) parts.push(`Open-Meteo (model data) for ${m.openMeteo} of ${m.total} zones${upd(st['open-meteo'] || listTimes)}`);
+    if (parts.length && summary?.openweather_filling && m.openWeather < m.total) parts.push('the rest switch to OpenWeather as they are fetched');
     return parts.length ? parts.join('; ') : 'Sample data — no live weather feed';
 }
 

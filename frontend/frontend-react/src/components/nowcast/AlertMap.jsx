@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { MapContainer, TileLayer, GeoJSON, CircleMarker, Circle, Tooltip, ImageOverlay, Rectangle, Pane, ZoomControl, useMap, useMapEvents } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import { HAZARD_STYLE, LEVEL_STYLE, VERIFY_STYLE, valueText, FF_VERIFY_NOTE } from '../../utils/hazardLabels';
-import { TERRAIN_ATTRIBUTION } from './useTerrain';
+import { TERRAIN_ATTRIBUTION, terrainHolders } from './useTerrain';
 
 const esc = (t) => String(t || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
 
@@ -105,7 +105,7 @@ const AlertMap = ({ bounds, alerts = [], selectedId, onSelect: onSelectProp, sit
         <Pane name="nowcast-terrain" style={{ zIndex: 300 }}>
             {terrain.map((t) => (
                 <ImageOverlay key={t.url} url={t.url} bounds={t.bounds} opacity={t.opacity} className="nowcast-terrain"
-                    attribution={`Terrain: <span title="${esc(terrainNotice)}">${TERRAIN_ATTRIBUTION}</span>`} />
+                    attribution={`Terrain: <span title="${esc(terrainNotice)}">${TERRAIN_ATTRIBUTION} ${esc(terrainHolders(terrainNotice))}</span>`} />
             ))}
         </Pane>
         {/* rasters live in their own pane below the alert polygons (overlayPane is z 400) */}
@@ -178,7 +178,7 @@ const AlertMap = ({ bounds, alerts = [], selectedId, onSelect: onSelectProp, sit
                 pathOptions={{ color: '#6d28d9', weight: 2.5, fillColor: c.outside_all_alerts ? '#6d28d9' : '#ffffff', fillOpacity: 1,
                     className: `nowcast-shelter-marker ${c.outside_all_alerts ? 'outside' : 'inside'}` }}>
                 <Tooltip permanent direction="right" offset={[7, 0]} className="nowcast-shelter-label">
-                    <span className="text-[10px] font-black">{c.prefix || ''}{c.rank}</span>
+                    <span className="text-xs font-black">{c.prefix || ''}{c.rank}</span>
                 </Tooltip>
             </CircleMarker>
         ))}

@@ -261,7 +261,7 @@ const Terrain3D = ({ point, radiusKm, pins, alerts, lead, wording, onClose }) =>
                 <header className="flex items-center gap-3 px-4 py-2 border-b border-slate-200 dark:border-slate-700">
                     <h3 className="text-sm font-black text-slate-900 dark:text-white">3D view</h3>
                     <span data-testid="terrain3d-exaggeration" className="text-xs font-black px-2 py-0.5 rounded bg-slate-800 text-white">Height ×{EXAG}</span>
-                    {t?.available && <span className="text-[11px] text-slate-600 dark:text-slate-300">{(t.half_km * 2).toFixed(0)} × {(t.half_km * 2).toFixed(0)} km around {point.lat.toFixed(3)}N {point.lon.toFixed(3)}E · alerts at +{lead} h as on the map</span>}
+                    {t?.available && <span className="text-xs text-slate-600 dark:text-slate-300">{(t.half_km * 2).toFixed(0)} × {(t.half_km * 2).toFixed(0)} km around {point.lat.toFixed(3)}N {point.lon.toFixed(3)}E · alerts at +{lead} h as on the map</span>}
                     <button type="button" data-testid="terrain3d-reset" onClick={() => ctl.current?.reset()} disabled={state.status !== 'data'}
                         className="ml-auto flex items-center gap-1 px-2 py-1 rounded text-xs font-bold border border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40">
                         <RotateCcw size={13} /> Reset view
@@ -280,9 +280,9 @@ const Terrain3D = ({ point, radiusKm, pins, alerts, lead, wording, onClose }) =>
                     )}
                     {state.status === 'na' && <p className="absolute inset-0 flex items-center justify-center text-sm">{t.message}</p>}
                     {state.status === 'error' && <p className="absolute inset-0 flex items-center justify-center text-sm text-red-600">{state.error}</p>}
-                    {state.status === 'data' && <p className="absolute top-2 left-3 text-[11px] text-slate-700 bg-white/80 rounded px-2 py-1">Drag to rotate · scroll to zoom</p>}
+                    {state.status === 'data' && <p className="absolute top-2 left-3 text-xs text-slate-700 bg-white/80 rounded px-2 py-1">Drag to rotate · scroll to zoom</p>}
                 </div>
-                <footer className="px-4 py-2 border-t border-slate-200 dark:border-slate-700 space-y-1 text-[11px]">
+                <footer className="px-4 py-2 border-t border-slate-200 dark:border-slate-700 space-y-1 text-xs">
                     <div data-testid="terrain3d-legend" className="flex flex-wrap items-center gap-x-4 gap-y-1 text-slate-700 dark:text-slate-200">
                         {t?.available && (
                             <span className="flex items-center gap-1">
@@ -296,7 +296,7 @@ const Terrain3D = ({ point, radiusKm, pins, alerts, lead, wording, onClose }) =>
                         <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-full bg-violet-700" />candidate outside all alerts · <span className="inline-block w-3 h-3 rounded-full border-2 border-violet-700" />inside one</span>
                     </div>
                     <p data-testid="terrain3d-wording" className="font-bold text-amber-950 dark:text-amber-100 bg-amber-100 dark:bg-amber-900/40 rounded px-2 py-1">{wording}</p>
-                    <p className="text-[10px] text-slate-500">Terrain: Copernicus DEM GLO-90, 9″ grid{t?.stride > 1 ? ` (every ${t.stride}nd cell)` : ''}; rivers/streams © OpenStreetMap contributors (ODbL). Heights are drawn ×{EXAG}; distances are not.</p>
+                    <p className="text-xs text-slate-500">Terrain: Copernicus DEM GLO-90, 9″ grid{t?.stride > 1 ? ` (every ${t.stride}nd cell)` : ''}; rivers/streams © OpenStreetMap contributors (ODbL). Heights are drawn ×{EXAG}; distances are not.</p>
                 </footer>
             </div>
         </div>

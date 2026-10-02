@@ -5,8 +5,8 @@ import { fileURLToPath } from 'node:url';
 
 const SHOTS = path.join(path.dirname(fileURLToPath(import.meta.url)), 'screenshots');
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64');
-const ML_FOOTER = ['era5', 'imerg', 'gfs', 'imd', 'copernicus_dem', 'insat_mosdac', 'nasa_gibs', 'osm', 'osm_shelters', 'open_meteo'];
-const TEAM = ['imd', 'nasa_gibs', 'osm', 'open_meteo', 'openweather', 'unsplash', 'nominatim'];
+const ML_FOOTER = ['era5', 'imerg', 'gfs', 'imd', 'copernicus_dem', 'insat_mosdac', 'nasa_gibs', 'osm', 'osm_shelters', 'openweather', 'open_meteo'];
+const TEAM = ['imd', 'nasa_gibs', 'osm', 'openweather', 'open_meteo', 'unsplash', 'nominatim'];      // OpenWeather (primary) before Open-Meteo (fallback)
 const PLACES = {
     shimla: { lat: '31.1048', lon: '77.1734', display_name: 'Shimla, Himachal Pradesh, India' },
     delhi: { lat: '28.6139', lon: '77.2090', display_name: 'Delhi, India' },
@@ -38,6 +38,7 @@ test('ML footer lists every data source in order, with its provider wording', as
     await page.goto('/nowcast');
     const api = (await (await cr).json()).credits;
     const footer = page.getByTestId('data-credits');
+    await page.getByTestId('credits-toggle').click();                 // one line until opened (declutter pass)
     const ids = await footer.locator('[data-testid^="credit-"]').evaluateAll((els) => els.map((e) => e.dataset.testid.slice(7)));
     expect(ids).toEqual(ML_FOOTER);
     for (const id of ML_FOOTER) {
@@ -53,14 +54,15 @@ test('ML footer lists every data source in order, with its provider wording', as
     await expect(page.getByTestId('credit-nominatim')).toHaveCount(0);
     for (const [w, h] of [[1920, 1080], [1366, 768]]) {
         await page.setViewportSize({ width: w, height: h });
-        await expect(page.getByTestId('credit-open_meteo')).toBeInViewport({ ratio: 1 });
+        await page.getByTestId('credit-open_meteo').scrollIntoViewIfNeeded();
+        await expect(page.getByTestId('credit-open_meteo')).toBeInViewport();
         await page.screenshot({ path: path.join(SHOTS, `credits_ml_footer_${w}x${h}.png`) });
     }
 });
 
 test('team pages: a Credits button opens the team credits (Esc and × close it); photo credit shown', async ({ page }) => {
     await stubExternal(page);
-    for (const route of ['/', '/forecast', '/alerts', '/analytics', '/reports']) {
+    for (const route of ['/dashboard', '/forecast', '/alerts', '/analytics', '/reports']) {
         await page.goto(route);
         const btn = page.getByTestId('team-credits-button').first();
         await expect(btn).toBeVisible();
@@ -72,7 +74,7 @@ test('team pages: a Credits button opens the team credits (Esc and × close it);
         expect(ids).toEqual(TEAM);
         await expect(box.getByTestId('team-credit-unsplash')).toContainText('Photos: Unsplash.');
         await expect(box.getByTestId('team-credit-nominatim')).toContainText('© OpenStreetMap contributors');
-        if (route === '/') {
+        if (route === '/dashboard') {
             await expect(page.getByTestId('photo-credit').first()).toHaveText('Photo: Unsplash');
             for (const [w, h] of [[1920, 1080], [1366, 768]]) {
                 await page.setViewportSize({ width: w, height: h });
@@ -81,8 +83,8 @@ test('team pages: a Credits button opens the team credits (Esc and × close it);
             }
             await page.setViewportSize({ width: 1600, height: 1000 });
         }
-        await page.keyboard.press(route === '/' ? 'Escape' : 'Tab');
-        if (route !== '/') await box.getByTestId('team-credits-close').click();
+        await page.keyboard.press(route === '/dashboard' ? 'Escape' : 'Tab');
+        if (route !== '/dashboard') await box.getByTestId('team-credits-close').click();
         await expect(page.getByTestId('team-credits')).toHaveCount(0);
     }
     await page.goto('/nowcast');                                                     // ML pages use their footer instead
@@ -92,7 +94,7 @@ test('team pages: a Credits button opens the team credits (Esc and × close it);
 test('Nominatim: no request per keystroke, cached repeats, >= 1 s apart, latest search wins, Referer sent, OSM credit shown', async ({ page }) => {
     await stubExternal(page);
     const calls = await mockNominatim(page);
-    await page.goto('/');
+    await page.goto('/dashboard');
     await expect(page.getByTestId('dashboard-source-badge')).not.toHaveText('Loading weather source…');
     const input = page.getByLabel('Search city (e.g. Mumbai, Jaipur)');
     await input.pressSequentially('Shimla', { delay: 60 });

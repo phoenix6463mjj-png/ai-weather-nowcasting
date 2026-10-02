@@ -7,7 +7,7 @@ const IMDChip = ({ level, large = false }) => {
     if (!s) return null;
     return (
         <span data-testid="imd-chip" data-imd={s.name} title={IMD_NOTE}
-            className={`inline-flex items-center px-1.5 py-px rounded-full ${large ? "text-sm leading-5" : "text-[10px] leading-4"} font-black shrink-0 ring-1 ring-black/20`}
+            className={`inline-flex items-center px-1.5 py-px rounded-full ${large ? "text-sm leading-5" : "text-xs leading-4"} font-black shrink-0 ring-1 ring-black/20`}
             style={{ background: s.color, color: s.text }}>
             {s.label}
         </span>

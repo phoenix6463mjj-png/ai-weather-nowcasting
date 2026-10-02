@@ -10,7 +10,8 @@ import useTerrain from './useTerrain';
 import Drawer from './Drawer';
 import LayersPanel from './LayersPanel';
 import CaveatsPanel from './CaveatsPanel';
-import { MapBadges } from './MapFrame';
+import { StatusLine } from './MapFrame';
+import { periodOf, withoutIds } from '../../utils/plainText';
 
 // The all-India example has no flash-flood guidance (all-empty placeholder band), so it is not offered.
 const INDIA_FIELDS = FIELD_OPTIONS.filter((o) => o.id && o.id !== 'flash_flood');
@@ -39,21 +40,19 @@ const NationalView = ({ mapOverlay = null }) => {
     return (
         <div className="flex-1 flex overflow-hidden min-h-0">
             <div className="flex-1 flex flex-col min-w-0">
-                <MapBadges testid="india-banner" tone="bg-sky-50 dark:bg-sky-950/40 border-b border-sky-200 dark:border-sky-900">
+                <StatusLine testid="india-banner" tone="bg-sky-50 dark:bg-sky-950/40 border-b border-sky-200 dark:border-sky-900" details={
+                    <p className="text-slate-700 dark:text-slate-300">
+                        One precomputed nowcast for the whole country{inputNote ? ` (${withoutIds(inputNote).replace(/^Input frames come from /, 'inputs from ').replace(/\.$/, '')})` : ''}.
+                        It is a probability map only. No alerts are produced for the national grid,
+                        and the flash-flood layer is a placeholder (not computed) · model {meta?.model}
+                    </p>}>
                     <MapIcon size={16} className="text-sky-700 dark:text-sky-300 shrink-0" />
-                    <div className="text-[11px] text-slate-800 dark:text-slate-200 leading-snug">
-                        {meta && (
-                            <p data-testid="india-subtitle" className="text-xs font-black">
-                                All-India example: one precomputed nowcast for the whole country, issued {fmtUtc(meta.issue_time, false)}
-                                {inputNote ? `, ${inputNote.replace(/^Input frames come from /, 'inputs from ').replace(/\): /, '); ').replace(/\.$/, '')}` : ''}. Not live.
-                            </p>
-                        )}
-                        <p className="text-slate-700 dark:text-slate-300">
-                            It is a probability map only. No alerts are produced for the national grid,
-                            and the flash-flood layer is a placeholder (not computed) · model {meta?.model}
+                    {meta && (
+                        <p data-testid="india-subtitle" className="text-base font-black text-slate-800 dark:text-slate-100 min-w-0">
+                            All of India at one past time: {fmtUtc(meta.issue_time, false)}{periodOf(inputNote) ? ` (${periodOf(inputNote)})` : ''}. Probability map only, not live.
                         </p>
-                    </div>
-                </MapBadges>
+                    )}
+                </StatusLine>
                 {error && <div className="bg-red-600 text-white px-6 py-2 text-sm font-semibold">{error}</div>}
                 <div className="flex-1 relative min-h-0">
                     {meta && <AlertMap bounds={meta.bounds} overlays={overlays} alerts={[]} terrain={terrain.layers} terrainNotice={terrain.fullNotice} />}
@@ -78,7 +77,7 @@ const NationalView = ({ mapOverlay = null }) => {
                     <div className="p-4 space-y-3">
                         <ul data-testid="india-notes" className="space-y-2">
                             {(meta?.notes || []).map((n) => (
-                                <li key={n} className="text-base text-slate-700 dark:text-slate-300 leading-normal">• {n}</li>
+                                <li key={n} className="text-base text-slate-700 dark:text-slate-300 leading-normal">• {withoutIds(n)}</li>
                             ))}
                         </ul>
                         {meta && (

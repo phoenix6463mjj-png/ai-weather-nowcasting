@@ -69,7 +69,7 @@ const threeWay = (i) => (i % 3 === 0 ? 'sample' : i % 3 === 1 ? 'openweather' : 
 
 test('OpenWeather for every zone: badge "OpenWeather (current weather), updated HH:MM UTC" and the attribution', async ({ page }) => {
     await mock(page, allOW);
-    await page.goto('/');
+    await page.goto('/dashboard');
     await expect(page.getByTestId('dashboard-source-badge')).toHaveText('OpenWeather (current weather), updated 13:45 UTC');
     await expect(page.getByTestId('openweather-credit').first()).toContainText('Weather data © OpenWeather');
     await expect(page.getByTestId('openweather-credit').first().getByRole('link', { name: 'Weather data © OpenWeather' }))
@@ -86,7 +86,7 @@ test('OpenWeather for every zone: badge "OpenWeather (current weather), updated 
 
 test('OpenWeather + sample: badge from real counts; sample zones unrated (per-zone rule unchanged)', async ({ page }) => {
     await mock(page, owAndSample);
-    await page.goto('/');
+    await page.goto('/dashboard');
     const data = await (await page.request.get('http://127.0.0.1:8000/alerts?limit=380')).json();
     const T = data.alerts.length;
     const nSample = data.alerts.filter((_, i) => owAndSample(i) === 'sample').length;
@@ -100,7 +100,7 @@ test('OpenWeather + sample: badge from real counts; sample zones unrated (per-zo
 
 test('OpenWeather + Open-Meteo + sample: one part per source, each with its own time', async ({ page }) => {
     await mock(page, threeWay);
-    await page.goto('/');
+    await page.goto('/dashboard');
     const data = await (await page.request.get('http://127.0.0.1:8000/alerts?limit=380')).json();
     const T = data.alerts.length;
     const c = (k) => data.alerts.filter((_, i) => threeWay(i) === k).length;
@@ -128,7 +128,7 @@ test('OpenWeather screenshots of / and Analytics at 1920x1080 and 1366x768', asy
     await mock(page, (i) => (i % 4 === 3 ? 'sample' : 'openweather'), HIGH_LOW_RAIN, { tiles: true });
     for (const [w, h] of [[1920, 1080], [1366, 768]]) {
         await page.setViewportSize({ width: w, height: h });
-        await page.goto('/');
+        await page.goto('/dashboard');
         await expect(page.getByTestId('openweather-credit').first()).toBeVisible();
         await page.waitForTimeout(4000);
         await page.screenshot({ path: path.join(SHOTS, `openweather_dashboard_${w}x${h}.png`) });

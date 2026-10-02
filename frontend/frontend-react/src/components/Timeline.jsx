@@ -22,7 +22,7 @@ const Timeline = () => {
                     <h3 data-testid="dashboard-timeline-text" className="text-sm font-black text-slate-800 dark:text-white">
                         Per-lead forecasts{leads?.length ? ` (${leads.join(', ')} h)` : ''} → ML Nowcast
                     </h3>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                         This page has no per-lead forecast; the calibrated lead-time maps are on the ML Nowcast page.
                     </p>
                 </div>

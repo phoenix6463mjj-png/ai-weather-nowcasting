@@ -68,10 +68,13 @@ test.describe('first visit', () => {
             await page.setViewportSize({ width: w, height: h });
             await page.goto('/nowcast');
             await loaded(page, `${st.episode}/${st.ts}`);
-            await expect(page.getByTestId('explain-panel')).toContainText(st.alert_id);
             await expect(page.getByTestId('start-here')).toBeVisible();
+            // below 1600 px the drawer waits (collapsed) while Start here is open (overview pass)
+            if (w < 1600) await expect(page.getByTestId('drawer')).toHaveAttribute('data-open', '');
+            else await expect(page.getByTestId('explain-panel')).toContainText(st.alert_id);
             await shot(page, `judge_default_starthere_open_${w}x${h}`);
             await page.getByTestId('start-here-close').click();
+            await expect(page.getByTestId('explain-panel')).toContainText(st.alert_id);
             await shot(page, `judge_default_starthere_closed_${w}x${h}`);
         }
     });
@@ -161,7 +164,7 @@ test('Pipalkoti one click away; Alert drawer: wording + documented-site note (sc
         if ((await page.getByTestId('layers-panel').getAttribute('data-open')) === 'false') await page.getByTestId('layers-toggle').click();
         await page.getByTestId(`lead-${p.lead}`).click();
         await page.getByTestId('watch-toggle').check();
-        if (w < 1400) await page.getByTestId('layers-toggle').click();
+        if (w < 1600) await page.getByTestId('layers-toggle').click();
         if ((await page.getByTestId('drawer').getAttribute('data-open')) !== 'alert') await page.getByTestId('drawer-tab-alert').click();
         await page.locator(`[data-alert-id="${p.alert_id}"]`).click();
         await expect(page.getByTestId('explain-site-note')).toHaveText(d.site_note.text);
@@ -210,6 +213,8 @@ test('Live: Data freshness strip (values from the API), thunderstorm layer on, l
     await page.setViewportSize({ width: 1920, height: 1080 });
     await page.goto('/nowcast?view=live');
     const strip = page.getByTestId('freshness-strip');
+    // the freshness strip sits in the Live status line's details (one compact line per view, overview pass)
+    await page.getByTestId('live-not-validated').getByTestId('status-info').click();
     await expect(strip).toBeVisible({ timeout: 30_000 });
     await expect(page.getByTestId('fresh-imerg')).toContainText(`${(meta.latency_min.imerg / 60).toFixed(1)} h old`);
     await expect(page.getByTestId('fresh-gfs')).toContainText(`${(meta.latency_min.gfs / 60).toFixed(1)} h old`);
@@ -223,6 +228,7 @@ test('Live: Data freshness strip (values from the API), thunderstorm layer on, l
     for (const [w, h] of SIZES) {
         await page.setViewportSize({ width: w, height: h });
         await page.goto('/nowcast?view=live');
+        await page.getByTestId('live-not-validated').getByTestId('status-info').click();
         await expect(page.getByTestId('fresh-compute')).toBeVisible({ timeout: 30_000 });
         await shot(page, `judge_live_freshness_${w}x${h}`);
     }
@@ -243,10 +249,12 @@ test('All-India example tab: renamed, subtitle with time and source read from th
     await page.getByTestId('tab-india').click();
     const sub = page.getByTestId('india-subtitle');
     const d = new Date(m.issue_time);
-    await expect(sub).toContainText(new RegExp(`^All-India example: one precomputed nowcast for the whole country, issued ${d.getUTCDate()} Sept? ${d.getUTCFullYear()}, ${String(d.getUTCHours()).padStart(2, '0')}:00 UTC`));
+    // plain words, no internal IDs (overview pass); the period is read from the input note
+    await expect(sub).toContainText(new RegExp(`^All of India at one past time: ${d.getUTCDate()} Sept? ${d.getUTCFullYear()}, ${String(d.getUTCHours()).padStart(2, '0')}:00 UTC`));
     const note = m.notes.find((n) => n.startsWith('Input frames come from'));
-    expect(note).toContain('REF054');
-    await expect(sub).toContainText(', inputs from REF054 (a 2024 test-period episode); display only, not a score. Not live.');
+    expect(note).toContain('(a 2024 test-period episode)');
+    await expect(sub).toContainText('(2024 test period). Probability map only, not live.');
+    await expect(sub).not.toContainText('REF0');
     await expect(page.locator('body')).not.toContainText('National sample');
 });
 
@@ -266,7 +274,7 @@ test('typography: drawer sections and Results/Approach >= 14 px, body 16 px; wid
             const panel = page.getByTestId(`drawer-panel-${s}`);
             await expect(panel).toBeVisible();
             await page.waitForTimeout(s === 'shelter' ? 1500 : 400);
-            expect(await minFont(panel), `${s} at ${w}`).toBeGreaterThanOrEqual(14);
+            expect(await minFont(panel), `${s} at ${w}`).toBeGreaterThanOrEqual(15);
             // the map keeps the main share of the width
             const mapBox = await page.locator('.leaflet-container').boundingBox();
             const pBox = await panel.boundingBox();
@@ -280,14 +288,14 @@ test('typography: drawer sections and Results/Approach >= 14 px, body 16 px; wid
     await page.setViewportSize({ width: 1920, height: 1080 });
     if ((await page.getByTestId('drawer').getAttribute('data-open')) !== 'alert') await page.getByTestId('drawer-tab-alert').click();
     const body = await page.getByTestId('explain-panel').locator('p').filter({ hasText: 'Confirmed = at least one IMERG cell' }).evaluate((e) => getComputedStyle(e).fontSize);
-    expect(body).toBe('16px');
+    expect(body).toBe('17px');                                    // site-wide type scale (overview pass)
     for (const [route, testid] of [['/nowcast/results', 'results-page'], ['/nowcast/approach', 'approach-page']]) {
         for (const [w, h] of SIZES) {
             await page.setViewportSize({ width: w, height: h });
             await page.goto(route);
             await expect(page.getByTestId(testid).locator('main')).toBeVisible();
             await page.waitForTimeout(1200);
-            expect(await minFont(page.getByTestId(testid).locator('main')), `${route} at ${w}`).toBeGreaterThanOrEqual(14);
+            expect(await minFont(page.getByTestId(testid).locator('main')), `${route} at ${w}`).toBeGreaterThanOrEqual(15);
             await page.screenshot({ path: path.join(SHOTS, `judge_${route.split('/').pop()}_${w}x${h}.png`) });
         }
     }

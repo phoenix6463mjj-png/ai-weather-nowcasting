@@ -16,7 +16,7 @@ import CaveatsPanel from './CaveatsPanel';
 import ShelterPanel, { SHELTER_LABEL } from './ShelterPanel';
 import LiveInsatControl from './LiveInsatControl';
 import { nowcastTarget } from '../../utils/nowcastUrl';
-import { MapBadges } from './MapFrame';
+import { StatusLine } from './MapFrame';
 import FreshnessStrip from './FreshnessStrip';
 
 const LIVE_FIELDS = FIELD_OPTIONS.filter((o) => o.id !== 'flash_flood');
@@ -206,24 +206,22 @@ const LiveView = ({ mapOverlay = null }) => {
     return (
         <div className="flex-1 flex overflow-hidden min-h-0">
             <div className="flex-1 flex flex-col min-w-0">
-                <MapBadges testid="live-not-validated" tone="bg-amber-100 dark:bg-amber-950/50 border-b-2 border-amber-400">
+                <StatusLine testid="live-not-validated" tone="bg-amber-100 dark:bg-amber-950/50 border-b-2 border-amber-400 text-amber-950 dark:text-amber-100" details={<>
+                    <p>These are not validated warnings. {runs?.label}
+                        {meta && <> · Issued {fmtUtc(meta.issue_time)} (one frozen run, not refreshing) · flash flood not computed on the national live grid</>}</p>
+                    <FreshnessStrip meta={meta} insat={insatLayer} compute={compute} />
+                </>}>
                     <AlertTriangle size={18} className="text-amber-700 dark:text-amber-400 shrink-0" />
-                    <div className="text-[11px] text-amber-950 dark:text-amber-100 leading-snug min-w-0 flex-1">
-                        <p className="text-xs font-black">System running operationally — NOT validated. These are not validated warnings.</p>
-                        <p>
-                            {runs?.label}
-                            {meta && <> · Issued {fmtUtc(meta.issue_time)} (one frozen run, not refreshing) · flash flood not computed on the national live grid</>}
-                            {otherRun && (
-                                <> · <button type="button" data-testid="live-other-run" data-run={otherRun.run} onClick={() => setRunId(otherRun.run)}
-                                    className="font-bold underline text-blue-800 dark:text-blue-300">
-                                    {otherRun.run === runs.runs[0].run ? 'Back to the newest run: ' : 'See the '}{runLinkText(otherRun)}
-                                </button></>
-                            )}
-                        </p>
-                        {meta?.no_alert_text && <p data-testid="live-no-alerts" className="text-xs font-black mt-0.5">{meta.no_alert_text}</p>}
-                    </div>
-                </MapBadges>
-                <FreshnessStrip meta={meta} insat={insatLayer} compute={compute} />
+                    <span className="text-base font-black">System running operationally — NOT validated</span>
+                    {meta && <span className="text-sm">Issued {fmtUtc(meta.issue_time, false)}</span>}
+                    {meta?.no_alert_text && <span data-testid="live-no-alerts" className="text-sm font-black">{meta.no_alert_text}</span>}
+                    {otherRun && (
+                        <button type="button" data-testid="live-other-run" data-run={otherRun.run} onClick={() => setRunId(otherRun.run)}
+                            className="text-sm font-bold underline text-blue-800 dark:text-blue-300">
+                            {otherRun.run === runs.runs[0].run ? 'Back to the newest run: ' : 'See the '}{runLinkText(otherRun)}
+                        </button>
+                    )}
+                </StatusLine>
                 {error && <div className="bg-red-600 text-white px-6 py-2 text-sm font-semibold">{error}</div>}
                 {runs && !runs.runs.length && <p className="p-6 text-sm">No live runs available.</p>}
                 <div className="flex-1 relative min-h-0">

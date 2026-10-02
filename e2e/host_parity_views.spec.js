@@ -101,6 +101,13 @@ async function drawerSections(page) {
 }
 
 async function clickThrough(page) {
+    // the Overview ("/"): every step, so each step's images are requested
+    await page.goto('/');
+    await expect(page.getByTestId('ov-text-2')).toContainText('mm/hr', { timeout: 60_000 });
+    for (let n = 1; n <= 8; n += 1) {
+        await page.getByTestId(`ov-dot-${n}`).click();
+        await page.waitForTimeout(n === 3 ? 9000 : 700);             // step 3 plays to the IMERG layer
+    }
     await page.goto('/nowcast');                                        // judge-first opening view: REF051 15:00Z
     await expect(page.getByTestId('replay-view')).toHaveAttribute('data-loaded', 'REF051/20240731T1500Z', { timeout: 60_000 });
     await cycleLeadsAndFields(page);

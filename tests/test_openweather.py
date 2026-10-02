@@ -74,6 +74,7 @@ def env(monkeypatch):
     monkeypatch.setattr(A, "OW_THROTTLE", A.CallThrottle(A.OPENWEATHER_MAX_PER_MIN, 60.0))
     A._OW_CACHE.clear()
     A._OW_WANTED.clear()
+    A._OW_FIRST.clear()
     A._OW_TASK["task"] = None
     for k in list(A.OPENWEATHER_STATUS):
         A.OPENWEATHER_STATUS[k] = None
@@ -84,6 +85,7 @@ def env(monkeypatch):
     yield clock
     A._OW_CACHE.clear()
     A._OW_WANTED.clear()
+    A._OW_FIRST.clear()
     A._OW_TASK["task"] = None
     A.OPENWEATHER_STATUS.pop("cooldown_ts", None)
 
@@ -294,6 +296,45 @@ def test_warmup_with_a_key_does_not_burst(env, monkeypatch):
     assert len(ow.times) == 380 and max_in_window(ow.times) <= 50
     M._UNIFIED_ALERTS_CACHE.clear()
     A._OW_TASK["task"] = None
+
+
+def test_shown_zones_are_fetched_first_then_the_rest_and_380_zones_fill_in_7_min(env, monkeypatch):
+    ow = OW(env)
+    use(monkeypatch, ow)
+    points = pts(380)
+    shown = points[300:305]
+
+    async def go():
+        A.openweather_zones(points)                    # cold start: nothing cached, the refresher starts
+        assert A.openweather_first(shown) == 5         # a page shows these 5 zones
+        await A._OW_TASK["task"]
+    asyncio.run(go())
+    got = [(float(q["lat"]), float(q["lon"])) for _, q in ow.params]
+    assert [A._om_key(*g) for g in got[:5]] == [A._om_key(*p) for p in shown]     # page order, before the rest
+    assert len(got) == 380 and len(set(A._om_key(*g) for g in got)) == 380
+    assert max_in_window(ow.times) <= 50
+    # 380 zones at 50 calls/min: the last call 7 min after the first (slots at 0, 60, ..., 420 s)
+    assert max(ow.times) - min(ow.times) == 420.0
+    assert A.openweather_pending() == 0 and A.openweather_first(shown) == 0
+
+
+def test_zones_first_endpoint_and_filling_fields(env, monkeypatch):
+    import backend.main as M
+    from fastapi.testclient import TestClient
+    monkeypatch.setattr(M, "API_KEY", KEY)
+    use(monkeypatch, OW(env))
+    started = []
+    monkeypatch.setattr(A, "_ow_start_refresh", lambda now: started.append(now) or False)
+    c = TestClient(M.app)
+    names = [l["city"] for l in M.get_sampled_locations(limit=405)[:3]]
+    body = c.get("/zones/first", params={"names": "|".join(names + ["Not a zone"])}).json()
+    assert body["queued"] == 3 and body["pending"] >= 3
+    assert len(A._OW_FIRST) == 3 and len(started) == 1          # the refresher is (re)started for them
+    assert M.openweather_filling() is True and M.unified_ttl() == M.UNIFIED_CACHE_TTL_FILLING
+    monkeypatch.setattr(A, "API_KEY", None)
+    monkeypatch.setattr(M, "API_KEY", None)
+    assert c.get("/zones/first", params={"names": names[0]}).json() == {"queued": 0, "pending": 0}
+    assert M.unified_ttl() == M.UNIFIED_CACHE_TTL
 
 
 def test_terms_record_matches_the_limits():

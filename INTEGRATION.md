@@ -1612,6 +1612,118 @@ Satellite observation (INSAT via MOSDAC). It is not a model input.
   `judge_alert_pipalkoti_watch_*`, `judge_live_freshness_*`, `judge_drawer_{alert,ingredients,event,shelter,caveats}_*`,
   `judge_results_*`, `judge_approach_*`, and `judge_popup_1920x1080`.
 
+### Overview page, navigation, type scale, weather source (2 Oct 2026)
+
+- **Navigation** (`components/TopHeader.jsx`): Overview (`/`) · Explore map (`/nowcast`) · Results · Analytics ·
+  a "Current weather (rule-based)" menu with Dashboard (moved unchanged to `/dashboard`), Forecast, Alerts and
+  Reports (the menu says "Rule-based indicators from current weather, not the ML model."; each page keeps its
+  own label). Below 1280 px one "Menu" button holds every page. Links that went to the old "/" Dashboard
+  (Sidebar, Alerts, Forecast, Reports, Analytics, the header search) now go to `/dashboard`.
+  - `vercel.json` already rewrites every path to `index.html`, so deep links survive a refresh.
+  - The city pill, search box and alert bell show only on the rule-based pages, from 1600 px.
+  - Every route except `/` is lazy-loaded (`App.jsx`), so the Overview paints first.
+- **Overview "System briefing"** (`pages/Overview.jsx`, `components/overview/`, `utils/briefing.js`;
+  `/api/overview` in `serve/overview.py`):
+  - a full-height map pinned on the right (phones: the top half) and eight steps; each step changes the map
+    (fly to the step's view; jump with prefers-reduced-motion);
+  - steps:
+    1. the documented val/test sites on the terrain;
+    2. the sites sized by IMERG peak (median 17.6 mm/hr, 6 of 24 ≥ 30);
+    3. Malana, 31 Jul 2024, with a scrubber: 14:00Z thunderstorm Warning, 15:00Z cloudburst Warning, 18:00Z
+       reported window, 18:30Z IMERG first ≥ 30 mm/hr (with the IMERG ≥30 layer);
+    4. the Malana Warning's top-5 reasons;
+    5. INSAT-3DR ≤180 K within 25 km of Malana at 17:45Z, and the three IMERG-blind 2024 cloudbursts (IMERG
+       peak vs coldest top);
+    6. CSI at ≥10 mm/hr by lead (validation), "higher CSI in 15/15 cells" and a Known limits link;
+    7. measured delays (IMERG Early 318 min, INSAT listing median, compute 14 s), the live INSAT snapshot and
+       the lead-time arithmetic ("arithmetic, not a demonstrated result");
+    8. six cards that open exact views (`/nowcast?ep=&ts=&alert=&lead=&level=&hazard=[&tab=shelter]`, Live,
+       Analytics, Results).
+  - step dots and the arrow keys move between steps; with reduced motion there is no autoplay (step 3 shows
+    its final state) and no transitions; images load only when their step is reached (thumbnails
+    `loading="lazy"`); on phones the step's chart sits under its text, not over the half-height map;
+  - top: "System briefing", a one-line headline and "Skip the briefing → Explore map"; footer: "Not an
+    official warning. Follow IMD and state advisories." and the Data credits line;
+  - no new npm package.
+- **/nowcast:**
+  - Start here has a "See the overview" link.
+  - Below 1600 px the opening Alert section waits (drawer collapsed) while Start here is open, and opens
+    when it closes; ≥ 1600 px is unchanged.
+  - `?alert=<id>&lead=&level=&hazard=&tab=<section>` opens that alert with that drawer section.
+  - One compact status line per view (`StatusLine` in `MapFrame.jsx`), with a "Details" (i) button:
+    - replay: split / case-study badge, forecast-only chip, case link; the details hold the case-study label
+      and the replay sources;
+    - All-India: "All of India at one past time: <time> UTC (2024 test period). Probability map only, not
+      live." The period is read from the input note; no REF IDs anywhere a visitor reads them (also the
+      episode picker, Analytics source labels and the INSAT event cards);
+    - Live: "System running operationally — NOT validated", the issue time, the no-alert line and the run
+      link stay visible; the Data freshness strip is in the details.
+  - The Layers panel and legend open from 1600 px and start collapsed below; the legend's notes sit behind
+    "More" (the IMD disclaimer stays visible). The map keeps ≥ ~70 % of its area uncovered at 1920×1080 with
+    the drawer open (tested).
+  - The subheader dropped the duplicate page links (Results is in the top nav; Approach stays linked from
+    Results), and the drawer's icon rail is 92 px so its 15 px labels fit.
+- **Type scale** (`index.css`):
+  - CSS variables:
+
+    | variable | size |
+    |---|---|
+    | `--fs-body` | 17 px |
+    | `--fs-secondary` | 15 px |
+    | `--fs-nav` | 16 px |
+    | `--fs-h3` | 20 px |
+    | `--fs-h2` | 24 px |
+    | `--fs-h1` | 30 px |
+    | `--fs-step-text` | 20 px |
+    | `--fs-step-heading` | 36 px |
+    | `--fs-credits` | 13 px |
+
+    Line-height is 1.5.
+  - Tailwind's `text-xs` and `text-sm` are remapped to 15 px, so no utility renders smaller; the old 9–11 px
+    sizes were replaced.
+  - SVG chart text renders at 15 px at any width (`utils/useSvgUnit.js`).
+  - Only the Data credits footer, the map attribution and the inline licence credits are 13 px.
+  - Results, Approach and Analytics reflow to one column on phones (no horizontal scroll at 390 px).
+- **Data credits:** one line ("Data credits: ERA5, IMERG, GFS, IMD, Copernicus DEM, INSAT/MOSDAC, NASA GIBS,
+  OpenStreetMap, OpenWeather, Open-Meteo … All credits") that expands to every credit. These stay visible
+  next to the data, because the licence asks for them there:
+  - OpenStreetMap: the map attribution.
+  - Copernicus DEM: the map attribution, with its copyright holders ("© DLR e.V. 2010-2014 and © Airbus
+    Defence and Space GmbH 2014-2018", read from the notice); the full notice is one click away.
+  - MOSDAC: "Data Source MOSDAC/SAC/ISRO" in the map attribution whenever an INSAT layer is drawn.
+  - OpenWeather ("Weather data © OpenWeather (ODbL)") and Open-Meteo ("Weather data by Open-Meteo.com
+    (CC BY 4.0)"): next to their data on the team pages.
+  - Nominatim: next to search results.
+- **Weather source:** OpenWeather is credited as the primary current-weather source and Open-Meteo as
+  "fallback, used only when OpenWeather is unavailable" (SOURCES.json order and labels, team credits, the
+  inline credits).
+  - After a cold start the backend fills the 380-zone list from OpenWeather at ≤ 50 calls/min (60-min cache,
+    unchanged).
+  - Pages now ask for the zones they show first (`GET /zones/first?names=a|b`, ≤ 60 names):
+    - Dashboard: the selected zone and the flagged zones;
+    - Alerts: the alert cards;
+    - Reports: the flagged zones.
+  - The refresher picks the newest requested missing point before each call.
+  - While `summary.openweather_filling` is true the zone list is rebuilt every 20 s and the pages re-poll
+    every 30 s.
+  - The badge keeps the real per-source counts and adds "the rest switch to OpenWeather as they are
+    fetched".
+  - Expected time after a cold start (the throttle's rolling window):
+    - all 380 zones on OpenWeather 7 min after the first call (slots at 0, 60, …, 420 s; tested);
+    - the zones a page shows within about a minute of the page loading.
+- **Tests:**
+  - serve 184, 8 of them new in `serve/tests/test_overview.py`;
+  - backend 62, 2 of them new (shown zones first and 380 zones in 7 min; `/zones/first`);
+  - e2e 189 in 25 files, including the new `e2e/overview.spec.js` (13);
+  - host parity: `tests/host_parity_probe.py` now probes `/overview`, `/start-here`, `/compute-latency` and
+    the Overview images, and `e2e/host_parity_views.spec.js` steps through the Overview.
+- **Screenshots:**
+  - Overview: `overview_step{1..8}_{1920x1080,390x844}`, `overview_step3_end_1920x1080`, `overview_390_*`;
+  - /nowcast: `overview_nowcast_drawer_{1920x1080,1366x768}`;
+  - navigation and credits: `overview_nav_menu_1366x768`, `overview_nav_compact_390x844`,
+    `overview_credits_open_1366x768`;
+  - Results and Approach: `judge_results_*`, `judge_approach_*`.
+
 ## 7. Troubleshooting
 
 | symptom | cause / fix |

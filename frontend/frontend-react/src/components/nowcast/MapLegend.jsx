@@ -4,15 +4,15 @@ import { HAZARD_STYLE, VERIFY_STYLE, IMD_NOTE } from '../../utils/hazardLabels';
 import { TERRAIN_ATTRIBUTION } from './useTerrain';
 import IMDChip from './IMDChip';
 
-const LEGEND_OPEN_MIN_WIDTH = 1400;
+const LEGEND_OPEN_MIN_WIDTH = 1600;
 
 const Swatch = ({ color, dashed, fill = 0.35, round }) => (
     <span className={`inline-block w-4 h-3 shrink-0 ${round ? 'rounded-full' : 'rounded-sm'}`}
         style={{ border: `2px ${dashed ? 'dashed' : 'solid'} ${color}`, background: `${color}${Math.round(fill * 255).toString(16).padStart(2, '0')}` }} />
 );
 
-const Row = ({ children, testid }) => <div data-testid={testid} className="flex items-center gap-2 text-[11px] text-slate-700 dark:text-slate-200 leading-tight">{children}</div>;
-const Head = ({ children }) => <p className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 pt-1 first:pt-0">{children}</p>;
+const Row = ({ children, testid, wrap = false }) => <div data-testid={testid} className={`flex items-center gap-2 text-xs text-slate-700 dark:text-slate-200 leading-tight ${wrap ? 'flex-wrap gap-y-1' : ''}`}>{children}</div>;
+const Head = ({ children }) => <p className="text-xs font-black uppercase text-slate-500 dark:text-slate-400 pt-1 first:pt-0">{children}</p>;
 
 /**
  * The one compact legend box. Only layers that are currently visible get an entry. Raster classes
@@ -27,19 +27,21 @@ const MapLegend = ({ legends, field, hazards = [], observed = false, missed = fa
     const f = field && legends?.[field];
     // collapsed by default on narrower screens so it does not cover the map
     const [open, setOpen] = useState(() => typeof window === 'undefined' || window.innerWidth >= LEGEND_OPEN_MIN_WIDTH);
+    // explanatory notes stay behind "More" (in the page, hidden) so the legend covers little of the map
+    const [more, setMore] = useState(false);
     const alerts = hazards.length > 0;
     return (
         <div data-testid="map-legend" data-open={open}
             className="pointer-events-auto max-h-full overflow-y-auto bg-white/95 dark:bg-slate-800/95 backdrop-blur shadow-md rounded-xl border border-slate-200 dark:border-slate-700 px-3 py-2 space-y-1.5 w-[290px]">
             <button type="button" data-testid="legend-toggle" aria-expanded={open} onClick={() => setOpen((o) => !o)}
-                className="w-full flex items-center justify-between text-[10px] font-black uppercase text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white">
+                className="w-full flex items-center justify-between text-xs font-black uppercase text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white">
                 Legend {open ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
             </button>
             {open && (<>
                 {insat && (
                     <div data-testid="legend-insat" className="space-y-0.5">
                         <Head>Satellite observation (INSAT via MOSDAC)</Head>
-                        <p data-testid="legend-insat-title" className="text-[11px] font-semibold text-slate-800 dark:text-slate-100">{insat.satellite || 'INSAT-3DR'} cloud-top brightness temperature (K)</p>
+                        <p data-testid="legend-insat-title" className="text-xs font-semibold text-slate-800 dark:text-slate-100">{insat.satellite || 'INSAT-3DR'} cloud-top brightness temperature (K)</p>
                         {/* one strip, coldest left; tick labels are the class boundaries */}
                         <div data-testid="legend-insat-strip" className="relative pb-3">
                             <div className="flex h-2.5 rounded-sm overflow-hidden border border-slate-300 dark:border-slate-600">
@@ -49,18 +51,18 @@ const MapLegend = ({ legends, field, hazards = [], observed = false, missed = fa
                             </div>
                             {(() => {
                                 const cs = insat.classes.filter((c) => c.color);
-                                return [<span key="floor" data-testid="legend-insat-coldest" className="absolute top-3 left-0 text-[9px] font-bold text-slate-700 dark:text-slate-200">{cs[0].label}</span>].concat(cs.slice(1, -1).map((c, i) => (
-                                    <span key={c.to} className="absolute top-3 -translate-x-1/2 text-[9px] text-slate-500 dark:text-slate-400 tabular-nums"
+                                return [<span key="floor" data-testid="legend-insat-coldest" className="absolute top-3 left-0 text-xs font-bold text-slate-700 dark:text-slate-200">{cs[0].label}</span>].concat(cs.slice(1, -1).map((c, i) => (
+                                    <span key={c.to} className="absolute top-3 -translate-x-1/2 text-xs text-slate-500 dark:text-slate-400 tabular-nums"
                                         style={{ left: `${((i + 2) / cs.length) * 100}%` }}>{i % 2 === 1 && i < cs.length - 3 ? c.to : ''}</span>
-                                ))).concat(<span key="end" className="absolute top-3 right-0 text-[9px] text-slate-500 tabular-nums">{cs[cs.length - 1].to}</span>);
+                                ))).concat(<span key="end" className="absolute top-3 right-0 text-xs text-slate-500 tabular-nums">{cs[cs.length - 1].to}</span>);
                             })()}
                         </div>
-                        <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-snug">
+                        <p hidden={!more} className="text-xs text-slate-500 dark:text-slate-400 leading-snug">
                             {insat.classes.find((c) => !c.color)?.label} · display classes, not thresholds
                         </p>
-                        {insat.availability && <p data-testid="legend-insat-availability" className="text-[10px] text-slate-600 dark:text-slate-300 leading-snug">{insat.availability} (at issue time, not at the lead&apos;s valid time)</p>}
-                        {insat.floorLine && <p data-testid="legend-insat-floor" className="text-[10px] text-slate-600 dark:text-slate-300 leading-snug">{insat.floorLine}</p>}
-                        {insat.lines.map((l) => <p key={l} data-testid="insat-line" className="text-[10px] text-amber-700 dark:text-amber-400 leading-snug">{l}</p>)}
+                        {insat.availability && <p hidden={!more} data-testid="legend-insat-availability" className="text-xs text-slate-600 dark:text-slate-300 leading-snug">{insat.availability} (at issue time, not at the lead&apos;s valid time)</p>}
+                        {insat.floorLine && <p hidden={!more} data-testid="legend-insat-floor" className="text-xs text-slate-600 dark:text-slate-300 leading-snug">{insat.floorLine}</p>}
+                        {insat.lines.map((l) => <p key={l} hidden={!more} data-testid="insat-line" className="text-xs text-amber-700 dark:text-amber-400 leading-snug">{l}</p>)}
                     </div>
                 )}
                 {alerts && (
@@ -68,19 +70,19 @@ const MapLegend = ({ legends, field, hazards = [], observed = false, missed = fa
                         <Head>Alerts</Head>
                         <Row><Swatch color="#475569" />Warning (solid outline)<IMDChip level="Warning" /></Row>
                         <Row><Swatch color="#475569" dashed fill={0.1} />Watch (dashed outline)<IMDChip level="Watch" /></Row>
-                        <p data-testid="imd-note-legend" className="text-[10px] text-slate-400 leading-snug">{IMD_NOTE}</p>
-                        <Row testid="legend-hazards">
+                        <p data-testid="imd-note-legend" className="text-xs text-slate-400 leading-snug">{IMD_NOTE}</p>
+                        <Row testid="legend-hazards" wrap>
                             {hazards.map((h) => (
-                                <span key={h} data-hazard={h} className="flex items-center gap-1"><Swatch color={HAZARD_STYLE[h].color} />{HAZARD_STYLE[h].name}</span>
+                                <span key={h} data-hazard={h} className="flex items-center gap-1 whitespace-nowrap"><Swatch color={HAZARD_STYLE[h].color} />{HAZARD_STYLE[h].name}</span>
                             ))}
                         </Row>
                         {verification && (<>
                             <Row testid="legend-verified"><span className="w-2.5 h-2.5 shrink-0 rounded-full" style={{ background: VERIFY_STYLE.verified.color }} />{VERIFY_STYLE.verified.label}</Row>
                             <Row testid="legend-false-alarm"><span className="w-2.5 h-2.5 shrink-0 rounded-full border-2 bg-white" style={{ borderColor: VERIFY_STYLE.false_alarm.color }} />{VERIFY_STYLE.false_alarm.label}</Row>
-                            {underReport && <p data-testid="legend-under-report" className="text-[10px] text-violet-800 dark:text-violet-300 leading-snug">{underReport}</p>}
+                            {underReport && <p hidden={!more} data-testid="legend-under-report" className="text-xs text-violet-800 dark:text-violet-300 leading-snug">{underReport}</p>}
                         </>)}
                         {verification && ffNote && hazards.includes('flash_flood') && (
-                            <p data-testid="ff-verify-note-legend" className="text-[10px] text-amber-700 dark:text-amber-400 leading-snug">{ffNote}</p>
+                            <p hidden={!more} data-testid="ff-verify-note-legend" className="text-xs text-amber-700 dark:text-amber-400 leading-snug">{ffNote}</p>
                         )}
                         {!verification && (
                             <Row><span className="w-3 h-3 rounded-full border border-slate-900 bg-slate-400" /> alert peak (colour = hazard)</Row>
@@ -96,24 +98,26 @@ const MapLegend = ({ legends, field, hazards = [], observed = false, missed = fa
                 {missed && legends?.missed_ge30 && (
                     <Row><Swatch color={legends.missed_ge30.classes[0].color} fill={0.8} /><span data-testid="missed-legend">{legends.missed_ge30.label}</span></Row>
                 )}
-                {note && <p className="text-[10px] text-amber-700 dark:text-amber-400">{note}</p>}
+                {note && <p className="text-xs text-amber-700 dark:text-amber-400">{note}</p>}
                 {f && (
                     <>
                         <Head>Forecast layer</Head>
-                        <p className="text-[11px] font-semibold text-slate-800 dark:text-slate-100" data-testid="raster-legend-label">{f.label}</p>
+                        <p className="text-xs font-semibold text-slate-800 dark:text-slate-100" data-testid="raster-legend-label">{f.label}</p>
                         <div className="flex flex-wrap gap-x-2 gap-y-0.5">
                             {f.classes.map((c) => (
-                                <span key={c.label} className="flex items-center gap-1 text-[10px] text-slate-600 dark:text-slate-300">
+                                <span key={c.label} className="flex items-center gap-1 text-xs text-slate-600 dark:text-slate-300">
                                     <span className="w-3 h-3 rounded-sm" style={{ background: c.color }} />{c.label}
                                 </span>
                             ))}
                         </div>
-                        {f.kind === 'risk_index' && <p className="text-[10px] text-pink-700 dark:text-pink-300">Index values, not percentages.</p>}
+                        {f.kind === 'risk_index' && <p className="text-xs text-pink-700 dark:text-pink-300">Index values, not percentages.</p>}
                     </>
                 )}
                 {terrain && (
-                    <Row testid="legend-terrain"><span className="w-4 h-3 rounded-sm bg-gradient-to-r from-slate-700 to-slate-100 shrink-0" />Terrain shading ({TERRAIN_ATTRIBUTION})</Row>
+                    <Row testid="legend-terrain"><span className="w-4 h-3 rounded-sm bg-gradient-to-r from-slate-700 to-slate-100 shrink-0" /><span>Terrain shading<span hidden={!more}> ({TERRAIN_ATTRIBUTION}; credited on the map)</span></span></Row>
                 )}
+                <button type="button" data-testid="legend-more" aria-expanded={more} onClick={() => setMore((m) => !m)}
+                    className="text-sm font-bold text-blue-700 dark:text-blue-300 hover:underline">{more ? 'Fewer notes' : 'More: notes on these layers'}</button>
             </>)}
         </div>
     );

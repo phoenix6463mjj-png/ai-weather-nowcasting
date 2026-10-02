@@ -47,7 +47,7 @@ const card = (page, city) => page.locator('h3', { hasText: city }).locator('xpat
 
 test('"/": HIGH from humidity/wind with 0.4 mm rain names no hazard; the rain rule names Flash Flood', async ({ page }) => {
     await mock(page, 'Humidpur');
-    await page.goto('/');
+    await page.goto('/dashboard');
     let panel = panelOf(page, 'Humidpur');
     const threat = panel.getByTestId('primary-threat');
     await expect(threat).toHaveAttribute('data-hazard', '');
@@ -62,7 +62,7 @@ test('"/": HIGH from humidity/wind with 0.4 mm rain names no hazard; the rain ru
     }
     const p2 = await page.context().newPage();
     await mock(p2, 'Rainpur');
-    await p2.goto('/');
+    await p2.goto('/dashboard');
     panel = panelOf(p2, 'Rainpur');
     await expect(panel.getByTestId('primary-threat')).toHaveAttribute('data-hazard', 'flood');
     await expect(panel.getByTestId('primary-threat-text')).toHaveText('Flash Flood');
@@ -98,7 +98,7 @@ test('Primary Threat screenshots of "/", Alerts and Forecast at 1920x1080 and 13
     await mock(page, 'Humidpur', { tiles: true });
     for (const [w, h] of [[1920, 1080], [1366, 768]]) {
         await page.setViewportSize({ width: w, height: h });
-        await page.goto('/');
+        await page.goto('/dashboard');
         await expect(page.getByTestId('primary-threat')).toBeVisible();
         await page.waitForTimeout(3000);
         await page.screenshot({ path: path.join(SHOTS, `threat_dashboard_${w}x${h}.png`) });

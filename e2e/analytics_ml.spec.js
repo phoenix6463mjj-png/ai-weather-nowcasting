@@ -46,7 +46,7 @@ test('REF045: tiles, sentences and the area chart equal the API; sections 3 and 
     const doc = await api(page, 'analytics');
     await page.goto('/analytics');
     await expect(page.locator('main h1')).toHaveText('Nowcast analytics (ML model)');
-    await source(page, 'REF045');
+    await source(page, 'Pipalkoti area');
     await setLead(page, 4);
     await expectSection1(page, alerts, 4);
     for (const L of LEADS) {
@@ -106,7 +106,7 @@ test('the lead slider, play and every chip update all four sections', async ({ p
     const eps = await api(page, 'episodes');
     const alerts = (await api(page, `issues/REF045/${eps.default.ts}/ui-alerts?level=all`)).alerts;
     await page.goto('/analytics');
-    await source(page, 'REF045');
+    await source(page, 'Pipalkoti area');
     await setLead(page, 2);
     const snap = async () => Promise.all(['analytics-s1-sentence', 'area-chart-info', 'attribution-info', 'skill-info',
         'attribution-applies', 'attribution-levels', 'skill-caption'].map((id) => page.getByTestId(id).innerText()));
@@ -141,7 +141,7 @@ test('the lead slider, play and every chip update all four sections', async ({ p
 test('a tile and the thumbnail open ML Nowcast at that source, lead and hazard', async ({ page }) => {
     const eps = await api(page, 'episodes');
     await page.goto('/analytics');
-    await source(page, 'REF045');
+    await source(page, 'Pipalkoti area');
     await setLead(page, 4);
     await page.locator('[data-testid="hazard-tile"][data-hazard="cloudburst"]').click();
     await expect(page).toHaveURL(new RegExp(`/nowcast\\?ep=REF045&ts=${eps.default.ts}&lead=4&hazard=cloudburst&watch=1`));
@@ -159,7 +159,7 @@ test('a tile and the thumbnail open ML Nowcast at that source, lead and hazard',
 
 test('no % for cloudburst / flash flood; keyboard tooltip; no horizontal scroll at 390 px', async ({ page }) => {
     await page.goto('/analytics');
-    await source(page, 'REF045');
+    await source(page, 'Pipalkoti area');
     const text = await page.locator('main').innerText();
     expect(text).not.toMatch(/(cloudburst|flash[ -]flood)[^.\n]{0,30}\d+\s*%/i);
     await page.getByTestId('term-CSI').first().focus();
@@ -174,7 +174,7 @@ test('Analytics screenshots: Live and REF051 at 1920x1080, 1366x768 and 390 px',
     test.setTimeout(180_000);
     for (const [w, h] of [[1920, 1080], [1366, 768], [390, 844]]) {
         await page.setViewportSize({ width: w, height: h });
-        for (const [label, name] of [['Live run', 'live'], ['REF051', 'REF051']]) {
+        for (const [label, name] of [['Live run', 'live'], ['Malana river', 'REF051']]) {
             await page.goto('/analytics');
             await source(page, label);
             await setLead(page, 4);

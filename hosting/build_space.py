@@ -35,6 +35,7 @@ NOWCAST_FILES = [
     ("models/v0/scores_val_farcap.csv", "Results page"),
     ("models/v0/reliability_test.csv", "Results page (reliability)"),
     ("models/v0/reliability_val_farcap.csv", "Results page (reliability)"),
+    ("models/v0/cloudburst_reference_imerg.csv", "Overview page: the 24 documented val/test cloudburst sites and their IMERG peaks"),
 ]
 NOWCAST_EXCLUDE = ["serve/tests/**/*", "serve/build_ingredients*.py", "serve/build_terrain.py", "serve/build_insat_case.py",
                    # nearby shelter options: offline builder and its 13 MB river/stream input (no endpoint reads it)

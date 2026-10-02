@@ -61,7 +61,7 @@ async function noAlarmWords(page) {
 
 test('everything fails -> sample: "/" shows the safety net, weather tiles labelled sample, no risk UI', async ({ page }) => {
     await mockSource(page, 'sample');
-    await page.goto('/');
+    await page.goto('/dashboard');
     await expectNet(page);
     await expect(page.getByTestId('dashboard-source-badge')).toHaveText('Sample data — no live weather feed');
     await expect(page.getByTestId('alert-banner-text')).toHaveCount(0);
@@ -109,7 +109,7 @@ test('everything fails -> sample: Forecast shows current values only, no level, 
 
 test('stale Open-Meteo data keeps the risk UI, labelled "Open-Meteo (model data), updated HH:MM UTC"', async ({ page }) => {
     await mockSource(page, 'open-meteo');
-    await page.goto('/');
+    await page.goto('/dashboard');
     await expect(page.getByTestId('dashboard-source-badge')).toHaveText('Open-Meteo (model data), updated 06:15 UTC');
     await expect(page.getByTestId('sample-safety-net')).toHaveCount(0);
     await expect(page.getByTestId('alert-banner-text')).toContainText('High Risk in 3 locations');
@@ -123,7 +123,7 @@ test('sample safety net screenshots of /, Alerts, Forecast, Analytics at 1920x10
     await mockSource(page, 'sample');
     for (const [w, h] of [[1920, 1080], [1366, 768]]) {
         await page.setViewportSize({ width: w, height: h });
-        for (const r of ['', 'alerts', 'forecast']) {
+        for (const r of ['dashboard', 'alerts', 'forecast']) {
             await page.goto(`/${r}`);
             await expect(page.getByTestId('sample-safety-net')).toBeVisible();
             await page.waitForTimeout(1200);

@@ -7,7 +7,7 @@ const Event = ({ e }) => {
     const im = (e.imerg || []).reduce((m, x) => (m && m.max_mmhr_25km >= x.max_mmhr_25km ? m : x), null);
     return (
         <div data-testid="insat-event" data-episode={e.episode} className="rounded-lg border border-slate-200 dark:border-slate-700 p-3 space-y-1.5">
-            <p className="text-base font-black">{e.episode} · {e.site} ({e.district}, {e.state}) · reported {e.reported_date}</p>
+            <p className="text-base font-black">{e.site} ({e.district}, {e.state}) · reported {e.reported_date}</p>
             <p className="text-sm text-slate-600 dark:text-slate-300">{e.time_note} Window {e.window[0].slice(5, 16).replace('T', ' ')}Z – {e.window[1].slice(5, 16).replace('T', ' ')}Z.</p>
             <p data-testid="insat-event-summary" className="text-base font-bold text-slate-800 dark:text-slate-100">{e.summary}</p>
             <div className="max-h-44 overflow-y-auto border border-slate-100 dark:border-slate-800 rounded">

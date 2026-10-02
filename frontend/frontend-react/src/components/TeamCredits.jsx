@@ -42,7 +42,7 @@ const TeamCredits = () => {
             </button>
             {open && pos && createPortal(
                 <div ref={pop} data-testid="team-credits" role="dialog" aria-label="Data credits" style={{ top: pos.top, right: pos.right }}
-                    className="fixed z-[2000] w-[420px] max-h-[70vh] overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl p-4 text-[11px] leading-snug text-slate-600 dark:text-slate-300">
+                    className="fixed z-[2000] w-[420px] max-h-[70vh] overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl p-4 text-xs leading-snug text-slate-600 dark:text-slate-300">
                     <div className="flex items-center justify-between mb-2">
                         <span className="font-black uppercase tracking-wide text-slate-500 dark:text-slate-400">Data credits</span>
                         <button type="button" data-testid="team-credits-close" aria-label="Close" onClick={() => setOpen(false)}

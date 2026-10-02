@@ -30,9 +30,9 @@ const RiskDistribution = ({ locations = [], allCitiesData = [], summary = null, 
         <div className="h-full bg-white dark:bg-[#111827] rounded-2xl shadow-lg border border-slate-200 dark:border-gray-700 p-5 flex flex-col justify-between">
             <div className="flex items-center justify-between">
                 <h3 className="text-sm font-black text-slate-800 dark:text-white">Risk Distribution <span className="text-slate-400 font-bold text-xs ml-1">({total} Zones)</span>
-                    {unrated > 0 && <span data-testid="risk-unrated" className="block text-[10px] font-semibold text-amber-700 dark:text-amber-400">+{unrated} with sample data (risk not shown)</span>}
+                    {unrated > 0 && <span data-testid="risk-unrated" className="block text-xs font-semibold text-amber-700 dark:text-amber-400">+{unrated} with sample data (risk not shown)</span>}
                 </h3>
-                <Link to="/alerts" data-testid="risk-view-details" className="text-blue-600 dark:text-blue-400 text-[11px] font-black hover:underline tracking-wide">View Details ➔</Link>
+                <Link to="/alerts" data-testid="risk-view-details" className="text-blue-600 dark:text-blue-400 text-xs font-black hover:underline tracking-wide">View Details ➔</Link>
             </div>
 
             <div className="flex items-center justify-between gap-2.5 mt-2">
@@ -41,7 +41,7 @@ const RiskDistribution = ({ locations = [], allCitiesData = [], summary = null, 
                         <div className="w-2.5 h-2.5 rounded-full bg-blue-600 shadow-sm shadow-blue-500/50"></div>
                         <span className="text-xl font-black text-slate-800 dark:text-white leading-none">{total}</span>
                     </div>
-                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Total</span>
+                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">Total</span>
                 </div>
 
                 <div className="flex-1 bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700 rounded-xl p-2.5 flex flex-col items-center justify-center">
@@ -49,7 +49,7 @@ const RiskDistribution = ({ locations = [], allCitiesData = [], summary = null, 
                         <div className="w-2.5 h-2.5 rounded-full bg-red-600 shadow-sm shadow-red-500/50"></div>
                         <span className="text-xl font-black text-slate-800 dark:text-white leading-none">{high}</span>
                     </div>
-                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">High</span>
+                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">High</span>
                 </div>
 
                 <div className="flex-1 bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700 rounded-xl p-2.5 flex flex-col items-center justify-center">
@@ -57,7 +57,7 @@ const RiskDistribution = ({ locations = [], allCitiesData = [], summary = null, 
                         <div className="w-2.5 h-2.5 rounded-full bg-amber-500 shadow-sm shadow-amber-500/50"></div>
                         <span className="text-xl font-black text-slate-800 dark:text-white leading-none">{medium}</span>
                     </div>
-                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Moderate</span>
+                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">Moderate</span>
                 </div>
 
                 <div className="flex-1 bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700 rounded-xl p-2.5 flex flex-col items-center justify-center">
@@ -65,7 +65,7 @@ const RiskDistribution = ({ locations = [], allCitiesData = [], summary = null, 
                         <div className="w-2.5 h-2.5 rounded-full bg-teal-500 shadow-sm shadow-teal-500/50"></div>
                         <span className="text-xl font-black text-slate-800 dark:text-white leading-none">{low}</span>
                     </div>
-                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Low</span>
+                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">Low</span>
                 </div>
             </div>
         </div>

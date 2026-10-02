@@ -416,6 +416,9 @@ OPENWEATHER_RETRIES = 2
 OPENWEATHER_COOLDOWN = 1800.0
 _OW_CACHE: Dict[Tuple[float, float], Tuple[Dict[str, Any], float]] = {}
 _OW_WANTED: Dict[Tuple[float, float], Tuple[float, float]] = {}      # points the zone lists need
+# points a page is showing (openweather_first): the refresher fetches these before the rest, newest
+# request first; same throttle, same cache
+_OW_FIRST: Dict[Tuple[float, float], float] = {}
 OPENWEATHER_STATS = {"requests": 0, "errors": 0, "retries": 0, "cache_hits": 0, "stale_served": 0}
 OPENWEATHER_STATUS: Dict[str, Any] = {"last_error": None, "last_error_at": None, "last_success_at": None,
                                       "cooldown_until": None, "refresh_running": False}
@@ -589,26 +592,84 @@ async def _ow_refresh() -> None:
     """Fetch every wanted point whose data is missing or expired, under the throttle; stop at the
     first final failure (cooldown)."""
     OPENWEATHER_STATUS["refresh_running"] = True
+    tried: set = set()            # one attempt per point per run (a point OpenWeather cannot parse is not retried)
     try:
         async with _ow_client_factory() as cl:
             while True:
-                now = _ow_clock()
-                todo = [p for k, p in list(_OW_WANTED.items())
-                        if not (_OW_CACHE.get(k) and now - _OW_CACHE[k][1] < OPENWEATHER_TTL)]
-                if not todo or _ow_cooling_down(now):
+                # the next point is picked before every request, so zones a page asks for jump the queue
+                k = _ow_next(_ow_clock(), tried)
+                if k is None or _ow_cooling_down(_ow_clock()):
                     return
-                for la, lo in todo:
-                    if _ow_cooling_down(_ow_clock()):
-                        return
-                    try:
-                        data = await _ow_request(cl, OPENWEATHER_URL, {"lat": la, "lon": lo})
-                    except _OWFailed:
-                        return
-                    w = parse_openweather(data)
-                    if w:
-                        _OW_CACHE[_om_key(la, lo)] = (w, _ow_clock())
+                tried.add(k)
+                la, lo = _OW_WANTED[k]
+                try:
+                    data = await _ow_request(cl, OPENWEATHER_URL, {"lat": la, "lon": lo})
+                except _OWFailed:
+                    return
+                w = parse_openweather(data)
+                if w:
+                    _OW_CACHE[k] = (w, _ow_clock())
+                    _OW_FIRST.pop(k, None)
     finally:
         OPENWEATHER_STATUS["refresh_running"] = False
+
+
+def _ow_fresh(k: Tuple[float, float], now: float) -> bool:
+    hit = _OW_CACHE.get(k)
+    return bool(hit and now - hit[1] < OPENWEATHER_TTL)
+
+
+def _ow_next(now: float, tried: set) -> Optional[Tuple[float, float]]:
+    """The next point to fetch: the newest-requested shown point that is missing/expired, else the
+    first missing/expired point of the zone lists (their order)."""
+    first = sorted((t, k) for k, t in _OW_FIRST.items() if k in _OW_WANTED and k not in tried)
+    for _, k in reversed(first):
+        if not _ow_fresh(k, now):
+            return k
+    for k in list(_OW_WANTED):
+        if k not in tried and not _ow_fresh(k, now):
+            return k
+    return None
+
+
+def _ow_start_refresh(now: float) -> bool:
+    task = _OW_TASK["task"]
+    if is_valid_api_key(API_KEY) and not _ow_cooling_down(now) and (task is None or task.done()):
+        try:
+            _OW_TASK["task"] = asyncio.get_running_loop().create_task(_ow_refresh())
+            return True
+        except RuntimeError:        # no running loop (sync caller): nothing is started
+            pass
+    return False
+
+
+def openweather_first(points: List[Tuple[float, float]]) -> int:
+    """Points a page is showing: fetched before the rest of the zone lists (newest request first).
+    Returns how many of them still wait for fresh OpenWeather data."""
+    now = _ow_clock()
+    n = 0
+    for i, (la, lo) in enumerate(points):
+        k = _om_key(la, lo)
+        _OW_WANTED.setdefault(k, (float(la), float(lo)))
+        if not _ow_fresh(k, now):
+            _OW_FIRST[k] = now - i * 1e-6        # keeps the page's own order among its points
+            n += 1
+    if n:
+        _ow_start_refresh(now)
+    return n
+
+
+def openweather_pending() -> int:
+    """Zone-list points without fresh OpenWeather data (0 without a key)."""
+    if not is_valid_api_key(API_KEY):
+        return 0
+    now = _ow_clock()
+    return sum(not _ow_fresh(k, now) for k in list(_OW_WANTED))
+
+
+def openweather_filling() -> bool:
+    """True while the refresher is still filling the zone lists (key set, points pending, no cooldown)."""
+    return is_valid_api_key(API_KEY) and not _ow_cooling_down(_ow_clock()) and openweather_pending() > 0
 
 
 def openweather_zones(points: List[Tuple[float, float]]) -> List[Optional[Dict[str, Any]]]:
@@ -631,10 +692,6 @@ def openweather_zones(points: List[Tuple[float, float]]) -> List[Optional[Dict[s
                 OPENWEATHER_STATS["stale_served"] += 1
             else:
                 out.append(None)
-    task = _OW_TASK["task"]
-    if need and is_valid_api_key(API_KEY) and not _ow_cooling_down(now) and (task is None or task.done()):
-        try:
-            _OW_TASK["task"] = asyncio.get_running_loop().create_task(_ow_refresh())
-        except RuntimeError:        # no running loop (sync caller): nothing is started
-            pass
+    if need:
+        _ow_start_refresh(now)
     return out

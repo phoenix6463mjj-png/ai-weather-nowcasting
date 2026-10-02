@@ -52,7 +52,7 @@ for (const src of ['sample', 'openweather', 'open-meteo']) {
     test(`weather source "${src}": badges, live wording and Open-Meteo credit on /, Alerts, Forecast, Analytics`, async ({ page }) => {
         await mockSource(page, src);
         // "/"
-        await page.goto('/');
+        await page.goto('/dashboard');
         await expect(page.getByTestId('dashboard-source-badge')).toHaveText(e.badge);
         await expect(page.getByTestId('panel-weather-source')).toContainText(e.badge);
         await expect(page.getByTestId('sidebar-live')).toHaveCount(e.live ? 1 : 0);
@@ -102,7 +102,7 @@ test('Open-Meteo screenshots of /, Forecast, Alerts, Analytics at 1920x1080 and 
     await mockSource(page, 'open-meteo');
     for (const [w, h] of [[1920, 1080], [1366, 768]]) {
         await page.setViewportSize({ width: w, height: h });
-        for (const r of ['', 'forecast', 'alerts', 'analytics']) {
+        for (const r of ['dashboard', 'forecast', 'alerts', 'analytics']) {
             await page.goto(`/${r}`);
             await page.waitForTimeout(1500);
             await page.screenshot({ path: path.join(SHOTS, `openmeteo_${r || 'dashboard'}_${w}x${h}.png`) });

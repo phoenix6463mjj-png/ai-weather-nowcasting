@@ -46,13 +46,13 @@ const Drawer = ({ tabs, active, onOpen, onClose, children }) => {
                     <div className="flex-1 overflow-y-auto text-base leading-normal">{children(open.id)}</div>
                 </section>
             )}
-            <nav aria-label="Details" className="w-[64px] h-full flex flex-col items-stretch gap-1 py-2 border-l border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900">
+            <nav aria-label="Details" className="w-[92px] h-full flex flex-col items-stretch gap-1 py-2 border-l border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900">
                 {tabs.map((t) => {
                     const on = t.id === active;
                     return (
                         <button key={t.id} type="button" data-testid={`drawer-tab-${t.id}`} aria-pressed={on}
                             onClick={() => (on ? onClose() : onOpen(t.id))} title={on ? `Close ${t.label}` : `Open ${t.label}`}
-                            className={`mx-1 py-2 rounded-lg flex flex-col items-center gap-0.5 text-[10px] font-bold leading-tight transition-colors ${on
+                            className={`mx-1 py-2 rounded-lg flex flex-col items-center gap-0.5 text-xs font-bold leading-tight transition-colors ${on
                                 ? 'bg-blue-600 text-white' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800'}`}>
                             <t.icon size={17} />
                             <span className="text-center">{t.short || t.label}</span>

@@ -65,6 +65,7 @@ export const runReplay = (body) => request('replay', {
 export const getTerrain = () => request('terrain');
 export const terrainUrl = (layer) => mlUrl(`terrain/${layer}.png`);
 export const getCredits = () => request('credits');
+export const getOverview = () => request('overview');
 export const getTimeline = (ep) => request(`episodes/${ep}/timeline`);
 // INSAT-3DR case-study observation layer (satellite observation, INSAT via MOSDAC; not a model input)
 export const getInsatIndex = () => request('insat');

@@ -14,7 +14,7 @@ async function openDashboard(page, tiles = []) {
     await page.route('https://gibs.earthdata.nasa.gov/**', (r) => { tiles.push(r.request().url()); r.fulfill({ body: PNG, contentType: 'image/jpeg' }); });
     await page.route('https://images.unsplash.com/**', (r) => r.fulfill({ body: PNG, contentType: 'image/png' }));
     const alerts = page.waitForResponse((r) => r.url().includes('/alerts?limit=380') && r.ok());
-    await page.goto('/');
+    await page.goto('/dashboard');
     const data = await (await alerts).json();
     await expect(page.getByTestId('dashboard-source-badge')).not.toHaveText('Loading weather source…');
     return data;

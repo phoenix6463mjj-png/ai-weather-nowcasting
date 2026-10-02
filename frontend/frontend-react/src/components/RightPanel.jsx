@@ -18,9 +18,9 @@ const HazardLevel = ({ label, level, icon, hazard, note }) => (
         <div className="flex items-center gap-2 min-w-0">
             <div className="w-5 flex justify-center items-center text-slate-500 dark:text-slate-400">{icon}</div>
             <span className="font-bold text-slate-700 dark:text-slate-300">{label}</span>
-            {note && <span data-testid="hazard-note" className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 truncate">({note})</span>}
+            {note && <span data-testid="hazard-note" className="text-xs font-semibold text-slate-500 dark:text-slate-400 truncate">({note})</span>}
         </div>
-        <span className={`px-2 py-0.5 rounded-md border text-[11px] font-black ${level == null ? NO_RULE_STYLE : LEVEL_STYLE[level]}`}>{level == null ? 'No rule' : LEVEL_NAMES[level]}</span>
+        <span className={`px-2 py-0.5 rounded-md border text-xs font-black ${level == null ? NO_RULE_STYLE : LEVEL_STYLE[level]}`}>{level == null ? 'No rule' : LEVEL_NAMES[level]}</span>
     </div>
 );
 
@@ -98,7 +98,7 @@ const RightPanel = ({ selectedCity, cityData, onClose, hideRisk = false }) => {
     const explanationCard = (
         <div data-testid="rule-explanation" className="bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/50 rounded-xl p-3.5 shadow-xs shrink-0">
             <div className="mb-1.5">
-                <span className="text-[10px] font-black uppercase tracking-wider text-blue-800 dark:text-blue-300">
+                <span className="text-xs font-black uppercase tracking-wider text-blue-800 dark:text-blue-300">
                     Rule-based explanation
                 </span>
             </div>
@@ -124,7 +124,7 @@ const RightPanel = ({ selectedCity, cityData, onClose, hideRisk = false }) => {
                                 </span>
                             )}
                         </h2>
-                        <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 mt-1 flex items-center gap-1.5">
+                        <p className="text-xs font-bold text-slate-500 dark:text-slate-400 mt-1 flex items-center gap-1.5">
                             <MapPin size={12} className="text-blue-500 shrink-0" /> <span className="truncate">{coordText}</span>
                         </p>
                     </div>
@@ -140,14 +140,14 @@ const RightPanel = ({ selectedCity, cityData, onClose, hideRisk = false }) => {
                 </div>
                 <div className="mt-3 flex items-center justify-between gap-2">
                     {hideRisk ? (
-                        <span data-testid="panel-no-risk" className="text-[11px] font-bold text-amber-700 dark:text-amber-400">Sample data — risk not shown</span>
+                        <span data-testid="panel-no-risk" className="text-xs font-bold text-amber-700 dark:text-amber-400">Sample data — risk not shown</span>
                     ) : (
                     <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-md border text-xs font-black tracking-wider ${badgeClass}`}>
                         <AlertTriangle size={14} className={riskLabel === 2 ? "text-red-600 dark:text-red-400" : (riskLabel === 1 ? "text-orange-600 dark:text-orange-400" : "text-emerald-600 dark:text-emerald-400")} />
                         {badgeText}
                     </div>
                     )}
-                    <span data-testid="panel-fetched" className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+                    <span data-testid="panel-fetched" className="text-xs font-semibold text-slate-500 dark:text-slate-400">
                         {fetched}
                     </span>
                 </div>
@@ -163,7 +163,7 @@ const RightPanel = ({ selectedCity, cityData, onClose, hideRisk = false }) => {
                                 {getThreatIcon()}
                             </div>
                             <div className="z-10 min-w-0 flex-1">
-                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">{primaryThreat_ ? 'Primary Threat (rain rule)' : 'Rule-based level (no hazard named)'}</p>
+                                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-0.5">{primaryThreat_ ? 'Primary Threat (rain rule)' : 'Rule-based level (no hazard named)'}</p>
                                 <h3 data-testid="primary-threat-text" className={primaryThreat_ ? 'text-lg font-black tracking-wide truncate text-white' : 'text-sm font-bold leading-snug text-white'}>{primaryThreat_ || ruleLevelText(cityObj)}</h3>
                             </div>
                         </div>
@@ -174,7 +174,7 @@ const RightPanel = ({ selectedCity, cityData, onClose, hideRisk = false }) => {
                 {/* 4 Required Weather Metrics */}
                 <div>
                     <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider mb-1">Weather</h3>
-                    <p data-testid="panel-weather-source" className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 mb-3">
+                    <p data-testid="panel-weather-source" className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-3">
                         {sourceBadge(cityObj.weather?.source || 'sample', cityObj.weather?.observed_at, cityObj.weather?.data_time)}
                         {cityObj.weather?.conditions ? ` · ${cityObj.weather.conditions}` : ''}
                     </p>
@@ -190,7 +190,7 @@ const RightPanel = ({ selectedCity, cityData, onClose, hideRisk = false }) => {
                                 <span className="text-sm font-black text-slate-900 dark:text-white block leading-tight truncate">
                                     {tempVal}
                                 </span>
-                                <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">Temperature</span>
+                                <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">Temperature</span>
                             </div>
                         </div>
 
@@ -203,7 +203,7 @@ const RightPanel = ({ selectedCity, cityData, onClose, hideRisk = false }) => {
                                 <span className="text-sm font-black text-slate-900 dark:text-white block leading-tight truncate">
                                     {humVal}
                                 </span>
-                                <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">Humidity</span>
+                                <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">Humidity</span>
                             </div>
                         </div>
 
@@ -216,7 +216,7 @@ const RightPanel = ({ selectedCity, cityData, onClose, hideRisk = false }) => {
                                 <span className="text-sm font-black text-slate-900 dark:text-white block leading-tight truncate">
                                     {rainVal}
                                 </span>
-                                <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">Rainfall</span>
+                                <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">Rainfall</span>
                             </div>
                         </div>
 
@@ -229,7 +229,7 @@ const RightPanel = ({ selectedCity, cityData, onClose, hideRisk = false }) => {
                                 <span className="text-sm font-black text-slate-900 dark:text-white block leading-tight truncate">
                                     {windVal}
                                 </span>
-                                <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">Wind Speed</span>
+                                <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">Wind Speed</span>
                             </div>
                         </div>
                     </div>
@@ -239,7 +239,7 @@ const RightPanel = ({ selectedCity, cityData, onClose, hideRisk = false }) => {
                 {!hideRisk && <div data-testid="hazard-levels">
                     <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider mb-3">
                         Hazard indicators{' '}
-                        <span data-testid="rule-label" className="normal-case tracking-normal text-[10px] font-semibold text-slate-500 dark:text-slate-400">({RULE_LABEL})</span>
+                        <span data-testid="rule-label" className="normal-case tracking-normal text-xs font-semibold text-slate-500 dark:text-slate-400">({RULE_LABEL})</span>
                     </h3>
                     <div className="space-y-3 bg-slate-50 dark:bg-slate-800/60 p-4 rounded-xl border border-slate-200 dark:border-slate-700/70 shadow-sm">
                         <HazardLevel hazard="thunderstorm" label="Thunderstorm" level={levels.thunderstorm}

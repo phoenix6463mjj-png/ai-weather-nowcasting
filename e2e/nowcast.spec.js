@@ -570,25 +570,30 @@ test('forecast-only issue legend explains peak markers instead of verification d
 const COPERNICUS_NOTICE = 'produced using Copernicus WorldDEM-90 © DLR e.V. 2010-2014 and © Airbus Defence and Space GmbH '
     + '2014-2018 provided under COPERNICUS by the European Union and ESA; all rights reserved';
 
-test('data credits footer shows the full Copernicus notice, visible without hover, on every tab', async ({ page }) => {
+test('data credits: one line naming Copernicus DEM on every tab, the full notice one click away; terrain copyright on the map', async ({ page }) => {
     const cr = page.waitForResponse((r) => r.url().endsWith('/credits') && r.ok());
     await page.goto('/nowcast');
     const api = (await (await cr).json()).credits;
     expect(api.find((c) => c.id === 'copernicus_dem').text).toBe(COPERNICUS_NOTICE);
     await page.mouse.move(0, 0);                                    // nothing hovered
-    const credit = page.getByTestId('credit-copernicus_dem');
+    const holders = /© DLR e\.V\. 2010-2014 and © Airbus Defence and Space GmbH 2014-2018/;
     for (const tab of ['replay', 'india', 'live']) {
         await page.getByTestId(`tab-${tab}`).click();
-        await expect(page.getByTestId('data-credits')).toContainText('Data credits');
-        await expect(credit).toBeVisible();
-        await expect(credit).toBeInViewport({ ratio: 1 });
-        await expect(credit).toContainText(COPERNICUS_NOTICE);
-        await expect(credit.locator('a', { hasText: 'licence' })).toHaveAttribute('href', /dataspace\.copernicus\.eu/);
+        await expect(page.getByTestId('credits-names')).toContainText('Copernicus DEM');
+        await expect(page.getByTestId('credits-toggle')).toBeInViewport({ ratio: 1 });
+        // the terrain layer (on by default) carries its copyright holders in the map attribution, no hover needed
+        await expect(page.locator('.leaflet-control-attribution')).toContainText(holders);
     }
     await page.getByTestId('tab-replay').click();
-    await page.getByTestId('drawer-tab-caveats').click();               // open caveats must not push it off-screen
+    await page.getByTestId('credits-toggle').click();
+    const credit = page.getByTestId('credit-copernicus_dem');
+    await expect(credit).toContainText(COPERNICUS_NOTICE);
+    await expect(credit.locator('a', { hasText: 'licence' })).toHaveAttribute('href', /dataspace\.copernicus\.eu/);
+    await credit.scrollIntoViewIfNeeded();
+    await expect(credit).toBeInViewport();
+    await page.getByTestId('drawer-tab-caveats').click();               // open caveats must not push the footer off-screen
     await expect(page.getByTestId('caveat').first()).toBeVisible();
-    await expect(credit).toBeInViewport({ ratio: 1 });
+    await expect(page.getByTestId('credits-toggle')).toBeInViewport({ ratio: 1 });
     await shot(page, 'data_credits_footer_replay_caveats_open');
     await page.keyboard.press('Escape');
     await shot(page, 'data_credits_footer_replay');
@@ -696,38 +701,30 @@ test('ingredients: "not available" on the forecast-only issue and on live alerts
 
 // ---------------------------------------------------------------- footer at small viewports
 for (const [w, h] of [[1280, 720], [1366, 768]]) {
-    test(`data credits footer fully visible and legible at ${w}x${h}`, async ({ page }) => {
+    test(`data credits footer: one line, in view and not covered at ${w}x${h}; opens to every credit`, async ({ page }) => {
         await page.setViewportSize({ width: w, height: h });
         await page.goto('/nowcast');
         const footer = page.getByTestId('data-credits');
-        const credit = page.getByTestId('credit-copernicus_dem');
-        await expect(credit).toContainText(COPERNICUS_NOTICE);
+        await expect(page.getByTestId('credits-names')).toContainText('ERA5, IMERG, GFS');
         await page.mouse.move(0, 0);
         for (const tab of ['replay', 'india', 'live']) {
             await page.getByTestId(`tab-${tab}`).click();
-            await expect(credit).toBeInViewport({ ratio: 1 });
+            await expect(page.getByTestId('credits-toggle')).toBeInViewport({ ratio: 1 });
             const r = await footer.evaluate((el) => {
                 const b = el.getBoundingClientRect();
-                const lines = [...el.querySelector('[data-testid="credit-copernicus_dem"]').getClientRects()];
-                // sample points along every rendered line of the notice: the topmost element must be in the footer
-                const hit = lines.every((l) => [0.1, 0.5, 0.9].every((f) => {
-                    const e = document.elementFromPoint(l.left + f * l.width, l.top + l.height / 2);
-                    return e && el.contains(e);
-                }));
-                return { bottom: b.bottom, left: b.left, right: b.right, vw: innerWidth, vh: innerHeight,
-                    clipX: el.scrollWidth > el.clientWidth, clipY: el.scrollHeight > el.clientHeight, hit,
-                    font: parseFloat(getComputedStyle(el).fontSize) };
+                const t = el.querySelector('[data-testid="credits-toggle"]').getBoundingClientRect();
+                const e = document.elementFromPoint(t.left + 20, t.top + t.height / 2);
+                return { bottom: b.bottom, vh: innerHeight, h: b.height, hit: e && el.contains(e), font: parseFloat(getComputedStyle(el).fontSize) };
             });
-            expect(r.bottom).toBeLessThanOrEqual(r.vh);
-            expect(r.left).toBeGreaterThanOrEqual(0);
-            expect(r.right).toBeLessThanOrEqual(r.vw);
-            expect(r.clipX, 'horizontal clipping').toBe(false);
-            expect(r.clipY, 'vertical clipping').toBe(false);
-            expect(r.hit, 'nothing overlaps the notice').toBe(true);
-            expect(r.font).toBeGreaterThanOrEqual(10);
+            expect(r.bottom).toBeLessThanOrEqual(r.vh + 0.5);
+            expect(r.h).toBeLessThan(40);
+            expect(r.hit).toBe(true);
+            expect(r.font).toBeGreaterThanOrEqual(13);
         }
-        await page.getByTestId('tab-replay').click();
-        await shot(page, `data_credits_footer_${w}x${h}`);
+        await page.getByTestId('credits-toggle').click();
+        await expect(page.getByTestId('credit-copernicus_dem')).toContainText(COPERNICUS_NOTICE);
+        await expect(footer).toHaveAttribute('data-open', 'true');
+        await shot(page, `data_credits_open_${w}x${h}`);
     });
 }
 
@@ -906,7 +903,7 @@ test('Results page: CSI points = API, caveat markers, case studies from event-ch
     await page.goto('/nowcast');
     const resp = page.waitForResponse((r) => r.url().endsWith('/results') && r.ok());
     const chk = page.waitForResponse((r) => r.url().endsWith('/episodes/REF045/event-check') && r.ok());
-    await page.getByTestId('page-link-results').click();
+    await page.getByTestId('nav-results').click();
     await expect(page).toHaveURL(/\/nowcast\/results$/);
     const res = await (await resp).json();
     const check = await (await chk).json();
@@ -1016,8 +1013,8 @@ for (const [w, h] of [[1920, 1080], [1366, 768]]) {
         await expect(page.locator('[data-testid^="drawer-panel-"]')).toHaveCount(0);
         for (const t of DRAWER_TABS) await expect(page.getByTestId(`drawer-tab-${t}`)).toBeVisible();
         await expect(page.getByTestId('oos-badge')).toBeInViewport({ ratio: 1 });
-        await expect(page.getByTestId('layers-panel')).toHaveAttribute('data-open', String(w >= 1400 && h >= 900));
-        await expect(page.getByTestId('credit-copernicus_dem')).toBeInViewport({ ratio: 1 });
+        await expect(page.getByTestId('layers-panel')).toHaveAttribute('data-open', String(w >= 1600 && h >= 900));
+        await expect(page.getByTestId('credits-toggle')).toBeInViewport({ ratio: 1 });
         await expect(page.locator('path.nowcast-alert-poly')).toHaveCount(
             alerts.filter((a) => a.lead_time_h === 2 && a.level === 'Warning').length);
         await expectControlsClear(page);
@@ -1057,7 +1054,7 @@ for (const [w, h] of [[1920, 1080], [1366, 768]]) {
         await expect(page.getByTestId('caveats-panel')).toContainText(caveats[0].short);
         await expect(page.getByTestId('caveats-panel')).toContainText(caveats[0].source);
         await expect(page.getByTestId('warning-timeline')).toHaveCount(0);
-        await expect(page.getByTestId('credit-copernicus_dem')).toBeInViewport({ ratio: 1 });
+        await expect(page.getByTestId('credits-toggle')).toBeInViewport({ ratio: 1 });
         await shot(page, `layout_drawer_caveats_${w}x${h}`);
 
         // Esc closes; × closes; clicking the open section's icon closes
@@ -1163,6 +1160,8 @@ for (const [w, h] of [[1920, 1080], [1366, 768]]) {
             if (!['localhost', '127.0.0.1'].includes(u.hostname) && !u.hostname.endsWith('tile.openstreetmap.org')) offsite.push(r.url());
         });
         await openIssue(page, 'REF045', '20230813T2100Z');
+        // the Layers panel starts collapsed below 1600 px (declutter pass)
+        if ((await page.getByTestId('layers-panel').getAttribute('data-open')) === 'false') await page.getByTestId('layers-toggle').click();
         await page.getByTestId('lead-4').click();
         await showAlertList(page);
         const row = page.locator('[data-testid="alert-row"][data-level="Warning"]').first();
@@ -1364,6 +1363,7 @@ test('INSAT timeline rows: cells = API series by scan time, gaps hatched, no cha
 
 test('data credits: MOSDAC credit line and the 3DR L1C DOI', async ({ page }) => {
     await page.goto('/nowcast');
+    await page.getByTestId('credits-toggle').click();
     const c = page.getByTestId('credit-insat_mosdac');
     await expect(c).toContainText('Data Source MOSDAC/SAC/ISRO. https://mosdac.gov.in');
     await expect(c.getByRole('link', { name: 'DOI' })).toHaveAttribute('href', 'https://doi.org/10.19038/SAC/10/3RIMG_L1C_ASIA_MER');

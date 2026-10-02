@@ -1,13 +1,18 @@
 // Terrain along the straight line from the chosen point to one building (API `profile`, serve/shelters.py):
 // heights on the 9" DEM grid, river/stream crossings (blue), stretches inside a current alert (red; darker
 // where an alert at the lead shown on the map covers it). Values only; not a route.
+import { useSvgUnit, SVG_TEXT_PX } from '../../utils/useSvgUnit';
+
 const W = 320;
-const H = 92;
-const PAD = { l: 4, r: 4, t: 12, b: 14 };
+const H0 = 92;
 
 const fmtM = (m) => (m == null ? 'no data' : `${m.toLocaleString()} m`);
 
 const ProfileChart = ({ p, lead }) => {
+    const [ref, k] = useSvgUnit(W);
+    const fs = SVG_TEXT_PX * k;              // labels at 15 px at any width
+    const PAD = { l: 4, r: 4, t: fs * 1.3, b: fs * 1.3 };
+    const H = H0 + PAD.t + PAD.b - 26;
     const pts = p.km.map((k, i) => [k, p.elev_m[i]]).filter(([, e]) => e != null);
     if (pts.length < 2) return <p className="text-sm text-slate-500">Elevation profile: no DEM data along this line.</p>;
     const L = Math.max(p.length_km, 1e-6);
@@ -28,7 +33,7 @@ const ProfileChart = ({ p, lead }) => {
     const end = p.elev_m[p.elev_m.length - 1];
     return (
         <figure data-testid="shelter-profile" data-n={p.n} data-crossings={p.crossings.length} data-stretches={p.alert_stretches.length} className="mt-2">
-            <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" role="img"
+            <svg ref={ref} viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" role="img"
                 aria-label={`Elevation profile, ${p.length_km.toFixed(1)} km, from ${fmtM(start)} to ${fmtM(end)}`}>
                 {p.alert_stretches.map((s) => (
                     <rect key={`${s.from_km}-${s.leads.join()}`} data-testid="profile-alert-stretch" data-current={String(s.leads.includes(lead))}
@@ -48,10 +53,10 @@ const ProfileChart = ({ p, lead }) => {
                         </circle>
                     </g>
                 ))}
-                <text data-testid="profile-start" x={PAD.l} y={9} fontSize="8.5" fontWeight="700" fill="#0f172a">{fmtM(start)}</text>
-                <text data-testid="profile-end" x={W - PAD.r} y={9} fontSize="8.5" fontWeight="700" fill="#0f172a" textAnchor="end">{fmtM(end)}</text>
-                <text x={PAD.l} y={H - 3} fontSize="8" fill="#64748b">point</text>
-                <text x={W - PAD.r} y={H - 3} fontSize="8" fill="#64748b" textAnchor="end">{p.length_km.toFixed(1)} km · building</text>
+                <text data-testid="profile-start" x={PAD.l} y={fs * 0.95} fontSize={fs} fontWeight="700" fill="#0f172a">{fmtM(start)}</text>
+                <text data-testid="profile-end" x={W - PAD.r} y={fs * 0.95} fontSize={fs} fontWeight="700" fill="#0f172a" textAnchor="end">{fmtM(end)}</text>
+                <text x={PAD.l} y={H - 3} fontSize={fs} fill="#64748b">point</text>
+                <text x={W - PAD.r} y={H - 3} fontSize={fs} fill="#64748b" textAnchor="end">{p.length_km.toFixed(1)} km · building</text>
             </svg>
             <figcaption className="text-sm leading-normal text-slate-500 dark:text-slate-400">
                 Terrain every {p.spacing_m} m (9″ DEM grid).

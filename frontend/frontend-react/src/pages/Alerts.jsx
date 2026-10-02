@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { API_BASE } from '../config';
 import { fetchWithWake, WAKE_UNAVAILABLE } from '../utils/serverWake';
+import { askShownFirst, useFillPoll } from '../utils/weatherFill';
 import { fetchedLabel, isLiveSource, isSampleSource, isUnratedZone, mixedCounts, parseUtcIso, primaryThreat, sourceBadge, unratedNote } from '../utils/dashboardRisk';
 import SampleSafetyNotice from '../components/SampleSafetyNotice';
 import OpenMeteoCredit from '../components/OpenMeteoCredit';
@@ -150,6 +151,8 @@ const Alerts = () => {
             };
             setAlerts(fetchedAlerts);
             setSummary(fetchedSummary);
+            // OpenWeather still filling the list: the alert cards (backend order, HIGH first) first
+            askShownFirst(fetchedSummary, fetchedAlerts.filter((a) => a.risk_level && a.risk_level !== 'LOW').map((a) => a.city));
             setWeatherSource(fetchedSummary.source || 'sample');
             setDataTime(fetchedSummary.data_time || fetchedSummary.latest_observed_at || null);
             setLastSyncTime(parseUtcIso(data.last_updated) || new Date());   // backend UTC time of the zone data
@@ -180,6 +183,8 @@ const Alerts = () => {
             clearInterval(interval);
         };
     }, [fetchAlerts]);
+
+    useFillPoll(summary, fetchAlerts);
 
     // Toggle collapsible details
     const toggleExpanded = (key) => {
@@ -301,7 +306,7 @@ const Alerts = () => {
                         </button>
 
                         <Link
-                            to="/"
+                            to="/dashboard"
                             className="flex items-center gap-1.5 px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs rounded-lg shadow-sm hover:scale-105 active:scale-95 transition-all duration-150"
                         >
                             <ArrowLeft size={13} />
@@ -603,12 +608,12 @@ const Alerts = () => {
                                                 {alert.message && alert.message !== shortMessage && (
                                                     <div>
                                                         <span className="font-medium text-gray-700 dark:text-gray-300 block">Notice:</span>
-                                                        <p className="text-[11px] text-gray-500 mt-0.5">{alert.message}</p>
+                                                        <p className="text-xs text-gray-500 mt-0.5">{alert.message}</p>
                                                     </div>
                                                 )}
 
                                                 {alert.timestamp && (
-                                                    <div className="text-[10px] text-gray-400 pt-1">
+                                                    <div className="text-xs text-gray-400 pt-1">
                                                         {fetchedLabel(lastSyncTime)}
                                                     </div>
                                                 )}

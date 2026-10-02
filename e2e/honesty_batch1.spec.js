@@ -93,7 +93,7 @@ test('Alerts with the backend down: "Server unavailable", badge not stuck on Loa
 test('Dashboard banner: "(sample data, rule-based)" on sample data; backend down shows an error, never a "no high-risk" banner', async ({ page }) => {
     await stubImages(page);
     const src = await zoneSource(page);
-    await page.goto('/');
+    await page.goto('/dashboard');
     // HIGH zones: warning banner; none: the neutral info strip (calm-down fix)
     const summary = (await (await page.request.get(`${API}/alerts?limit=380`)).json()).summary;
     const banner = page.getByTestId(summary.high > 0 ? 'alert-banner-text' : 'info-strip-text');
@@ -105,7 +105,7 @@ test('Dashboard banner: "(sample data, rule-based)" on sample data; backend down
     const p2 = await page.context().newPage();
     await stubImages(p2);
     await abortBackend(p2, '**/alerts?limit=380');
-    await p2.goto('/');
+    await p2.goto('/dashboard');
     await expect(p2.getByText(UNAVAILABLE).first()).toBeVisible();
     await expect(p2.getByTestId('alert-banner-text')).toHaveCount(0);
     await expect(p2.getByTestId('info-strip')).toHaveCount(0);
@@ -116,7 +116,7 @@ test('Batch 1 screenshots at 1920x1080 and 1366x768', async ({ page }) => {
     await stubImages(page);
     for (const [w, h] of [[1920, 1080], [1366, 768]]) {
         await page.setViewportSize({ width: w, height: h });
-        for (const r of ['analytics', 'reports', 'forecast', 'alerts', '']) {
+        for (const r of ['analytics', 'reports', 'forecast', 'alerts', 'dashboard']) {
             await page.goto(`/${r}`);
             await page.waitForTimeout(1500);
             await page.screenshot({ path: path.join(SHOTS, `batch1_${r || 'dashboard'}_${w}x${h}.png`) });
