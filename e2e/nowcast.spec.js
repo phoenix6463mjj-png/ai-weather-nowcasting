@@ -4,6 +4,9 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const SHOTS = path.join(path.dirname(fileURLToPath(import.meta.url)), 'screenshots');
+// The newest live run (2 Oct 2026, 0 alerts) is the Live tab's default; tests of the live ALERT panel open the
+// 26 Sep run (8 alerts) through the URL (?view=live&run=...; no run selector in the UI).
+const OLD_LIVE = '/nowcast?view=live&run=20260926T0330Z';
 // wait until the visible OSM tiles and overlay images have finished loading, then capture
 async function shot(page, name) {
     await page.waitForFunction(() => {
@@ -236,7 +239,7 @@ test('National tab: probability map only, no alerts, flash-flood placeholder sta
 
 test('Live tab: not-validated banner, polygons = API alerts, labels correct, nothing filtered', async ({ page }) => {
     const liveAlerts = page.waitForResponse((r) => r.url().includes('/live/') && r.url().includes('/ui-alerts') && r.ok());
-    await page.goto('/nowcast');
+    await page.goto(OLD_LIVE);
     await page.getByTestId('tab-live').click();
     const alerts = (await (await liveAlerts).json()).alerts;
     const banner = page.getByTestId('live-not-validated');
@@ -488,7 +491,7 @@ test('IMD colour chips: orange on every Watch, red on every Warning, label prese
 });
 
 test('IMD pill also on the live alert panel', async ({ page }) => {
-    await page.goto('/nowcast');
+    await page.goto(OLD_LIVE);
     await page.getByTestId('tab-live').click();
     await page.getByTestId('watch-toggle').check();
     await showAlertList(page);
@@ -688,7 +691,8 @@ test('ingredients: "not available" on the forecast-only issue and on live alerts
     await expect(page.getByTestId('ingredients-unavailable')).toHaveText('Not available: no explanation available: input window starts 12:00Z.');
     await expect(page.getByTestId('ingredient-row')).toHaveCount(0);
     await shot(page, 'ingredients_forecast_only_REF051_1300Z');
-    await page.getByTestId('tab-live').click();
+    await page.goto(OLD_LIVE);
+    await expect(page.getByTestId('lead-1')).toBeAttached({ timeout: 30_000 });
     await page.getByTestId('watch-toggle').check();
     await showAlertList(page);
     await page.getByTestId('alert-row').first().locator('button').click();
@@ -1111,7 +1115,8 @@ test('National and Live use the same frame: Layers panel, legend, drawer (About/
     await expect(page.getByTestId('india-notes')).toContainText('Absence of alerts does not mean');
     await expectControlsClear(page);
     await shot(page, 'layout_national_about_1366x768');
-    await page.getByTestId('tab-live').click();
+    await page.goto(OLD_LIVE);
+    await expect(page.getByTestId('lead-1')).toBeAttached({ timeout: 30_000 });
     await expect(page.getByTestId('live-not-validated')).toBeInViewport();
     await expect(page.getByTestId('drawer')).toHaveAttribute('data-open', '');
     await page.getByTestId('layers-toggle').click();
@@ -1227,7 +1232,7 @@ for (const [w, h] of [[1920, 1080], [1366, 768]]) {
 }
 
 test('CAP review on a live alert: status Test (not validated), download blocked until approved', async ({ page }) => {
-    await page.goto('/nowcast');
+    await page.goto(OLD_LIVE);
     await page.getByTestId('tab-live').click();
     await page.getByTestId('watch-toggle').check();
     await showAlertList(page);

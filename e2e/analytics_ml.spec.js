@@ -5,7 +5,7 @@
 import { test, expect } from '@playwright/test';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { tileStats, areaByLead, sentenceWarning, sentenceLeads, fmtAreaText, LEADS, HAZARD_IDS, LEVELS } from '../frontend/frontend-react/src/utils/nowcastAnalytics.js';
+import { tileStats, areaByLead, sentenceWarning, sentenceLeads, sentenceNoAlertsRun, fmtAreaText, LEADS, HAZARD_IDS, LEVELS } from '../frontend/frontend-react/src/utils/nowcastAnalytics.js';
 
 const SHOTS = path.join(path.dirname(fileURLToPath(import.meta.url)), 'screenshots');
 const API = process.env.E2E_API_URL || 'http://127.0.0.1:8000';
@@ -74,11 +74,26 @@ test('Live and National: numbers from the API; the national sample says it has n
     const run = (await api(page, 'live')).runs[0].run;
     const alerts = (await api(page, `live/${run}/ui-alerts?level=all`)).alerts;
     await page.goto('/analytics');
+    const meta = await api(page, `live/${run}/meta`);
     await source(page, 'Live run');
     await expect(page.getByTestId('analytics-badge')).toContainText('Not validated');
     for (const L of [1, 6]) {
         await setLead(page, L);
-        await expectSection1(page, alerts, L);
+        if (alerts.length) {
+            await expectSection1(page, alerts, L);
+            continue;
+        }
+        // a run with no alerts at any lead: the run-level line (number from the run's rasters), no empty chart
+        const s1 = sentenceNoAlertsRun(meta, L);
+        expect(s1).toBe(meta.thunderstorm_max.lead === L ? meta.no_alert_text
+            : `${meta.no_alert_text} At +${L} h the highest thunderstorm probability is ${meta.thunderstorm_max.per_lead_text[L]}.`);
+        await expect(page.getByTestId('analytics-s1-sentence')).toHaveText(s1);
+        await expect(page.getByTestId('analytics-s2-sentence')).toHaveText('No alerts at any lead in this run, so there is no alert area to compare.');
+        await expect(page.locator('[data-testid="area-bar"]')).toHaveCount(0);
+        await expect(page.getByTestId('analytics-s2').locator('svg')).toHaveCount(0);
+        for (const h of HAZARD_IDS) await expect(page.locator(`[data-testid="hazard-tile"][data-hazard="${h}"]`)).toHaveAttribute('data-n', '0');
+        await expect(page.getByTestId('analytics-thumbnail')).toBeVisible();
+        expect(await page.locator('main').innerText()).not.toMatch(/\bsafe\b/i);
     }
     await source(page, 'National sample');
     await expect(page.getByTestId('analytics-s1-sentence')).toHaveText(
@@ -136,7 +151,8 @@ test('a tile and the thumbnail open ML Nowcast at that source, lead and hazard',
     await source(page, 'Live run');
     await setLead(page, 2);
     await page.getByTestId('analytics-thumbnail').click();
-    await expect(page).toHaveURL(/\/nowcast\?view=live&lead=2&hazard=thunderstorm&watch=1/);
+    const liveRun = (await api(page, 'live')).runs[0].run;
+    await expect(page).toHaveURL(new RegExp(`/nowcast\\?view=live&run=${liveRun}&lead=2&hazard=thunderstorm&watch=1`));
     await expect(page.getByTestId('live-not-validated')).toBeVisible();
     await expect(page.getByTestId('lead-2')).toHaveAttribute('aria-pressed', 'true', { timeout: 30_000 });
 });

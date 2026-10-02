@@ -11,7 +11,7 @@ import {
     issueMapUrl, indiaMapUrl, liveMapUrl,
 } from '../services/nowcastApi';
 import { HAZARD_STYLE } from '../utils/hazardLabels';
-import { HAZARD_IDS, LEADS, LEVELS, areaByLead, fmtAreaText, sentenceLeads, sentenceWarning, tileStats } from '../utils/nowcastAnalytics';
+import { HAZARD_IDS, LEADS, LEVELS, areaByLead, fmtAreaText, sentenceLeads, sentenceNoAlertsRun, sentenceWarning, tileStats } from '../utils/nowcastAnalytics';
 import { nowcastLink } from '../utils/nowcastUrl';
 
 const TERMS = {
@@ -339,8 +339,9 @@ const Analytics = () => {
     const shown = alerts.filter((a) => a.lead_time_h === lead && hazards.includes(a.hazard) && levels.includes(a.level));
     const toggle = (list, set, v) => set(list.includes(v) ? (list.length > 1 ? list.filter((x) => x !== v) : list) : [...list, v]);
     const noAlerts = src?.kind === 'india';
+    const emptyRun = !!ready && !noAlerts && alerts.length === 0;   // a run/issue with no alerts at any lead
     const open = (hz) => navigate(nowcastLink({
-        view: src.kind, ep: src.ep, ts: src.ts, lead, hazard: hz,
+        view: src.kind, ep: src.ep, ts: src.ts, run: src.kind === 'live' ? src.run : undefined, lead, hazard: hz,
         watch: levels.includes('Watch'),
         field: src.kind === 'india' ? (hz === 'cloudburst' ? 'cloudburst_index' : 'thunderstorm') : undefined,
     }));
@@ -391,7 +392,8 @@ const Analytics = () => {
 
                 <Section n="1" q="What is the model warning about?" testid="analytics-s1"
                     sentence={!ready ? 'Loading…' : noAlerts ? `The national sample has probability maps only: no alerts are produced (absence of alerts does not mean no risk).`
-                        : sentenceWarning(stats, lead, hazards, levels)}>
+                        : emptyRun ? (src.kind === 'live' ? sentenceNoAlertsRun(data.meta, lead) : 'No Watch or Warning in this issue at any lead.')
+                            : sentenceWarning(stats, lead, hazards, levels)}>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         {HAZARD_IDS.map((h) => {
                             const s = stats[h];
@@ -420,8 +422,10 @@ const Analytics = () => {
                 </Section>
 
                 <Section n="2" q="How does it change with lead time?" testid="analytics-s2"
-                    sentence={!ready ? null : noAlerts ? 'No alerts in the national sample, so there is no alert area to compare.' : sentenceLeads(byLead)}>
-                    {ready && !noAlerts && <AreaChart rows={byLead} hazards={hazards} lead={lead} onLead={(L) => { setPlaying(false); setLeadIdx(LEADS.indexOf(L)); }} />}
+                    sentence={!ready ? null : noAlerts ? 'No alerts in the national sample, so there is no alert area to compare.'
+                        : emptyRun ? `No alerts at any lead in this ${src.kind === 'live' ? 'run' : 'issue'}, so there is no alert area to compare.`
+                            : sentenceLeads(byLead)}>
+                    {ready && !noAlerts && !emptyRun && <AreaChart rows={byLead} hazards={hazards} lead={lead} onLead={(L) => { setPlaying(false); setLeadIdx(LEADS.indexOf(L)); }} />}
                 </Section>
 
                 <Section n="3" q="Why does the model think so?" testid="analytics-s3" sentence={doc?.attribution?.sentence}>

@@ -25,7 +25,7 @@ NOWCAST_FILES = [
     ("docs/demo_explain/**/*", "precomputed demo issues: manifests, alerts, explanations, grids, probability rasters, waterfall figures"),
     ("docs/case_studies/**/*", "REF051 case study issues (same kinds)"),
     ("docs/sample_output_india/**/*", "national sample (probability rasters, manifest)"),
-    ("docs/live_output/**/*", "the one live run (20260926T0330Z)"),
+    ("docs/live_output/**/*", "the live runs (20261002T0230Z = Live default, 0 alerts; 20260926T0330Z, 8 alerts)"),
     ("docs/LIVE_PIPELINE.md", "quoted by the case-study paragraph (IMERG Early latency)"),
     ("docs/latency_benchmark.json", "Approach page: measured compute time of one all-India nowcast"),
     ("docs/insat_latency.json", "Approach page: measured INSAT L1C latency (from the poller's CSV)"),
@@ -119,27 +119,42 @@ def _optional(src_root, rels, dst_root, log, why):
 
 
 def _insat_snapshot(nowcast_data, dst_root, log):
-    """Live INSAT layer on the host = ONE snapshot: the latest derived frame (PNG + BT grid + JSON) from the
-    poller's folder (env NOWCAST_INSAT_LIVE_DIR, else <nowcast_data>/live_insat), plus SNAPSHOT.json so the
-    API labels it "snapshot, acquired HH:MMZ". No raw file, no credentials, no poller on the host."""
+    """Live INSAT layer on the host = ONE snapshot: each satellite's newest derived frame (PNG + its JSON; no BT
+    grid, so per-alert cloud-top values are not computed on the host) from the poller's folder (env
+    NOWCAST_INSAT_LIVE_DIR, else <nowcast_data>/live_insat), plus SNAPSHOT.json so the API labels it "snapshot,
+    acquired HH:MMZ". No raw file, no credentials, no poller on the host. A frame still being written (JSON
+    unreadable or PNG missing) is skipped."""
     src = Path(os.environ.get("NOWCAST_INSAT_LIVE_DIR") or nowcast_data / "live_insat")
     frames = []
     for p in (src.glob("*.json") if src.is_dir() else []):
-        if p.name != "SNAPSHOT.json":
-            frames.append(json.loads(p.read_text(encoding="utf-8")))
+        if p.name == "SNAPSHOT.json":
+            continue
+        try:
+            f = json.loads(p.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if (src / f"{f['id']}.png").is_file():
+            frames.append(f)
     if not frames:
         log.append(("nowcast_data/live_insat/*", 0, 0, "live INSAT snapshot: none (the poller has not produced a frame)"))
         return
-    f = max(frames, key=lambda x: x["acq_start"])
+    newest = {}
+    for f in sorted(frames, key=lambda x: x["acq_start"], reverse=True):
+        newest.setdefault(f["satellite"], f)
+    picked = sorted(newest.values(), key=lambda x: x["acq_start"], reverse=True)
     dst = dst_root / "live_insat"
     dst.mkdir(parents=True, exist_ok=True)
     size = 0
-    for ext in ("png", "npz", "json"):
-        shutil.copy2(src / f"{f['id']}.{ext}", dst / f"{f['id']}.{ext}")
-        size += (src / f"{f['id']}.{ext}").stat().st_size
-    (dst / "SNAPSHOT.json").write_text(json.dumps({"snapshot": True, "frame": f["id"], "acq_start": f["acq_start"],
-                                                   "source": src.name}, indent=1), encoding="utf-8")
-    log.append(("nowcast_data/live_insat/*", 4, size, f"live INSAT snapshot: {f['id']} (acquired {f['acq_start']})"))
+    for f in picked:
+        for ext in ("png", "json"):
+            shutil.copy2(src / f"{f['id']}.{ext}", dst / f"{f['id']}.{ext}")
+            size += (src / f"{f['id']}.{ext}").stat().st_size
+    (dst / "SNAPSHOT.json").write_text(json.dumps({"snapshot": True, "frames": [f["id"] for f in picked],
+                                                   "acq_start": {f["satellite"]: f["acq_start"] for f in picked},
+                                                   "images_only": True, "source": src.name}, indent=1), encoding="utf-8")
+    log.append(("nowcast_data/live_insat/*", 2 * len(picked) + 1, size,
+                "live INSAT snapshot (PNG + JSON, newest per satellite): "
+                + ", ".join(f"{f['id']} (acquired {f['acq_start']})" for f in picked)))
 
 
 def main():

@@ -56,6 +56,15 @@ export function sentenceWarning(stats, lead, hazards, levels) {
     return `${text}.`;
 }
 
+// A live run with no alerts at any lead: the API's run-level line, plus the highest thunderstorm probability
+// at the selected lead (both read from the run's rasters by the API; thunderstorm is the only probability).
+export function sentenceNoAlertsRun(meta, lead) {
+    const base = meta?.no_alert_text || 'No Watch or Warning in this run.';
+    const t = meta?.thunderstorm_max?.per_lead_text?.[lead];
+    if (!t || meta.thunderstorm_max.lead === lead) return base;          // the run-level line already names this lead
+    return `${base} At +${lead} h the highest thunderstorm probability is ${t}.`;
+}
+
 // "Alert area is largest at +4 h (12,300 km²) and smallest at +1 h (900 km²)."
 export function sentenceLeads(rows) {
     const any = rows.filter((r) => r.total > 0);

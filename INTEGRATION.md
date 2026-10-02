@@ -1516,6 +1516,43 @@ Satellite observation (INSAT via MOSDAC). It is not a model input.
 - At 1366×768 the layers panel's INSAT lines continue below the fold inside the panel, which scrolls.
   Both per-satellite age lines stay visible.
 
+### Fresh live run + INSAT I3b (2 Oct 2026)
+
+- **Live run `20261002T0230Z`** (`nowcast.live.poll` then `nowcast.live.ingest`, as on 26 Sep; no pipeline or
+  model change).
+  - Poll at 07:52Z: IMERG Early 02:30Z slot, 322.7 min old; GFS 00Z, 472.7 min old.
+  - Ingest: 17.6 s, peak working set 641 MB.
+  - **0 alerts** at every lead; the highest thunderstorm probability is 5 % (+4 h).
+- **Live tab default** is the newest run (the API lists runs newest first).
+  - The UI has no run selector, so none was added. The 26 Sep run (8 alerts) opens with
+    `/nowcast?view=live&run=20260926T0330Z`, a URL parameter like `ep`/`ts`. The e2e tests of the live
+    alert panel use it.
+  - Analytics' Live links carry `run=`.
+- **0-alert state** (no "safe" wording; the numbers are read from the run's rasters):
+  - Live bar: "No Watch or Warning in this run (highest thunderstorm probability 5 %, at +4 h)."
+  - Alert drawer: the value at the selected lead; "CAP review: no alerts in this run, so there is no CAP
+    message to review."; the INSAT summary.
+  - Analytics (Live): the same line in section 1 (plus the selected lead's value when it isn't the peak
+    lead); section 2 says there is no alert area to compare, with no empty chart.
+  - Shelter options: a map click near Pipalkoti lists 16 buildings, all outside, 0 inside.
+- **INSAT I3b:**
+  - 0 of 0 alerts have a cloud-top value, because the run has no alerts.
+  - Real frames exist within ±1 h of the +3, +4 and +6 h valid times, as read at 08:25Z. The poller
+    keeps 4 frames per satellite, so this changes as frames rotate.
+  - The per-alert path is tested on fixtures, including the exact ±60 min edges.
+- **Host snapshot:**
+  - each satellite's newest frame, PNG + JSON only (3DR 07:45Z, 3DS 07:30Z, 0.07 MB);
+  - per-alert values are not computed on the host and say so;
+  - both live runs ship; package 143.6 MB (was 140.4 MB);
+  - no raw files and no credentials (checked).
+- **Tests:**
+  - serve: 170 (NOWCAST_TEST_REPLAY=1);
+  - backend: 60, including host parity with both apps reading the shipped snapshot;
+  - e2e: 167 in 23 files, run in groups, including host parity views on `:10000`;
+  - new `e2e/live_run_oct.spec.js` (5).
+- **Screenshots:** `live_oct_insat_*` (real frames), `live_oct_drawer_*`, `live_oct_shelter_*`,
+  `live_oct_analytics_*` and `live_oct_analytics_s2_*`, at 1920×1080 and 1366×768.
+
 ## 7. Troubleshooting
 
 | symptom | cause / fix |

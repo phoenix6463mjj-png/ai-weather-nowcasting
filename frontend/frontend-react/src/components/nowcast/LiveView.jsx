@@ -143,12 +143,13 @@ const LiveView = () => {
             if (!live) return;
             setRuns(r);
             if (!r.runs.length) return;
-            const run = r.runs[0].run;
+            const tg = nowcastTarget();                       // link from Analytics: run / lead / hazard / watch
+            // the newest run by default; an older run only via ?view=live&run=<id> (no run selector in the UI)
+            const run = (tg.view === 'live' && r.runs.find((x) => x.run === tg.run)?.run) || r.runs[0].run;
             const [m, a] = await Promise.all([getLiveMeta(run), getLiveAlerts(run)]);
             if (!live) return;
             setMeta(m);
             setAlerts(a.alerts);
-            const tg = nowcastTarget();                       // link from Analytics: lead / hazard / watch
             setLead(tg.view === 'live' && tg.lead && m.leads_available.includes(tg.lead) ? tg.lead : defaultLead(a.alerts, m.leads_available));
             if (tg.view === 'live' && tg.hazard) setHazards([tg.hazard]);
             if (tg.view === 'live' && tg.watch) setShowWatch(true);
@@ -192,6 +193,7 @@ const LiveView = () => {
                                     flash flood not computed on the national live grid</>
                             )}
                         </p>
+                        {meta?.no_alert_text && <p data-testid="live-no-alerts" className="text-xs font-black mt-0.5">{meta.no_alert_text}</p>}
                     </div>
                 </MapBadges>
                 {error && <div className="bg-red-600 text-white px-6 py-2 text-sm font-semibold">{error}</div>}
@@ -231,13 +233,25 @@ const LiveView = () => {
                         <div data-testid="alert-list-view">
                             <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-700">
                                 <h3 className="text-sm font-black">Live run {meta?.run}</h3>
-                                {lead && <p className="text-xs text-slate-600 dark:text-slate-300 mt-1">Lead {lead} h: {shown.length} alert{shown.length === 1 ? '' : 's'} shown (not validated)</p>}
+                                {lead && alerts.length > 0 && <p className="text-xs text-slate-600 dark:text-slate-300 mt-1">Lead {lead} h: {shown.length} alert{shown.length === 1 ? '' : 's'} shown (not validated)</p>}
+                                {lead && alerts.length === 0 && meta && (
+                                    <div data-testid="live-empty-run" className="text-xs text-slate-700 dark:text-slate-200 mt-1 space-y-1.5">
+                                        <p className="font-bold">{meta.no_alert_text || 'No Watch or Warning in this run.'}</p>
+                                        {meta.thunderstorm_max?.per_lead_text?.[lead] && (
+                                            <p data-testid="live-empty-lead">At +{lead} h the highest thunderstorm probability is {meta.thunderstorm_max.per_lead_text[lead]} (not validated).</p>
+                                        )}
+                                        <p data-testid="live-empty-cap">CAP review: no alerts in this run, so there is no CAP message to review.</p>
+                                        {insatNear?.summary && <p data-testid="live-empty-insat" className="text-slate-500 dark:text-slate-400">{insatNear.summary.text}</p>}
+                                    </div>
+                                )}
                                 {!showWatch && hiddenWatch > 0 && (
                                     <p className="text-[11px] text-amber-700 dark:text-amber-400 mt-1">{hiddenWatch} Watch alert{hiddenWatch === 1 ? '' : 's'} hidden at this lead. Tick "Also show Watch" in Layers.</p>
                                 )}
                             </div>
-                            <AlertList alerts={shown} selectedId={selected?.alert_id} onSelect={select}
-                                emptyText={showWatch ? 'No live alerts at this lead.' : 'No live Warnings at this lead. Tick "Also show Watch" in Layers.'} />
+                            {alerts.length > 0 && (
+                                <AlertList alerts={shown} selectedId={selected?.alert_id} onSelect={select}
+                                    emptyText={showWatch ? 'No live alerts at this lead.' : 'No live Warnings at this lead. Tick "Also show Watch" in Layers.'} />
+                            )}
                         </div>
                     )
                 ) : id === 'ingredients' ? <IngredientsTab selected={selected} d={selected} liveNote={LIVE_INGREDIENTS_NOTE} />

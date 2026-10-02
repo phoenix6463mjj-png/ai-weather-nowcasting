@@ -11,10 +11,11 @@ const SHOTS = path.join(path.dirname(fileURLToPath(import.meta.url)), 'screensho
 const API = process.env.E2E_API_URL || 'http://127.0.0.1:8000';
 const LABEL = 'INSAT cloud tops (satellite observation, INSAT via MOSDAC)';
 const api = async (page, p) => (await page.request.get(`${API}/ml/${p}`)).json();
+const OLD_RUN = '20260926T0330Z';   // 8 alerts; the newest run (Live default, 2 Oct) has none
 
-async function openLive(page) {
-    await page.goto('/nowcast');
-    await page.getByTestId('tab-live').click();
+async function openLive(page, run = null) {
+    await page.goto(run ? `/nowcast?view=live&run=${run}` : '/nowcast');
+    if (!run) await page.getByTestId('tab-live').click();
     await expect(page.getByTestId('lead-1')).toBeAttached({ timeout: 30_000 });
     const lp = page.getByTestId('layers-panel');
     if (await lp.count() && (await lp.getAttribute('data-open')) === 'false') await page.getByTestId('layers-toggle').click();
@@ -58,8 +59,8 @@ test('Live: INSAT layer off by default; on = the latest frame with its satellite
 });
 
 test('Live alert: "No INSAT frame near this alert\'s valid time" (the run is 26 Sep; the frames are later)', async ({ page }) => {
-    await openLive(page);
-    const run = (await api(page, 'live')).runs[0].run;
+    await openLive(page, OLD_RUN);
+    const run = OLD_RUN;
     const near = await api(page, `live/${run}/insat`);
     await page.getByTestId('watch-toggle').check();                   // the live run has Watch alerts only
     await page.getByTestId('drawer-tab-alert').click();
@@ -113,6 +114,7 @@ test('INSAT I3a screenshots at 1920x1080 and 1366x768', async ({ page }) => {
         if (await t.isEnabled()) await t.check();
         await page.waitForTimeout(1500);
         await page.screenshot({ path: path.join(SHOTS, `insat_live_${w}x${h}.png`) });
+        await openLive(page, OLD_RUN);
         await page.getByTestId('watch-toggle').check();
         await page.getByTestId('drawer-tab-alert').click();
         await page.getByTestId('alert-row').first().locator('button').first().click();
