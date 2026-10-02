@@ -24,7 +24,7 @@ export default function useTerrain(layerId) {
     };
 }
 
-// The copyright holders from the Copernicus DEM notice ("© DLR e.V. 2010-2014 and © Airbus Defence and Space
-// GmbH 2014-2018"), shown in the map attribution next to the terrain layer (short on-screen form; the full
-// notice is in the Data credits).
-export const terrainHolders = (notice) => (String(notice || '').match(/© DLR.*?\d{4}-\d{4}.*?© .*?\d{4}-\d{4}/) || [''])[0];
+// Map attribution whenever terrain is drawn: the full Copernicus DEM notice, verbatim from the attribution
+// file (the same text as the Data credits), after the dataset name. HTML-escaped for Leaflet.
+const escHtml = (t) => String(t || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+export const terrainAttribution = (notice) => `<span data-testid="terrain-attribution">Terrain (${TERRAIN_ATTRIBUTION}): ${escHtml(notice)}</span>`;

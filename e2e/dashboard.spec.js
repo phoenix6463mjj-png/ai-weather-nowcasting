@@ -94,7 +94,8 @@ test('Dashboard: tile switch requests OSM (single host), NASA GIBS VIIRS yesterd
     await page.getByTestId('basemap-terrain').click();
     await hill;
     await expect(page.locator('img.dashboard-hillshade')).toHaveCount(1);
-    await expect(page.locator('.leaflet-control-attribution')).toContainText('Copernicus DEM GLO-90');
+    const notice = (await (await page.request.get(`${process.env.E2E_API_URL || 'http://127.0.0.1:8000'}/ml/credits`)).json()).credits.find((c) => c.id === 'copernicus_dem').text;
+    await expect(page.getByTestId('terrain-attribution')).toHaveText(`Terrain (Copernicus DEM GLO-90): ${notice}`);   // full notice, as in the credits
     await expect(page.getByTestId('basemap-terrain')).toHaveAttribute('aria-pressed', 'true');
     await expect(page.getByTestId('basemap-map')).toHaveAttribute('aria-pressed', 'false');
 });

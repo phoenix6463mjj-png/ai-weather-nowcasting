@@ -2,12 +2,29 @@ import { useEffect, useRef } from 'react';
 import { MapContainer, TileLayer, GeoJSON, CircleMarker, Circle, Tooltip, ImageOverlay, Rectangle, Pane, ZoomControl, useMap, useMapEvents } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import { HAZARD_STYLE, LEVEL_STYLE, VERIFY_STYLE, valueText, FF_VERIFY_NOTE } from '../../utils/hazardLabels';
-import { TERRAIN_ATTRIBUTION, terrainHolders } from './useTerrain';
+import { terrainAttribution } from './useTerrain';
 
-const esc = (t) => String(t || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
 
 // Fit the issue's bounds (4 px padding: India stays at zoom 4 at 1366x768); until the user pans or zooms, a container resize (the drawer opening on load, badges
 // wrapping) fits them again, so the opening view always shows the whole domain.
+// The attribution control can wrap to several lines (it carries the full Copernicus DEM notice): its height is
+// published as --attr-h on the map's parent, so the panels anchored at the bottom stay above it (utils/mapLayout.js).
+const AttributionHeight = () => {
+    const map = useMap();
+    useEffect(() => {
+        const box = map.getContainer();
+        const el = box.querySelector('.leaflet-control-attribution');
+        const host = box.parentElement;
+        if (!el || !host) return undefined;
+        const set = () => host.style.setProperty('--attr-h', `${Math.ceil(el.getBoundingClientRect().height)}px`);
+        set();
+        const ro = new ResizeObserver(set);
+        ro.observe(el);
+        return () => ro.disconnect();
+    }, [map]);
+    return null;
+};
+
 const FitBounds = ({ bounds }) => {
     const map = useMap();
     const key = JSON.stringify(bounds);
@@ -97,6 +114,7 @@ const AlertMap = ({ bounds, alerts = [], selectedId, onSelect: onSelectProp, sit
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         />
         <FitBounds bounds={bounds} />
+        <AttributionHeight />
         {showDomain && bounds && (
             <Rectangle bounds={bounds} pathOptions={{ color: '#334155', weight: 1, dashArray: '2 4', fill: false }}
                 interactive={false} />
@@ -105,7 +123,7 @@ const AlertMap = ({ bounds, alerts = [], selectedId, onSelect: onSelectProp, sit
         <Pane name="nowcast-terrain" style={{ zIndex: 300 }}>
             {terrain.map((t) => (
                 <ImageOverlay key={t.url} url={t.url} bounds={t.bounds} opacity={t.opacity} className="nowcast-terrain"
-                    attribution={`Terrain: <span title="${esc(terrainNotice)}">${TERRAIN_ATTRIBUTION} ${esc(terrainHolders(terrainNotice))}</span>`} />
+                    attribution={terrainAttribution(terrainNotice)} />
             ))}
         </Pane>
         {/* rasters live in their own pane below the alert polygons (overlayPane is z 400) */}

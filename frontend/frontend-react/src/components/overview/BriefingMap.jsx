@@ -3,7 +3,7 @@ import { MapContainer, TileLayer, ImageOverlay, CircleMarker, GeoJSON, Tooltip, 
 import 'leaflet/dist/leaflet.css';
 import { mlUrl } from '../../services/nowcastApi';
 import { HAZARD_STYLE, LEVEL_STYLE } from '../../utils/hazardLabels';
-import { TERRAIN_ATTRIBUTION, terrainHolders } from '../nowcast/useTerrain';
+import { terrainAttribution } from '../nowcast/useTerrain';
 import { stepViews, layerNames } from '../../utils/briefing';
 
 // The Overview's pinned map. Each step shows its own layers; images are mounted only for the step that
@@ -54,11 +54,11 @@ const BriefingMap = ({ data, step, scrub, reduced }) => {
                 {/* terrain: national hillshade (steps 1, 2, 6, 8), the Malana box (3-5) */}
                 {data && [0, 1, 5, 7].includes(step) && (
                     <ImageOverlay url={mlUrl(data.terrain.path)} bounds={data.terrain.bounds} opacity={0.45}
-                        attribution={`Terrain: ${TERRAIN_ATTRIBUTION} ${terrainHolders(data.terrain.notice)}`} />
+                        attribution={terrainAttribution(data.terrain.notice)} />
                 )}
                 {data && [2, 3, 4].includes(step) && (
                     <ImageOverlay url={mlUrl(m.terrain.path)} bounds={m.terrain.bounds} opacity={0.4}
-                        attribution={`Terrain: ${TERRAIN_ATTRIBUTION} ${terrainHolders(data.terrain.notice)}`} />
+                        attribution={terrainAttribution(data.terrain.notice)} />
                 )}
                 {data && step === 0 && <SiteDots sites={data.sites} />}
                 {data && (step === 1 || step === 5) && <SiteDots sites={data.sites} sized />}

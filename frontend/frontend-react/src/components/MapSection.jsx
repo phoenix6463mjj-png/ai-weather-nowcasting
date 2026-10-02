@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { MapContainer, TileLayer, ImageOverlay, Marker, Popup, Tooltip, useMap } from 'react-leaflet';
 import { SAMPLE_ZONE_TEXT, isUnratedZone, primaryThreat, riskColour } from '../utils/dashboardRisk';
 import { getTerrain, terrainUrl } from '../services/nowcastApi';
+import { terrainAttribution } from './nowcast/useTerrain';
 import MarkerClusterGroup from 'react-leaflet-cluster';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet.markercluster/dist/MarkerCluster.css';
@@ -136,7 +137,7 @@ const MapSection = ({
             )}
             {baseLayer === 'terrain' && hill && (
                 <ImageOverlay url={hill.url} bounds={hill.bounds} opacity={0.6} className="dashboard-hillshade"
-                    attribution={`Terrain: <span title="${hill.notice}">${hill.credit}</span> hillshade`} />
+                    attribution={terrainAttribution(hill.notice)} />
             )}
 
             <MapController selectedCity={activeCity} />

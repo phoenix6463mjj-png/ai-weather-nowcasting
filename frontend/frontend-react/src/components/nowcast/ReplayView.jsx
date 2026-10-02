@@ -3,6 +3,7 @@ import { BellRing, FlaskConical, CalendarClock, Info, Building2 } from 'lucide-r
 import { getEpisodes, getEventCheck, getTimeline, getIssueMeta, getIssueAlerts, getAlertDetail, getShelters, getShelterDefault, issueMapUrl, issueMissedUrl } from '../../services/nowcastApi';
 import { HAZARDS, fmtUtc, fmtIssueShort, issueDefaultLead, FF_VERIFY_NOTE } from '../../utils/hazardLabels';
 import AlertMap from './AlertMap';
+import { ABOVE_ATTRIBUTION } from '../../utils/mapLayout';
 import MapControls from './MapControls';
 import AlertList from './AlertList';
 import ExplainPanel from './ExplainPanel';
@@ -341,7 +342,7 @@ const ReplayView = ({ jump = null, onJump = null, startHere = null, mapOverlay =
                                 ...(sh.data?.candidates || []),
                                 ...(insideOpen ? (sh.data?.inside_candidates || []).map((c) => ({ ...c, prefix: 'i' })) : [])] } : null} />
                     )}
-                    <div className="absolute top-3 left-3 bottom-3 z-[400] flex flex-col pointer-events-none">
+                    <div className="absolute top-3 left-3 z-[400] flex flex-col pointer-events-none" style={ABOVE_ATTRIBUTION}>
                         <LayersPanel summary={meta && lead ? `${episode?.sites?.length ? episode.sites[0].name : episode?.location || ''} · ${fmtIssueShort(meta.issue_time)} · L${lead} h · ${showWatch ? 'Watch + Warning' : 'Warnings'}${insat.on && insat.available ? ' · INSAT-3DR' : ''}` : ''}>
                             <div className="space-y-1.5">
                                 <p className="text-xs font-black uppercase text-slate-500 dark:text-slate-400">Event and issue</p>
@@ -371,7 +372,7 @@ const ReplayView = ({ jump = null, onJump = null, startHere = null, mapOverlay =
                         </LayersPanel>
                     </div>
                     {meta && (
-                        <div className="absolute top-[84px] bottom-[26px] right-3 z-[400] flex flex-col justify-end pointer-events-none">
+                        <div className="absolute top-[84px] right-3 z-[400] flex flex-col justify-end pointer-events-none" style={ABOVE_ATTRIBUTION}>
                             <MapLegend legends={meta.legends} field={field} hazards={hazards} site={(meta.sites || []).length} ffNote={FF_VERIFY_NOTE}
                                 verification={meta.explain_available !== false} observed={obsAvailable} missed={obsAvailable}
                                 underReport={(meta.sites || []).length ? startHere?.under_report : null}

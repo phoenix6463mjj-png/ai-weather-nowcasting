@@ -509,7 +509,7 @@ test('terrain (DEM): on by default, same bounds as the forecast rasters, below r
     const zT = await paneZ(terrain), zR = await paneZ(obs), zA = await paneZ(page.locator('path.nowcast-alert-poly').first());
     expect(zT).toBeLessThan(zR);
     expect(zR).toBeLessThan(zA);
-    await expect(page.locator('.leaflet-control-attribution')).toContainText('Terrain: Copernicus DEM GLO-90');
+    await expect(page.locator('.leaflet-control-attribution')).toContainText(`Terrain (Copernicus DEM GLO-90): ${COPERNICUS_NOTICE}`);
     await shot(page, 'terrain_REF045_0813T2100Z_L4_default');
     // zoomed in near the documented site: relief detail and valley alignment
     await page.locator('.leaflet-control-zoom-in').click();
@@ -576,13 +576,12 @@ test('data credits: one line naming Copernicus DEM on every tab, the full notice
     const api = (await (await cr).json()).credits;
     expect(api.find((c) => c.id === 'copernicus_dem').text).toBe(COPERNICUS_NOTICE);
     await page.mouse.move(0, 0);                                    // nothing hovered
-    const holders = /© DLR e\.V\. 2010-2014 and © Airbus Defence and Space GmbH 2014-2018/;
     for (const tab of ['replay', 'india', 'live']) {
         await page.getByTestId(`tab-${tab}`).click();
         await expect(page.getByTestId('credits-names')).toContainText('Copernicus DEM');
         await expect(page.getByTestId('credits-toggle')).toBeInViewport({ ratio: 1 });
-        // the terrain layer (on by default) carries its copyright holders in the map attribution, no hover needed
-        await expect(page.locator('.leaflet-control-attribution')).toContainText(holders);
+        // the terrain layer (on by default) carries the full notice in the map attribution, no hover needed
+        await expect(page.getByTestId('terrain-attribution')).toHaveText(`Terrain (Copernicus DEM GLO-90): ${api.find((c) => c.id === 'copernicus_dem').text}`);
     }
     await page.getByTestId('tab-replay').click();
     await page.getByTestId('credits-toggle').click();

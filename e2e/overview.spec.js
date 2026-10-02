@@ -341,3 +341,35 @@ test('All-India subtitle in plain words, read from the data; no internal IDs', a
     await expect(page.getByTestId('india-notes')).not.toContainText('REF0');
     await expect(page.getByTestId('india-notes')).toContainText(`a ${period[1]} test-period episode`);
 });
+
+test('terrain: the full Copernicus DEM notice in the map attribution fits at 1366x768 and 390 px', async ({ page }) => {
+    const notice = (await api(page, 'credits')).credits.find((c) => c.id === 'copernicus_dem').text;
+    const want = `Terrain (Copernicus DEM GLO-90): ${notice}`;
+    const fit = () => page.evaluate(() => {
+        const a = document.querySelector('.leaflet-control-attribution').getBoundingClientRect();
+        const m = document.querySelector('.leaflet-container').getBoundingClientRect();
+        const z = document.querySelector('.leaflet-control-zoom')?.getBoundingClientRect();
+        const overlap = z ? !(z.bottom <= a.top || z.top >= a.bottom || z.right <= a.left || z.left >= a.right) : false;
+        return { inside: a.left >= m.left - 0.5 && a.right <= m.right + 0.5 && a.top >= m.top - 0.5 && a.bottom <= m.bottom + 0.5,
+            overlap, share: a.height / m.height };
+    });
+    for (const [w, h] of [[1366, 768], [390, 844]]) {
+        await page.setViewportSize({ width: w, height: h });
+        for (const [url, ready, name] of [
+            ['/', () => goStep(page, 1), 'overview'],
+            ['/nowcast', () => expect(page.getByTestId('replay-view')).toHaveAttribute('data-loaded', /REF051/, { timeout: 60_000 }), 'nowcast'],
+        ]) {
+            await page.goto(url);
+            if (url === '/') await expect(page.getByTestId('ov-text-2')).toContainText('mm/hr');
+            await ready();
+            await expect(page.getByTestId('terrain-attribution').first()).toHaveText(want);
+            await page.waitForTimeout(1300);
+            await shot(page, `terrain_notice_${name}_${w}x${h}`);
+            const f = await fit();
+            expect(f.inside, `${name} ${w}: attribution inside the map`).toBe(true);
+            expect(f.overlap, `${name} ${w}: attribution clear of the zoom buttons`).toBe(false);
+            expect(f.share, `${name} ${w}: attribution height share`).toBeLessThan(0.3);
+            expect(await noHScroll(page), `${name} ${w}`).toBe(true);
+        }
+    }
+});

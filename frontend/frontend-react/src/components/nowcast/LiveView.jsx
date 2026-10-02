@@ -3,6 +3,7 @@ import { AlertTriangle, ChevronLeft, ArrowUpRight, ArrowDownRight, BellRing, Fla
 import { getLiveRuns, getLiveMeta, getLiveAlerts, getShelters, liveMapUrl, getLiveInsat, liveInsatUrl, getLiveRunInsat, getComputeLatency } from '../../services/nowcastApi';
 import { HAZARDS, HAZARD_STYLE, LEVEL_STYLE, valueText, kindText, fmtUtc, defaultLead, FIELD_OPTIONS } from '../../utils/hazardLabels';
 import AlertMap from './AlertMap';
+import { ABOVE_ATTRIBUTION } from '../../utils/mapLayout';
 import MapControls from './MapControls';
 import MapLegend from './MapLegend';
 import AlertList from './AlertList';
@@ -232,7 +233,7 @@ const LiveView = ({ mapOverlay = null }) => {
                                 ...(sh.data?.candidates || []),
                                 ...(insideOpen ? (sh.data?.inside_candidates || []).map((c) => ({ ...c, prefix: 'i' })) : [])] } : null} />}
                     {meta && lead && (
-                        <div className="absolute top-3 left-3 bottom-3 z-[400] flex flex-col pointer-events-none">
+                        <div className="absolute top-3 left-3 z-[400] flex flex-col pointer-events-none" style={ABOVE_ATTRIBUTION}>
                             <LayersPanel summary={`Live ${meta.run} · L${lead} h · ${showWatch ? 'Watch + Warning' : 'Warnings'}`}>
                                 <MapControls leads={meta.leads_available} lead={lead} setLead={setLead}
                                     hazards={hazards} setHazards={setHazards} showWatch={showWatch} setShowWatch={setShowWatch}
@@ -244,7 +245,7 @@ const LiveView = ({ mapOverlay = null }) => {
                     )}
                     {mapOverlay}
                     {meta && (
-                        <div className="absolute top-[84px] bottom-[26px] right-3 z-[400] flex flex-col justify-end pointer-events-none">
+                        <div className="absolute top-[84px] right-3 z-[400] flex flex-col justify-end pointer-events-none" style={ABOVE_ATTRIBUTION}>
                             <MapLegend legends={meta.legends} field={field} hazards={hazards} verification={false}
                                 terrain={terrain.layers.length > 0} noteTitle="Verification" note="Live: no observed verification layer."
                                 insat={insatShown ? { classes: insatLayer.colour_scale.classes, lines: insatLayer.lines, floorLine: insatShown.floor_line, satellite: insatShown.satellite } : null} />

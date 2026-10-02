@@ -6,6 +6,7 @@ import ReplayView from '../components/nowcast/ReplayView';
 import NationalView from '../components/nowcast/NationalView';
 import LiveView from '../components/nowcast/LiveView';
 import DataCredits from '../components/nowcast/DataCredits';
+import { ABOVE_ATTRIBUTION } from '../utils/mapLayout';
 import StartHere from '../components/nowcast/StartHere';
 import { startHereDismissed, rememberStartHereDismissed } from '../utils/startHereStorage';
 import { nowcastTarget } from '../utils/nowcastUrl';
@@ -24,10 +25,12 @@ const Nowcast = () => {
     const [startOpen, setStartOpen] = useState(() => !startHereDismissed());
     const [start, setStart] = useState({ data: null, error: null });
     const [jump, setJump] = useState(null);             // replay target picked in Start here (or the Pipalkoti link)
-    // below 1600 px the opening alert waits (drawer collapsed) while Start here is open
+    // below 1600 px the opening alert waits (drawer collapsed) while Start here is open; on phones (< 768 px) it
+    // always waits, so the map stays visible (the Alert tab opens it)
     const [narrow, setNarrow] = useState(() => window.innerWidth < 1600);
+    const [phone, setPhone] = useState(() => window.innerWidth < 768);
     useEffect(() => {
-        const on = () => setNarrow(window.innerWidth < 1600);
+        const on = () => { setNarrow(window.innerWidth < 1600); setPhone(window.innerWidth < 768); };
         window.addEventListener('resize', on);
         return () => window.removeEventListener('resize', on);
     }, []);
@@ -50,7 +53,7 @@ const Nowcast = () => {
 
     // Start here sits over the map, right of the Layers panel (never over the drawer or the badges)
     const overlay = startOpen ? (
-        <div className="absolute z-[600] top-3 bottom-3 left-[294px] right-3 flex flex-col items-start pointer-events-none">
+        <div className="absolute z-[600] top-3 left-[294px] right-3 flex flex-col items-start pointer-events-none" style={ABOVE_ATTRIBUTION}>
             <StartHere data={start.data} error={start.error} onClose={closeStart} onGo={go} />
         </div>
     ) : null;
@@ -81,7 +84,7 @@ const Nowcast = () => {
                     ))}
                 </nav>
             </div>
-            {tab === 'replay' && <ReplayView key={jump ? jump.nonce : 'open'} jump={jump} onJump={goReplay} startHere={start.data} mapOverlay={overlay} holdDrawer={startOpen && narrow} />}
+            {tab === 'replay' && <ReplayView key={jump ? jump.nonce : 'open'} jump={jump} onJump={goReplay} startHere={start.data} mapOverlay={overlay} holdDrawer={(startOpen && narrow) || phone} />}
             {tab === 'india' && <NationalView mapOverlay={overlay} />}
             {tab === 'live' && <LiveView mapOverlay={overlay} />}
             <DataCredits />

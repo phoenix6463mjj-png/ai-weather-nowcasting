@@ -1724,6 +1724,24 @@ Satellite observation (INSAT via MOSDAC). It is not a model input.
     `overview_credits_open_1366x768`;
   - Results and Approach: `judge_results_*`, `judge_approach_*`.
 
+### Full Copernicus DEM notice in the map attribution (2 Oct 2026)
+
+- Whenever terrain is drawn (/nowcast replay, All-India and Live maps, the Overview, the Dashboard's terrain
+  basemap), the map attribution reads "Terrain (Copernicus DEM GLO-90): " followed by the full notice,
+  verbatim from the attribution file (the same text as the Data credits): "produced using Copernicus
+  WorldDEM-90 © DLR e.V. 2010-2014 and © Airbus Defence and Space GmbH 2014-2018 provided under COPERNICUS
+  by the European Union and ESA; all rights reserved" (`terrainAttribution` in `useTerrain.js`).
+- The attribution wraps to 2 lines at 1366×768 and about 5–8 lines at 390 px.
+  - AlertMap publishes its height as `--attr-h`, and the legend, the Layers panel and Start here sit above
+    it (`utils/mapLayout.js`), so nothing covers it.
+  - On phones (< 768 px) the /nowcast opening Alert section waits (drawer collapsed), so the map and its
+    attribution are visible; the Alert tab opens it.
+- Test: `e2e/overview.spec.js` "terrain: the full Copernicus DEM notice …" checks, at 1366×768 and 390 px on
+  the Overview and /nowcast, that the text matches the credits, sits inside the map, is clear of the zoom
+  buttons, uses < 30 % of the map height, and causes no horizontal scroll. The nowcast and dashboard specs
+  compare the attribution with `/ml/credits`.
+- Screenshots: `terrain_notice_{overview,nowcast}_{1366x768,390x844}`.
+
 ## 7. Troubleshooting
 
 | symptom | cause / fix |

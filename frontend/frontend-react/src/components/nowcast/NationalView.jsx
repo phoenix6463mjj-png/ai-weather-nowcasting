@@ -4,6 +4,7 @@ import { getIndiaMeta, indiaMapUrl } from '../../services/nowcastApi';
 import { nowcastTarget } from '../../utils/nowcastUrl';
 import { fmtUtc, FIELD_OPTIONS } from '../../utils/hazardLabels';
 import AlertMap from './AlertMap';
+import { ABOVE_ATTRIBUTION } from '../../utils/mapLayout';
 import MapControls from './MapControls';
 import MapLegend from './MapLegend';
 import useTerrain from './useTerrain';
@@ -57,7 +58,7 @@ const NationalView = ({ mapOverlay = null }) => {
                 <div className="flex-1 relative min-h-0">
                     {meta && <AlertMap bounds={meta.bounds} overlays={overlays} alerts={[]} terrain={terrain.layers} terrainNotice={terrain.fullNotice} />}
                     {meta && (
-                        <div className="absolute top-3 left-3 bottom-3 z-[400] flex flex-col pointer-events-none">
+                        <div className="absolute top-3 left-3 z-[400] flex flex-col pointer-events-none" style={ABOVE_ATTRIBUTION}>
                             <LayersPanel summary={`All-India · L${lead} h · ${INDIA_FIELDS.find((o) => o.id === field)?.label || ''}`}>
                                 <MapControls leads={meta.leads_available} lead={lead} setLead={setLead}
                                     field={field} setField={setField} fieldOptions={INDIA_FIELDS} alertControls={false} terrain={terrain} />
@@ -66,7 +67,7 @@ const NationalView = ({ mapOverlay = null }) => {
                     )}
                     {mapOverlay}
                     {meta && (
-                        <div className="absolute top-[84px] bottom-[26px] right-3 z-[400] flex flex-col justify-end pointer-events-none">
+                        <div className="absolute top-[84px] right-3 z-[400] flex flex-col justify-end pointer-events-none" style={ABOVE_ATTRIBUTION}>
                             <MapLegend legends={meta.legends} field={field} terrain={terrain.layers.length > 0} />
                         </div>
                     )}
