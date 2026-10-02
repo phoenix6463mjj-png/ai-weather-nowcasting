@@ -1,6 +1,8 @@
 import { lazy, Suspense, useState } from 'react';
-import { MapPin, Crosshair, Search, Box } from 'lucide-react';
+import { Search, Box } from 'lucide-react';
 import ProfileChart from './ProfileChart';
+import LocationChooser from './LocationChooser';
+import { numberShelters } from '../../utils/shelterNumbers';
 
 // three.js is only downloaded when the 3D view is opened (separate chunk)
 const Terrain3D = lazy(() => import('./Terrain3D'));
@@ -24,13 +26,26 @@ function atLead(list, lead) {
     return ['Warning', 'Watch'].filter((l) => by[l]).map((l) => `${l} (${[...by[l]].join(', ')})`).join('; ');
 }
 
-const POINT_SOURCE = { alert: ' (selected alert’s peak cell)', click: ' (map click)', site: ' (default: alert peak nearest the documented event site)' };
+// why this location (shown after the coordinates)
+const pointWhy = (p) => ({
+    site: `the peak of the alert nearest ${p.site || 'the documented event site'}`,
+    alert: 'the peak of the selected alert',
+    click: 'you clicked here',
+    geo: 'your location',
+    example: `example location (${p.text})`,
+    search: p.text,
+}[p.source] || '');
+// the response is for this location (not the previous one, while the new one loads)
+const sameSpot = (d, p) => Math.abs(d.point.lat - p.lat) < 1e-3 && Math.abs(d.point.lon - p.lon) < 1e-3;
+const ll = (v, pos, neg) => `${Math.abs(v).toFixed(2)}° ${v >= 0 ? pos : neg}`;
+const plural = (n, one, many) => (n === 1 ? one : many);
+const typesText = (types) => (types?.length ? ` (${types.map((t) => `${t.toLowerCase()}s`).join(', ')})` : '');
 
-const Candidate = ({ c, lead, prefix = '' }) => (
+const Candidate = ({ c, lead }) => (
     <li data-testid="shelter-candidate" data-outside={String(c.outside_all_alerts)} data-distance={c.distance_km}
         className="rounded-lg border border-slate-200 dark:border-slate-700 p-2.5">
         <div className="flex items-start gap-2">
-            <span className={`shrink-0 min-w-5 h-5 px-0.5 rounded-full text-sm font-black flex items-center justify-center border-2 border-violet-700 ${c.outside_all_alerts ? 'bg-violet-700 text-white' : 'bg-white text-violet-800'}`}>{prefix}{c.rank}</span>
+            <span data-testid="shelter-number" className={`shrink-0 min-w-6 h-6 px-1 rounded-full text-sm font-black flex items-center justify-center border-2 border-violet-700 ${c.outside_all_alerts ? 'bg-violet-700 text-white' : 'bg-white text-violet-800'}`}>{c.no}</span>
             <div className="min-w-0">
                 <p className="font-black text-slate-900 dark:text-white leading-snug">{c.name || `Unnamed ${c.type_label.toLowerCase()}`}</p>
                 <p className="text-sm text-slate-500">{c.type_label} · OSM {c.osm_id}</p>
@@ -38,8 +53,8 @@ const Candidate = ({ c, lead, prefix = '' }) => (
             <span data-testid="shelter-distance" className="ml-auto shrink-0 font-black tabular-nums">{c.distance_km.toFixed(1)} km {c.direction}</span>
         </div>
         <p data-testid="shelter-alert-status" className={`mt-1.5 font-bold ${c.outside_all_alerts ? 'text-slate-800 dark:text-slate-100' : 'text-red-700 dark:text-red-400'}`}>
-            {c.outside_all_alerts ? 'Outside all current alerts at every lead'
-                : `Inside a current alert at +${insideLeads(c.inside_alerts).join(', +')} h`}
+            {c.outside_all_alerts ? 'Outside all alert areas (at every lead time)'
+                : `Inside an alert area at +${insideLeads(c.inside_alerts).join(', +')} h`}
         </p>
         {!c.outside_all_alerts && atLead(c.inside_alerts, lead) && (
             <p data-testid="shelter-at-lead" className="text-sm text-red-700 dark:text-red-400">
@@ -56,12 +71,17 @@ const Candidate = ({ c, lead, prefix = '' }) => (
     </li>
 );
 
-const ShelterPanel = ({ point, data, error, loading, selected, onUseAlert, onWiden, insideOpen, onInsideToggle, lead, live = false, mapAlerts = [] }) => {
+const ShelterPanel = ({ point, data, error, loading, selected, onUseAlert, onChoose, onWiden, insideOpen, onInsideToggle, lead, live = false, mapAlerts = [] }) => {
     const [open3d, setOpen3d] = useState(false);
-    const pins = data?.available ? [...data.candidates, ...data.inside_candidates.map((c) => ({ ...c, prefix: 'i' }))] : [];
+    const [how, setHow] = useState(false);
+    const num = numberShelters(data);
+    const pins = [...num.outside, ...num.inside];
     return (
     <div data-testid="shelter-panel" className="text-base">
         <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-700 space-y-2">
+            <p data-testid="shelter-intro" className="font-bold text-slate-900 dark:text-white leading-snug">
+                Choose a location (where you are, or a place you care about). We list nearby public buildings outside the alert areas.
+            </p>
             <p data-testid="shelter-wording" className="text-sm font-bold leading-normal text-amber-950 dark:text-amber-100 bg-amber-100 dark:bg-amber-900/40 border border-amber-300 dark:border-amber-800 rounded px-2 py-1.5">
                 Candidate public buildings outside the current alert area, not verified shelters. Roads may be blocked. Follow evacuation instructions from district authorities and IMD. Emergency: 112.
             </p>
@@ -83,25 +103,19 @@ const ShelterPanel = ({ point, data, error, loading, selected, onUseAlert, onWid
                     {data.source.sample_label}
                 </p>
             )}
-            <p className="text-slate-600 dark:text-slate-300">
-                <Crosshair size={12} className="inline -mt-0.5 mr-1" />
-                Click the map to choose a point{selected ? ', or use the selected alert' : ''}.
-            </p>
-            {selected?.peak_cell && (
-                <button type="button" data-testid="shelter-use-alert" onClick={onUseAlert}
-                    className="flex items-center gap-1 font-bold text-blue-700 dark:text-blue-400 hover:underline">
-                    <MapPin size={12} /> Use the selected alert&apos;s peak cell ({selected.peak_cell[0].toFixed(2)}N {selected.peak_cell[1].toFixed(2)}E)
-                </button>
-            )}
+            <LocationChooser onChoose={onChoose} selected={selected} onUseAlert={onUseAlert} />
         </div>
 
-        {!point && <p className="px-4 py-3 text-slate-500">No point chosen yet.</p>}
+        {!point && <p className="px-4 py-3 text-slate-500">No location chosen yet.</p>}
         {point && (
             <div data-testid="shelter-point" data-lat={point.lat.toFixed(4)} data-lon={point.lon.toFixed(4)} data-source={point.source}
                 className="px-4 py-2 border-b border-slate-100 dark:border-slate-800 text-slate-700 dark:text-slate-200">
-                Chosen point: <b>{point.lat.toFixed(3)}N {point.lon.toFixed(3)}E</b>{POINT_SOURCE[point.source]}
-                {data?.available && <> · elevation {data.point.elevation_m != null ? `${data.point.elevation_m.toLocaleString()} m` : 'no data'}</>}
-                {point.source === 'site' && point.text && <p data-testid="shelter-default-text" className="mt-0.5 text-sm text-slate-600 dark:text-slate-300">{point.text}</p>}
+                <p data-testid="shelter-location">
+                    Location: <b>{ll(point.lat, 'N', 'S')}, {ll(point.lon, 'E', 'W')}</b>
+                    {!loading && data?.available && sameSpot(data, point) && data.point.elevation_m != null && <>, <b>{data.point.elevation_m.toLocaleString('en-US')} m</b> above sea level</>}
+                </p>
+                <p data-testid="shelter-location-why" className="text-sm text-slate-600 dark:text-slate-300">Chosen: {pointWhy(point)}</p>
+                {point.source === 'site' && point.text && <p data-testid="shelter-default-text" className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">{point.text}</p>}
             </div>
         )}
         {point && loading && <p className="px-4 py-3 text-slate-500">Loading…</p>}
@@ -116,11 +130,22 @@ const ShelterPanel = ({ point, data, error, loading, selected, onUseAlert, onWid
 
         {point && !loading && data?.available && (
             <div>
-                <p data-testid="shelter-summary" className="px-4 pt-3 pb-1 text-slate-600 dark:text-slate-300">
-                    Within {data.radius_km} km: {data.n_within_radius} mapped public building{data.n_within_radius === 1 ? '' : 's'},{' '}
-                    {data.n_outside} outside all current alerts, {data.n_inside} inside one.
-                    Straight-line distance and direction, no route. Alert check: {data.n_alerts_checked} alerts of this {live ? 'run' : 'issue'} ({data.alert_scope}), not only those on the map.
-                </p>
+                <div data-testid="shelter-summary" className="px-4 pt-3 pb-1 space-y-1 text-slate-800 dark:text-slate-100">
+                    {data.n_within_radius === 0 ? (
+                        <p>No mapped public building is within {data.radius_km} km of this location.</p>
+                    ) : (<>
+                        <p data-testid="shelter-summary-count">
+                            {data.n_within_radius} public {plural(data.n_within_radius, 'building', 'buildings')}{typesText(data.building_types)}{' '}
+                            {plural(data.n_within_radius, 'is', 'are')} within {data.radius_km} km of this location.
+                        </p>
+                        <p data-testid="shelter-summary-split" className="font-bold">
+                            {data.n_outside === 0 ? (data.n_within_radius === 1 ? 'It is inside an alert area.' : `All ${data.n_within_radius} are inside an alert area.`)
+                                : data.n_inside === 0 ? (data.n_within_radius === 1 ? 'It is outside all alert areas: listed below.' : `All ${data.n_within_radius} are outside all alert areas: listed below.`)
+                                    : `${data.n_outside} ${plural(data.n_outside, 'is', 'are')} outside all alert areas: listed first below.`}
+                        </p>
+                    </>)}
+                    <p data-testid="shelter-straight-line" className="text-sm text-slate-600 dark:text-slate-300">Distances are straight-line, not road routes.</p>
+                </div>
                 <div className="px-4 pb-1">
                     <button type="button" data-testid="shelter-3d" onClick={() => setOpen3d(true)}
                         className="flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-slate-300 dark:border-slate-600 font-bold text-slate-800 dark:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800">
@@ -136,21 +161,21 @@ const ShelterPanel = ({ point, data, error, loading, selected, onUseAlert, onWid
 
                 {data.none_outside_text ? (
                     <div className="mx-3 my-2 rounded-lg border-2 border-slate-300 dark:border-slate-600 p-2.5 space-y-2">
-                        <p data-testid="shelter-none-outside" className="font-black text-slate-900 dark:text-white">{data.none_outside_text}</p>
+                        <p data-testid="shelter-none-outside" className="font-black text-slate-900 dark:text-white">No public building within {data.radius_km} km is outside the alert areas.</p>
                         {data.widen_radius_km && (
                             <button type="button" data-testid="shelter-widen" onClick={() => onWiden(data.widen_radius_km)}
                                 className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-blue-600 hover:bg-blue-700 text-white font-bold">
-                                <Search size={12} /> Widen the search to {data.widen_radius_km} km
+                                <Search size={14} /> Search up to {data.widen_radius_km} km
                             </button>
                         )}
                     </div>
                 ) : (
                     <>
                         <h4 data-testid="shelter-outside-heading" className="px-4 pt-2 text-sm font-black uppercase text-slate-500">
-                            Outside all current alerts{data.n_outside > data.candidates.length ? ` (nearest ${data.candidates.length} of ${data.n_outside})` : ` (${data.n_outside})`}
+                            Outside all alert areas{data.n_outside > data.candidates.length ? ` (nearest ${data.candidates.length} of ${data.n_outside})` : ` (${data.n_outside})`}
                         </h4>
                         <ol data-testid="shelter-outside-list" className="px-3 py-1 space-y-2">
-                            {data.candidates.map((c) => <Candidate key={c.osm_id} c={c} lead={lead} />)}
+                            {num.outside.map((c) => <Candidate key={c.osm_id} c={c} lead={lead} />)}
                         </ol>
                     </>
                 )}
@@ -159,22 +184,28 @@ const ShelterPanel = ({ point, data, error, loading, selected, onUseAlert, onWid
                     <div className="px-3 py-1">
                         <button type="button" data-testid="shelter-inside-toggle" aria-expanded={insideOpen} onClick={onInsideToggle}
                             className="w-full text-left px-1 py-1.5 font-black text-red-800 dark:text-red-300 hover:underline">
-                            {insideOpen ? '▾' : '▸'} Inside a current alert ({data.n_inside})
+                            {insideOpen ? '▾' : '▸'} Inside an alert area ({data.n_inside})
                             {data.n_inside > data.inside_candidates.length ? <span className="font-normal text-slate-500"> · nearest {data.inside_candidates.length} listed</span> : null}
                         </button>
                         {insideOpen && (
                             <ol data-testid="shelter-inside-list" className="py-1 space-y-2">
-                                {data.inside_candidates.map((c) => <Candidate key={c.osm_id} c={c} lead={lead} prefix="i" />)}
+                                {num.inside.map((c) => <Candidate key={c.osm_id} c={c} lead={lead} />)}
                             </ol>
                         )}
                     </div>
                 )}
 
                 <div className="px-4 py-3 text-sm text-slate-500 dark:text-slate-400 space-y-1 leading-normal">
-                    <p>Values only: no thresholds are applied (none cited).</p>
-                    <p>Map: ◉ chosen point, dashed circle {data.radius_km} km, filled numbered dots = candidates outside all alerts; hollow &ldquo;i&rdquo; dots = the inside group, while it is open.</p>
-                    <p>Slope: native 90 m DEM cell. Elevation: 270 m mean DEM cell, compared with the same grid at the chosen point. Stream distance: to the nearest OpenStreetMap river/stream line.</p>
-                    <p>Covered: {data.coverage}; buildings and streams as mapped in OpenStreetMap (may be incomplete). © OpenStreetMap contributors (ODbL); terrain: Copernicus DEM GLO-90.</p>
+                    <p data-testid="shelter-map-key">Map: ◉ your chosen location, dashed circle {data.radius_km} km; filled numbers = public buildings outside all alert areas, hollow numbers = inside an alert area (shown while that list is open).</p>
+                    <p>Buildings and streams as mapped in OpenStreetMap (may be incomplete). © OpenStreetMap contributors (ODbL); terrain: Copernicus DEM GLO-90.</p>
+                    <button type="button" data-testid="shelter-how-toggle" aria-expanded={how} onClick={() => setHow((o) => !o)}
+                        className="font-bold text-blue-700 dark:text-blue-400 hover:underline">{how ? '▾' : '▸'} How this is checked</button>
+                    <div data-testid="shelter-how" hidden={!how} className="space-y-1">
+                        <p data-testid="shelter-alert-check">Alert check: {data.n_alerts_checked} alerts of this {live ? 'run' : 'issue'} ({data.alert_scope}), not only those on the map.</p>
+                        <p>Values only: no thresholds are applied (none cited).</p>
+                        <p>Slope: native 90 m DEM cell. Elevation: 270 m mean DEM cell, compared with the same grid at the chosen location. Stream distance: to the nearest OpenStreetMap river/stream line.</p>
+                        <p>Covered: {data.coverage}.</p>
+                    </div>
                 </div>
             </div>
         )}

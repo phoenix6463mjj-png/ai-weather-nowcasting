@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useContext, useState } from 'react';
+import { TimelineCompact } from '../../utils/timelineLayout';
 
 // INSAT-3DR rows of the warning timeline: site-patch 10th-percentile BT and its 30-min change per
 // scan, placed at the acquisition time (an observation record: every scan, gaps marked). Values come
@@ -21,6 +22,7 @@ const classColour = (scale, v) => {
 
 const InsatTimelineRows = ({ insat, siteEpisode, t0, t1, x, plotPx, Row, band }) => {
     const [table, setTable] = useState(false);
+    const compact = useContext(TimelineCompact);
     const site = insat.sites.find((s) => s.site_episode === siteEpisode);
     if (!site) return null;
     const inRange = (iso) => ms(iso) >= t0 && ms(iso) + M30 <= t1;
@@ -88,7 +90,7 @@ const InsatTimelineRows = ({ insat, siteEpisode, t0, t1, x, plotPx, Row, band })
                 {series.map((s) => cell(s, 'd30'))}
                 {gaps.map(gapCell)}
             </Row>
-            <div data-testid="insat-notes" className="pl-[215px] pr-2 text-sm leading-normal space-y-0.5 text-slate-600 dark:text-slate-300">
+            <div data-testid="insat-notes" className={`${compact ? '' : 'pl-[215px] pr-2'} text-sm leading-normal space-y-0.5 text-slate-600 dark:text-slate-300`}>
                 {insat.lines.map((l) => <p key={l} data-testid="insat-line" className="text-amber-700 dark:text-amber-400">{l}</p>)}
                 <p>
                     Every downloaded scan of {site.site} at its acquisition time.

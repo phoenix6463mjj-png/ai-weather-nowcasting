@@ -457,7 +457,7 @@ const Forecast = () => {
                         </div>
                     </div>
                     <Link
-                        to="/dashboard"
+                        to="/"
                         className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm rounded-xl transition-all duration-300 shadow-sm hover:shadow-md hover:-translate-y-0.5 hover:scale-[1.02] shrink-0 self-start sm:self-auto"
                     >
                         <ArrowLeft size={16} />

@@ -4,7 +4,9 @@ import { getLiveRuns, getLiveMeta, getLiveAlerts, getShelters, liveMapUrl, getLi
 import { HAZARDS, HAZARD_STYLE, LEVEL_STYLE, valueText, kindText, fmtUtc, defaultLead, FIELD_OPTIONS } from '../../utils/hazardLabels';
 import AlertMap from './AlertMap';
 import { ABOVE_ATTRIBUTION } from '../../utils/mapLayout';
+import { numberShelters } from '../../utils/shelterNumbers';
 import MapControls from './MapControls';
+import MapToolbar from './MapToolbar';
 import MapLegend from './MapLegend';
 import AlertList from './AlertList';
 import IMDChip from './IMDChip';
@@ -224,19 +226,19 @@ const LiveView = ({ mapOverlay = null }) => {
                     )}
                 </StatusLine>
                 {error && <div className="bg-red-600 text-white px-6 py-2 text-sm font-semibold">{error}</div>}
+                {meta && lead && <MapToolbar leads={meta.leads_available} lead={lead} setLead={setLead} showWatch={showWatch} setShowWatch={setShowWatch} />}
                 {runs && !runs.runs.length && <p className="p-6 text-sm">No live runs available.</p>}
                 <div className="flex-1 relative min-h-0">
                     {meta && <AlertMap bounds={meta.bounds} alerts={shown} selectedId={selected?.alert_id} onSelect={select} overlays={overlays} dimFill={!!field}
                         terrain={terrain.layers} terrainNotice={terrain.fullNotice}
                         onPick={shelterOpen ? (p) => setShelterPt({ ...p, source: 'click' }) : null}
                         shelter={shelterOpen && shelterPt ? { point: shelterPt, radiusKm: sh.data?.radius_km, candidates: [
-                                ...(sh.data?.candidates || []),
-                                ...(insideOpen ? (sh.data?.inside_candidates || []).map((c) => ({ ...c, prefix: 'i' })) : [])] } : null} />}
+                                ...numberShelters(sh.data).outside,
+                                ...(insideOpen ? numberShelters(sh.data).inside : [])] } : null} />}
                     {meta && lead && (
                         <div className="absolute top-3 left-3 z-[400] flex flex-col pointer-events-none" style={ABOVE_ATTRIBUTION}>
                             <LayersPanel summary={`Live ${meta.run} · L${lead} h · ${showWatch ? 'Watch + Warning' : 'Warnings'}`}>
-                                <MapControls leads={meta.leads_available} lead={lead} setLead={setLead}
-                                    hazards={hazards} setHazards={setHazards} showWatch={showWatch} setShowWatch={setShowWatch}
+                                <MapControls hazards={hazards} setHazards={setHazards}
                                     counts={counts} field={field} setField={setField} fieldOptions={LIVE_FIELDS} terrain={terrain} />
                                 <LiveInsatControl layer={insatLayer} on={insatOn} setOn={setInsatOn} frameId={insatShown?.id}
                                     setFrameId={setInsatFrame} opacity={insatOpacity} setOpacity={setInsatOpacity} />
@@ -246,7 +248,7 @@ const LiveView = ({ mapOverlay = null }) => {
                     {mapOverlay}
                     {meta && (
                         <div className="absolute top-[84px] right-3 z-[400] flex flex-col justify-end pointer-events-none" style={ABOVE_ATTRIBUTION}>
-                            <MapLegend legends={meta.legends} field={field} hazards={hazards} verification={false}
+                            <MapLegend legends={meta.legends} field={field} hazards={hazards} verification={false} showWatch={showWatch}
                                 terrain={terrain.layers.length > 0} noteTitle="Verification" note="Live: no observed verification layer."
                                 insat={insatShown ? { classes: insatLayer.colour_scale.classes, lines: insatLayer.lines, floorLine: insatShown.floor_line, satellite: insatShown.satellite } : null} />
                         </div>
@@ -273,19 +275,19 @@ const LiveView = ({ mapOverlay = null }) => {
                                     </div>
                                 )}
                                 {!showWatch && hiddenWatch > 0 && (
-                                    <p className="text-sm text-amber-700 dark:text-amber-400 mt-1">{hiddenWatch} Watch alert{hiddenWatch === 1 ? '' : 's'} hidden at this lead. Tick "Also show Watch" in Layers.</p>
+                                    <p className="text-sm text-amber-700 dark:text-amber-400 mt-1">{hiddenWatch} Watch alert{hiddenWatch === 1 ? '' : 's'} hidden at this lead. Tick "Also show Watch" above the map.</p>
                                 )}
                             </div>
                             {alerts.length > 0 && (
                                 <AlertList alerts={shown} selectedId={selected?.alert_id} onSelect={select}
-                                    emptyText={showWatch ? 'No live alerts at this lead.' : 'No live Warnings at this lead. Tick "Also show Watch" in Layers.'} />
+                                    emptyText={showWatch ? 'No live alerts at this lead.' : 'No live Warnings at this lead. Tick "Also show Watch" above the map.'} />
                             )}
                         </div>
                     )
                 ) : id === 'ingredients' ? <IngredientsTab selected={selected} d={selected} liveNote={LIVE_INGREDIENTS_NOTE} />
                     : id === 'shelter' ? <ShelterPanel point={shelterPt} data={sh.data} error={sh.error} live
                         loading={!!shelterKey && shelter.key !== shelterKey} selected={selected} onUseAlert={pointFromAlert} lead={lead}
-                        onWiden={setRadius} mapAlerts={shown} insideOpen={insideOpen} onInsideToggle={() => setInsideOpen((o) => !o)} />
+                        onWiden={setRadius} onChoose={setShelterPt} mapAlerts={shown} insideOpen={insideOpen} onInsideToggle={() => setInsideOpen((o) => !o)} />
                         : <CaveatsPanel />)}
             </Drawer>
         </div>

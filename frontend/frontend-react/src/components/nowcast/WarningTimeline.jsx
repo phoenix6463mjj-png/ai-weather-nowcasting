@@ -1,15 +1,16 @@
-import { useEffect, useState } from 'react';
+import { useContext, useEffect, useState } from 'react';
+import { TimelineCompact, TIMELINE_COMPACT_BELOW, LABEL_PX, RIGHT_PX, notePad } from '../../utils/timelineLayout';
 import { HAZARD_STYLE, LEVEL_STYLE, fmtIssueShort } from '../../utils/hazardLabels';
 import IMDChip from './IMDChip';
 import InsatTimelineRows from './InsatTimelineRows';
 
-// width of the plot column (row minus the 215 px label and 190 px right columns)
-function usePlotWidth() {
+// the timeline's width: below 760 px rows are compact (plot full width), else label | plot | right columns
+function useRootWidth() {
     const [el, setEl] = useState(null);
     const [w, setW] = useState(0);
     useEffect(() => {
         if (!el || typeof ResizeObserver === 'undefined') return undefined;
-        const ro = new ResizeObserver(([e]) => setW(Math.max(0, e.contentRect.width - 215 - 190)));
+        const ro = new ResizeObserver(([e]) => setW(e.contentRect.width));
         ro.observe(el);
         return () => ro.disconnect();
     }, [el]);
@@ -36,7 +37,20 @@ const Source = ({ s }) => (
     <span data-testid="tl-source" data-source={s} className={`px-1 rounded text-sm font-black uppercase ${SOURCE_STYLE[s]}`}>{s}</span>
 );
 
-const Row = ({ label, source, children, right, h = 'h-6', testid, wrap = false }) => (
+const Row = ({ label, source, children, right, h = 'h-6', testid, wrap = false }) => {
+    const compact = useContext(TimelineCompact);
+    if (compact) {
+        return (
+            <div data-testid={testid} data-compact="true" className="pt-0.5">
+                <div className="flex flex-wrap items-center gap-x-1.5 text-sm text-slate-700 dark:text-slate-200 leading-snug">
+                    {source && <Source s={source} />}<span data-testid="tl-row-label" className="min-w-0">{label}</span>
+                    {right && <span className="ml-auto flex flex-wrap items-center gap-x-1 text-slate-600 dark:text-slate-300">{right}</span>}
+                </div>
+                <div className={`relative ${h}`}>{children}</div>
+            </div>
+        );
+    }
+    return (
     <div className="flex items-stretch" data-testid={testid}>
         {/* 14 px text: labels wrap instead of truncating (wrap kept for callers) */}
         <div data-wrap={wrap} className="w-[215px] shrink-0 pr-2 py-0.5 flex flex-wrap items-center gap-x-1.5 text-sm text-slate-700 dark:text-slate-200 leading-snug">
@@ -45,9 +59,10 @@ const Row = ({ label, source, children, right, h = 'h-6', testid, wrap = false }
         <div className={`relative flex-1 ${h}`}>{children}</div>
         <div className="w-[190px] shrink-0 pl-2 py-0.5 flex flex-wrap items-center gap-x-1 text-sm leading-snug text-slate-600 dark:text-slate-300">{right}</div>
     </div>
-);
+    );
+};
 const Note = ({ children, testid }) => (
-    <p data-testid={testid} className="pl-[215px] pr-[190px] text-sm leading-normal">{children}</p>
+    <p data-testid={testid} className={`${notePad(useContext(TimelineCompact))} text-sm leading-normal`}>{children}</p>
 );
 const imergShort = (st) => (st === 'verified' ? 'IMERG confirmed' : st === 'false_alarm' ? 'IMERG not confirmed' : 'IMERG n/a');
 const laneRight = (a, kind) => (kind === 'alert'
@@ -55,7 +70,9 @@ const laneRight = (a, kind) => (kind === 'alert'
     : <><Source s="model" /> L{a.lead_time_h} · {a.n_cells} cells, nearest {a.nearest_cell_km} km</>);
 
 const WarningTimeline = ({ site, timeline, onJump }) => {
-    const [rootRef, plotPx] = usePlotWidth();
+    const [rootRef, rootPx] = useRootWidth();
+    const compact = rootPx > 0 && rootPx < TIMELINE_COMPACT_BELOW;
+    const plotPx = Math.max(0, compact ? rootPx : rootPx - LABEL_PX - RIGHT_PX);
     const win = site.source?.window_utc;
     if (!timeline || !win?.[0]) return null;
     const [w0, w1] = win.map(ms);
@@ -69,6 +86,8 @@ const WarningTimeline = ({ site, timeline, onJump }) => {
     const x = (t) => `${((t - t0) / (t1 - t0)) * 100}%`;
     const hours = [];
     for (let t = t0; t <= t1; t += H) hours.push(t);
+    // hour labels ~40 px apart at least ("13Z" at 15 px)
+    const labelStep = [2, 3, 4, 6].find((k) => (plotPx * k) / hours.length >= 40) || 6;
     const issues = timeline.issues.filter((i) => ms(i.issue_time) > t0 + H / 2 && ms(i.issue_time) < t1 - H / 2);
     const hidden = timeline.issues.length - issues.length;
     // spacing between consecutive issues with inputs, from the data (3 h Pipalkoti, 1 h Malana)
@@ -112,15 +131,16 @@ const WarningTimeline = ({ site, timeline, onJump }) => {
     };
 
     return (
-        <div ref={rootRef} data-testid="warning-timeline" data-t0={new Date(t0).toISOString()} data-t1={new Date(t1).toISOString()} className="rounded-lg border border-slate-200 dark:border-slate-700 p-2.5 space-y-1">
-            <div className="flex items-baseline justify-between">
+        <TimelineCompact.Provider value={compact}>
+        <div ref={rootRef} data-testid="warning-timeline" data-compact={String(compact)} data-t0={new Date(t0).toISOString()} data-t1={new Date(t1).toISOString()} className="rounded-lg border border-slate-200 dark:border-slate-700 p-2.5 space-y-1">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-3">
                 <p className="text-sm font-black">Warning timeline: {site.site}</p>
                 <p className="text-sm text-slate-500">times UTC (IST = UTC + 5:30) · click a marker to open it on the map</p>
             </div>
             <Row label={`${new Date(t0).toUTCString().slice(5, 11)} (UTC)`} h="h-4">
-                {/* label every 2 h (readable in the narrower drawer), tick the hours between */}
-                {hours.map((t) => (new Date(t).getUTCHours() % 2 === 0
-                    ? <span key={t} className="absolute -translate-x-1/2 text-sm text-slate-400 tabular-nums" style={{ left: x(t) }}>{hh(t)}</span>
+                {/* a label every `step` hours so "13Z" labels never touch (2 h wide, 3-4 h compact), ticks between */}
+                {hours.map((t) => (new Date(t).getUTCHours() % labelStep === 0
+                    ? <span key={t} data-testid="tl-hour" className={`absolute ${t === t0 ? '' : t === hours[hours.length - 1] ? '-translate-x-full' : '-translate-x-1/2'} text-sm text-slate-400 tabular-nums`} style={{ left: x(t) }}>{hh(t)}</span>
                     : <span key={t} className="absolute top-1 h-1.5 w-px bg-slate-300" style={{ left: x(t) }} />))}
             </Row>
 
@@ -141,7 +161,7 @@ const WarningTimeline = ({ site, timeline, onJump }) => {
                 <span data-testid="tl-imerg-peak" className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 text-sm font-bold text-lime-800 whitespace-nowrap"
                     style={{ left: x(ms(im.peak.t)) }} title={`peak half-hour frame: ${im.peak.t}`}>◆ {im.peak.max_mmhr}</span>
             </Row>
-            <p data-testid="tl-imerg-note" className="pl-[215px] pr-[190px] text-sm text-slate-600 dark:text-slate-300 leading-normal">
+            <p data-testid="tl-imerg-note" className={`${notePad(compact)} text-sm text-slate-600 dark:text-slate-300 leading-normal`}>
                 {im.onset_ge30
                     ? `IMERG first reached 30 mm/hr at ${fmtIssueShort(im.onset_ge30.t)} (${im.onset_ge30.max_mmhr} mm/hr); peak ${im.peak.max_mmhr} mm/hr at ${fmtIssueShort(im.peak.t)} (${im.n_frames_ge30} half-hour frames ≥30).`
                     : `IMERG never reached 30 mm/hr within ${im.radius_km} km of the site (peak ${im.peak.max_mmhr} mm/hr at ${fmtIssueShort(im.peak.t)}).`}
@@ -188,6 +208,7 @@ const WarningTimeline = ({ site, timeline, onJump }) => {
                 </div>
             )}
         </div>
+        </TimelineCompact.Provider>
     );
 };
 

@@ -23,7 +23,7 @@ async function openShelter(page, ep) {
 async function shelterApi(page, ep) {
     const pt = page.getByTestId('shelter-point');
     const s = await page.getByTestId('shelter-summary').innerText();
-    const radius = /Within 50 km/.test(s) ? '&radius=50' : '';
+    const radius = /within 50 km of this location/.test(s) ? '&radius=50' : '';
     return api(page, `issues/${ep}/${ISSUES[ep]}/shelters?lat=${await pt.getAttribute('data-lat')}&lon=${await pt.getAttribute('data-lon')}${radius}`);
 }
 
@@ -78,7 +78,7 @@ async function open3d(page, name, info) {
 test('REF045: profile in every candidate card (values = API); widen to 50 km; 3D view lazy-loaded; Esc closes', async ({ page }, info) => {
     await openShelter(page, 'REF045');
     await page.getByTestId('shelter-widen').click();
-    await expect(page.getByTestId('shelter-summary')).toContainText('Within 50 km');
+    await expect(page.getByTestId('shelter-summary')).toContainText('within 50 km of this location');
     const r = await shelterApi(page, 'REF045');
     expect(r.radius_km).toBe(50);
     await expectProfiles(page.getByTestId('shelter-outside-list').getByTestId('shelter-candidate'), r.candidates);
@@ -122,7 +122,7 @@ test('profile + 3D screenshots at 1920x1080 and 1366x768 (REF045 at 50 km, REF05
             await openShelter(page, ep);
             if (ep === 'REF045') {
                 await page.getByTestId('shelter-widen').click();
-                await expect(page.getByTestId('shelter-summary')).toContainText('Within 50 km');
+                await expect(page.getByTestId('shelter-summary')).toContainText('within 50 km of this location');
             }
             await page.getByTestId('shelter-profile').first().scrollIntoViewIfNeeded();
             await page.waitForTimeout(500);

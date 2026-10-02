@@ -1,30 +1,13 @@
-import { useEffect, useRef } from 'react';
-import { MapContainer, TileLayer, GeoJSON, CircleMarker, Circle, Tooltip, ImageOverlay, Rectangle, Pane, ZoomControl, useMap, useMapEvents } from 'react-leaflet';
+import { useEffect, useRef, useState } from 'react';
+import { MapContainer, TileLayer, GeoJSON, CircleMarker, Circle, Tooltip, Popup, ImageOverlay, Rectangle, Pane, ZoomControl, useMap, useMapEvents } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
-import { HAZARD_STYLE, LEVEL_STYLE, VERIFY_STYLE, valueText, FF_VERIFY_NOTE } from '../../utils/hazardLabels';
+import { HAZARD_STYLE, LEVEL_STYLE, VERIFY_STYLE, valueText } from '../../utils/hazardLabels';
 import { terrainAttribution } from './useTerrain';
+import AttributionHeight from './AttributionHeight';
 
 
 // Fit the issue's bounds (4 px padding: India stays at zoom 4 at 1366x768); until the user pans or zooms, a container resize (the drawer opening on load, badges
 // wrapping) fits them again, so the opening view always shows the whole domain.
-// The attribution control can wrap to several lines (it carries the full Copernicus DEM notice): its height is
-// published as --attr-h on the map's parent, so the panels anchored at the bottom stay above it (utils/mapLayout.js).
-const AttributionHeight = () => {
-    const map = useMap();
-    useEffect(() => {
-        const box = map.getContainer();
-        const el = box.querySelector('.leaflet-control-attribution');
-        const host = box.parentElement;
-        if (!el || !host) return undefined;
-        const set = () => host.style.setProperty('--attr-h', `${Math.ceil(el.getBoundingClientRect().height)}px`);
-        set();
-        const ro = new ResizeObserver(set);
-        ro.observe(el);
-        return () => ro.disconnect();
-    }, [map]);
-    return null;
-};
-
 const FitBounds = ({ bounds }) => {
     const map = useMap();
     const key = JSON.stringify(bounds);
@@ -98,12 +81,30 @@ const FitShelter = ({ point, radiusKm }) => {
  *    confirmed: counted as a false alarm in the scores)
  *  - overlays: PNG rasters already resampled to Web-Mercator rows by the API, placed at `bounds`
  *  - terrain: hillshade PNGs (same row mapping) in the lowest pane, under every risk layer and alert
+ *  - an alert's hover tooltip and click popup are compact (2 short lines: hazard, level, value, lead); the popup's
+ *    "Details" calls onDetails (opens the Alert section); verification and explanations live in the drawer only
  *  - onPick (shelter section open): map clicks choose a point instead of selecting an alert;
  *    shelter = { point, radiusKm, candidates } draws the point, the radius and the numbered candidates
  */
-const AlertMap = ({ bounds, alerts = [], selectedId, onSelect: onSelectProp, sites = [], overlays = [], showDomain = true, dimFill = false,
+// The two compact lines of an alert's tooltip / popup
+const kindShort = (a) => (a.display.kind === 'probability' ? 'probability' : a.display.kind === 'risk_index' ? 'risk index, not a probability' : 'risk ratio, not a probability');
+const AlertLines = ({ a }) => (
+    <>
+        <span className="block font-bold">{HAZARD_STYLE[a.hazard].name} {a.level} · {valueText(a)}</span>
+        <span className="block">+{a.lead_time_h} h lead · {kindShort(a)}</span>
+    </>
+);
+
+const AlertMap = ({ bounds, alerts = [], selectedId, onSelect: onSelectProp, onDetails = null, sites = [], overlays = [], showDomain = true, dimFill = false,
     terrain = [], terrainNotice, onPick = null, shelter = null }) => {
     const onSelect = onPick ? null : onSelectProp;
+    const [popup, setPopup] = useState(null);            // { id, latlng } of the clicked alert
+    const click = (a) => (e) => {
+        if (!onSelect) return;
+        onSelect(a);
+        setPopup({ id: a.alert_id, latlng: e.latlng });
+    };
+    const popAlert = popup && !onPick ? alerts.find((a) => a.alert_id === popup.id) : null;
     return (
     <MapContainer center={[30, 79]} zoom={6} className="w-full h-full z-0" zoomControl={false}>
         {/* top-left is the Layers panel, bottom-right the legend */}
@@ -147,17 +148,13 @@ const AlertMap = ({ bounds, alerts = [], selectedId, onSelect: onSelectProp, sit
                         fillColor: hz.color, fillOpacity: dimFill ? lv.fillOpacity * 0.15 : lv.fillOpacity,
                         className: `nowcast-alert-poly hazard-${a.hazard} level-${a.level}`,
                     }}
-                    eventHandlers={{ click: () => onSelect && onSelect(a) }}
+                    eventHandlers={{ click: click(a) }}
                 >
-                    <Tooltip sticky>
-                        <div className="text-xs" style={{ whiteSpace: 'normal', width: 300 }} data-testid="alert-tooltip">
-                            <b>{hz.name} {a.level}</b> · L{a.lead_time_h} h · {valueText(a)}
-                            <br />{a.display.kind === 'probability' ? 'probability' : a.display.kind === 'risk_index' ? 'risk index — not a probability' : 'risk ratio — not a probability'}
-                            {a.verification && <><br /><span data-testid="tooltip-verification">{VERIFY_STYLE[a.verification.status]?.label}</span></>}
-                            {a.site_note && <><br /><span data-testid="tooltip-site-note" className="text-violet-800">{a.site_note.text}</span></>}
-                            {a.hazard === 'flash_flood' && a.verification && a.verification.status !== 'unavailable' && <><br /><i>{FF_VERIFY_NOTE}</i></>}
-                        </div>
-                    </Tooltip>
+                    {popAlert?.alert_id !== a.alert_id && (
+                        <Tooltip sticky>
+                            <div className="text-xs" style={{ whiteSpace: 'nowrap' }} data-testid="alert-tooltip"><AlertLines a={a} /></div>
+                        </Tooltip>
+                    )}
                 </GeoJSON>
             );
         })}
@@ -166,7 +163,7 @@ const AlertMap = ({ bounds, alerts = [], selectedId, onSelect: onSelectProp, sit
             return (
                 <CircleMarker key={`v-${a.alert_id}`} center={a.peak_cell} radius={4.5}
                     pathOptions={{ color: v.color, weight: 2, fillColor: a.verification.status === 'verified' ? v.color : '#ffffff', fillOpacity: 1 }}
-                    eventHandlers={{ click: () => onSelect && onSelect(a) }} />
+                    eventHandlers={{ click: click(a) }} />
             );
         })}
         {/* alerts without verification (live): hazard-coloured marker at the peak so a
@@ -175,12 +172,23 @@ const AlertMap = ({ bounds, alerts = [], selectedId, onSelect: onSelectProp, sit
             <CircleMarker key={`p-${a.alert_id}`} center={a.peak_cell} radius={7}
                 pathOptions={{ color: '#111827', weight: 1.5, fillColor: HAZARD_STYLE[a.hazard].color, fillOpacity: 0.95,
                     className: 'nowcast-peak-marker' }}
-                eventHandlers={{ click: () => onSelect && onSelect(a) }}>
+                eventHandlers={{ click: click(a) }}>
                 <Tooltip>
-                    <div className="text-xs"><b>{HAZARD_STYLE[a.hazard].name} {a.level}</b> · L{a.lead_time_h} h · {valueText(a)}</div>
+                    <div className="text-xs" style={{ whiteSpace: 'nowrap' }}><AlertLines a={a} /></div>
                 </Tooltip>
             </CircleMarker>
         ))}
+        {popAlert && (
+            <Popup position={popup.latlng} eventHandlers={{ remove: () => setPopup(null) }} closeButton autoPan={false}>
+                <div data-testid="alert-popup" data-alert-id={popAlert.alert_id} className="text-xs" style={{ whiteSpace: 'nowrap' }}>
+                    <AlertLines a={popAlert} />
+                    {onDetails && (
+                        <button type="button" data-testid="alert-popup-details" onClick={() => { onDetails(popAlert); setPopup(null); }}
+                            className="mt-1 font-bold text-blue-700 underline">Details</button>
+                    )}
+                </div>
+            </Popup>
+        )}
         {onPick && <PickPoint onPick={onPick} />}
         {shelter?.point && (
             <>
@@ -196,7 +204,7 @@ const AlertMap = ({ bounds, alerts = [], selectedId, onSelect: onSelectProp, sit
                 pathOptions={{ color: '#6d28d9', weight: 2.5, fillColor: c.outside_all_alerts ? '#6d28d9' : '#ffffff', fillOpacity: 1,
                     className: `nowcast-shelter-marker ${c.outside_all_alerts ? 'outside' : 'inside'}` }}>
                 <Tooltip permanent direction="right" offset={[7, 0]} className="nowcast-shelter-label">
-                    <span className="text-xs font-black">{c.prefix || ''}{c.rank}</span>
+                    <span className="text-xs font-black">{c.no ?? c.rank}</span>
                 </Tooltip>
             </CircleMarker>
         ))}

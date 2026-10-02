@@ -19,6 +19,13 @@ async function shot(page, name) {
 
 // Open /nowcast on (ep, ts); returns the ui-alerts JSON the page itself received. The issue is named in the URL:
 // plain /nowcast opens the judge-first view (REF051 15:00Z with its cloudburst Warning selected, e2e/judge_first.spec.js).
+// observed >= 30 and "heavy rain outside displayed alerts" are off by default (UX review): switch them on in Layers
+async function showObservedLayers(page) {
+    if ((await page.getByTestId('layers-panel').getAttribute('data-open')) === 'false') await page.getByTestId('layers-toggle').click();
+    await page.getByTestId('observed-toggle').check();
+    await page.getByTestId('missed-toggle').check();
+}
+
 async function openIssue(page, ep, ts) {
     const target = page.waitForResponse((r) => r.url().includes(`/issues/${ep}/${ts}/ui-alerts`) && r.ok());
     await page.goto(`/nowcast?ep=${ep}&ts=${ts}`);
@@ -149,9 +156,12 @@ async function overlayImgs(page) {
     })));
 }
 
-test('observed and missed overlays are always on; missed follows the Watch toggle', async ({ page }) => {
+test('observed and missed overlays: off by default, on from Layers; missed follows the Watch toggle', async ({ page }) => {
     await openIssue(page, 'REF045', '20230813T2100Z');
     await page.getByTestId('lead-4').click();               // 211 observed >=30 cells at L4
+    await expect(page.locator('img.nowcast-raster.observed')).toHaveCount(0);
+    await expect(page.locator('img.nowcast-raster.missed')).toHaveCount(0);
+    await showObservedLayers(page);
     await expect(page.locator('img.nowcast-raster.observed')).toHaveCount(1);
     await expect(page.locator('img.nowcast-raster.missed')).toHaveCount(1);
     await expect(page.getByTestId('missed-legend')).toHaveText(
@@ -197,6 +207,8 @@ test('forecast rasters: legends carry the right units (index and ratio never %)'
 test('lead without an observed frame says so instead of drawing verification overlays', async ({ page }) => {
     // REF045 14 Aug 03:00Z: observed frames exist for L1-L2 only (window ends); L6 has none
     await openIssue(page, 'REF045', '20230814T0300Z');
+    await page.getByTestId('lead-1').click();
+    await showObservedLayers(page);
     await page.getByTestId('lead-6').click();
     await expect(page.locator('img.nowcast-raster.observed')).toHaveCount(0);
     await expect(page.locator('img.nowcast-raster.missed')).toHaveCount(0);
@@ -496,6 +508,7 @@ const paneZ = (loc) => loc.evaluate((el) => Number(getComputedStyle(el.closest('
 test('terrain (DEM): on by default, same bounds as the forecast rasters, below rasters and alerts', async ({ page }) => {
     await openIssue(page, 'REF045', '20230813T2100Z');
     await page.getByTestId('lead-4').click();
+    await showObservedLayers(page);
     const terrain = page.locator('img.nowcast-terrain');
     await expect(terrain).toHaveCount(1);
     await expect(terrain).toHaveAttribute('src', /terrain\/REF045\.png$/);
@@ -758,7 +771,8 @@ for (const [w, h] of [[1280, 720], [1366, 768]]) {
         const legend = page.getByTestId('map-legend');
         await expect(legend).toHaveAttribute('data-open', 'false');
         await expect(page.getByTestId('legend-toggle')).toHaveAttribute('aria-expanded', 'false');
-        await expect(legend).not.toContainText('Warning (solid outline)');
+        await expect(page.getByTestId('legend-full')).toBeHidden();                 // mini legend only
+        await expect(page.getByTestId('mini-legend')).toContainText('Warning');
         // Layers panel: collapsed on small screens, one-line summary of the current selection
         const layers = page.getByTestId('layers-panel');
         await expect(layers).toHaveAttribute('data-open', 'false');
@@ -791,9 +805,13 @@ for (const [w, h] of [[1280, 720], [1366, 768]]) {
     });
 }
 
-test('map legend open by default at 1600 px', async ({ page }) => {
+test('map legend at 1600 px: mini legend always shown, "Full legend" opens the rest until closed', async ({ page }) => {
     await openIssue(page, 'REF045', '20230813T1500Z');
+    await expect(page.getByTestId('mini-legend')).toBeVisible();
+    await expect(page.getByTestId('map-legend')).toHaveAttribute('data-open', 'false');
+    await page.getByTestId('legend-toggle').click();
     await expect(page.getByTestId('map-legend')).toHaveAttribute('data-open', 'true');
+    await expect(page.getByTestId('legend-full')).toBeVisible();
     await page.getByTestId('legend-toggle').click();
     await expect(page.getByTestId('map-legend')).toHaveAttribute('data-open', 'false');
 });
@@ -1019,9 +1037,12 @@ for (const [w, h] of [[1920, 1080], [1366, 768]]) {
         await expectControlsClear(page);
         await shot(page, `layout_default_${w}x${h}`);
 
-        // clicking an alert on the map opens the drawer on the Alert section
+        // clicking an alert on the map shows its compact popup; "Details" opens the drawer on the Alert section
         const detail = page.waitForResponse((r) => /\/alerts\/[^/]+$/.test(r.url()) && r.ok());
-        await page.locator('path.nowcast-alert-poly').first().dispatchEvent('click');
+        const pb = await page.locator('path.nowcast-alert-poly').first().boundingBox();
+        await page.mouse.click(pb.x + pb.width / 2, pb.y + pb.height / 2);
+        await expect(page.getByTestId('alert-popup')).toBeVisible();
+        await page.getByTestId('alert-popup-details').click();
         const d = await (await detail).json();
         await expect(drawer).toHaveAttribute('data-open', 'alert');
         await expect(page.getByTestId('explain-panel')).toHaveAttribute('data-hazard', d.hazard);
@@ -1071,7 +1092,9 @@ for (const [w, h] of [[1920, 1080], [1366, 768]]) {
 test('legend lists only visible layers (hazards, forecast layer, terrain, observed)', async ({ page }) => {
     await openIssue(page, 'REF045', '20230813T2100Z');
     await page.getByTestId('lead-4').click();
+    await showObservedLayers(page);
     const legend = page.getByTestId('map-legend');
+    await page.getByTestId('legend-toggle').click();                                  // "Full legend"
     await expect(legend).toHaveAttribute('data-open', 'true');
     await expect(page.getByTestId('raster-legend-label')).toHaveCount(0);            // no forecast layer selected
     await expect(page.getByTestId('legend-observed')).toHaveCount(1);

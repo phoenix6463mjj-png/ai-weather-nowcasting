@@ -77,15 +77,16 @@ test('shelter options on the 0-alert run: candidates near Pipalkoti, all outside
     const p = await pointOnMap(page, meta, ...PIPALKOTI);
     await page.mouse.click(p.x, p.y);
     const pt = page.getByTestId('shelter-point');
-    await expect(pt).toContainText('(map click)');
+    await expect(page.getByTestId('shelter-location-why')).toHaveText('Chosen: you clicked here');
     await expect(page.getByTestId('shelter-summary')).toBeVisible({ timeout: 30_000 });
     const r = await api(page, `live/${NEW_RUN}/shelters?lat=${await pt.getAttribute('data-lat')}&lon=${await pt.getAttribute('data-lon')}`);
     expect(r.n_inside).toBe(0);
-    await expect(page.getByTestId('shelter-summary')).toContainText(
-        `Within ${r.radius_km} km: ${r.n_within_radius} mapped public building${r.n_within_radius === 1 ? '' : 's'}, ${r.n_outside} outside all current alerts, 0 inside one.`);
+    await expect(page.getByTestId('shelter-summary-count')).toContainText(`${r.n_within_radius} public building${r.n_within_radius === 1 ? '' : 's'} (`);
+    await expect(page.getByTestId('shelter-summary-split')).toHaveText(r.n_within_radius === 1 ? 'It is outside all alert areas: listed below.'
+        : `All ${r.n_within_radius} are outside all alert areas: listed below.`);
     await expect(page.getByTestId('shelter-outside-list').getByTestId('shelter-candidate')).toHaveCount(r.candidates.length);
     await expect(page.getByTestId('shelter-inside-toggle')).toHaveCount(0);
-    await expect(page.getByTestId('shelter-alert-status').first()).toHaveText('Outside all current alerts at every lead');
+    await expect(page.getByTestId('shelter-alert-status').first()).toHaveText('Outside all alert areas (at every lead time)');
     expect(await page.getByTestId('drawer-panel-shelter').innerText()).not.toMatch(SAFE);
 });
 

@@ -47,6 +47,26 @@ from utils.v2_predictor import (
 )
 from backend.ml_proxy import router as ml_router
 
+import logging
+import re as _re
+
+_COORD = _re.compile(r"(?<=[?&])(lat|lon)=[^&\s]*")
+
+
+class RedactCoordinates(logging.Filter):
+    """Locations chosen in Shelter options (map click, "Use my location", a searched place) pass through the
+    /ml proxy only to compute distances: the access log shows lat / lon as *** (same filter as serve/privacy.py)."""
+    def filter(self, record):
+        if isinstance(record.args, tuple) and len(record.args) >= 3 and isinstance(record.args[2], str):
+            a = list(record.args)
+            a[2] = _COORD.sub(lambda m: f"{m.group(1)}=***", a[2])
+            record.args = tuple(a)
+        return True
+
+
+if not any(isinstance(f, RedactCoordinates) for f in logging.getLogger("uvicorn.access").filters):
+    logging.getLogger("uvicorn.access").addFilter(RedactCoordinates())
+
 app = FastAPI(title="Real-Time Weather AI System API", version="7.0.0")
 app.include_router(ml_router)
 # Browser origins allowed to call this backend (comma-separated). The local default is the Vite dev

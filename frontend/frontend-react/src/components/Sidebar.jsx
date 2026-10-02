@@ -25,7 +25,7 @@ const Sidebar = ({
         <aside className="w-[260px] bg-white dark:bg-[#0f172a] border-r border-slate-200 dark:border-slate-800 flex flex-col justify-between overflow-y-auto shrink-0 z-40">
             <div className="p-4">
                 <nav className="space-y-1">
-                    <NavLink to="/dashboard" end className={navLinkClass}>
+                    <NavLink to="/" end className={navLinkClass}>
                         <Home size={18} />
                         <span className="text-sm">Dashboard</span>
                     </NavLink>

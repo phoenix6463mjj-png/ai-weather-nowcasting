@@ -141,7 +141,7 @@ const Reports = () => {
                             <RefreshCw size={13} className={loading ? 'animate-spin text-blue-500' : ''} />
                             <span>{loading ? 'Updating...' : 'Refresh'}</span>
                         </button>
-                        <Link to="/dashboard" className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl transition-colors shadow-xs">
+                        <Link to="/" className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl transition-colors shadow-xs">
                             <ArrowLeft size={14} />
                             <span>Back to Dashboard</span>
                         </Link>

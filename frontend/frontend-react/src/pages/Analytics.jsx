@@ -485,7 +485,7 @@ const Analytics = () => {
                             <p className="text-sm text-slate-500 mt-1">Observation only: not used by the model.</p>
                         </div>
                     )}
-                    <p data-testid="analytics-rule-link" className="text-base">Current-weather rule-based indicators: see <Link to="/dashboard" className="font-bold text-blue-700 dark:text-blue-400 hover:underline">Dashboard</Link>.</p>
+                    <p data-testid="analytics-rule-link" className="text-base">Current-weather rule-based indicators: see <Link to="/" className="font-bold text-blue-700 dark:text-blue-400 hover:underline">Dashboard</Link>.</p>
                 </footer>
             </main>
         </div>

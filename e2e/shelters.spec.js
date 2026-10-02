@@ -28,10 +28,10 @@ async function expectCandidate(it, c) {
     await expect(it.getByTestId('shelter-distance')).toHaveText(`${c.distance_km.toFixed(1)} km ${c.direction}`);
     await expect(it).toHaveAttribute('data-outside', String(c.outside_all_alerts));
     await expect(it.getByTestId('shelter-alert-status')).toHaveText(
-        c.outside_all_alerts ? 'Outside all current alerts at every lead' : `Inside a current alert at +${leadsOf(c).join(', +')} h`);
+        c.outside_all_alerts ? 'Outside all alert areas (at every lead time)' : `Inside an alert area at +${leadsOf(c).join(', +')} h`);
     await expect(it.getByTestId('shelter-slope')).toHaveText(c.slope_deg != null ? `${c.slope_deg}°` : 'no data');
     await expect(it.getByTestId('shelter-elev')).toHaveText(c.elevation_rel_text);
-    expect(c.elevation_rel_text).toMatch(/^(\d[\d,]* m (lower|higher) than the chosen point|same elevation as the chosen point|no elevation data)$/);
+    expect(c.elevation_rel_text).toMatch(/^(\d[\d,]* m (lower|higher) than your chosen location|same elevation as your chosen location|no elevation data)$/);
 }
 
 // the panel equals the API's answer for the point (and radius) it shows: outside group first, inside group
@@ -41,8 +41,15 @@ async function expectMatchesApi(page, base, radius = 25) {
     await expect(page.getByTestId('shelter-summary').or(page.getByTestId('shelter-not-available'))).toBeVisible();
     const q = `lat=${await pt.getAttribute('data-lat')}&lon=${await pt.getAttribute('data-lon')}${radius === 25 ? '' : `&radius=${radius}`}`;
     const r = await api(page, `${base}/shelters?${q}`);
-    await expect(page.getByTestId('shelter-summary')).toContainText(
-        `Within ${r.radius_km} km: ${r.n_within_radius} mapped public building${r.n_within_radius === 1 ? '' : 's'}, ${r.n_outside} outside all current alerts, ${r.n_inside} inside one.`);
+    const N = r.n_within_radius;
+    if (N) {
+        await expect(page.getByTestId('shelter-summary-count')).toContainText(`${N} public building${N === 1 ? '' : 's'} (`);
+        await expect(page.getByTestId('shelter-summary-count')).toContainText(`within ${r.radius_km} km of this location.`);
+        await expect(page.getByTestId('shelter-summary-split')).toHaveText(r.n_outside === 0
+            ? (N === 1 ? 'It is inside an alert area.' : `All ${N} are inside an alert area.`)
+            : r.n_inside === 0 ? (N === 1 ? 'It is outside all alert areas: listed below.' : `All ${N} are outside all alert areas: listed below.`)
+                : `${r.n_outside} ${r.n_outside === 1 ? 'is' : 'are'} outside all alert areas: listed first below.`);
+    }
     const out = page.getByTestId('shelter-outside-list').getByTestId('shelter-candidate');
     await expect(out).toHaveCount(r.candidates.length);
     for (const [i, c] of r.candidates.entries()) await expectCandidate(out.nth(i), c);
@@ -50,7 +57,7 @@ async function expectMatchesApi(page, base, radius = 25) {
     const d = r.candidates.map((c) => c.distance_km);
     expect(d).toEqual([...d].sort((a, b) => a - b));
     if (r.none_outside_text) {
-        await expect(page.getByTestId('shelter-none-outside')).toHaveText(r.none_outside_text);
+        await expect(page.getByTestId('shelter-none-outside')).toHaveText(`No public building within ${r.radius_km} km is outside the alert areas.`);
         await expect(page.getByTestId('shelter-widen')).toHaveCount(r.widen_radius_km ? 1 : 0);
     } else {
         await expect(page.getByTestId('shelter-none-outside')).toHaveCount(0);
@@ -59,7 +66,7 @@ async function expectMatchesApi(page, base, radius = 25) {
     await expect(page.locator('.nowcast-shelter-marker.outside')).toHaveCount(r.candidates.length);
     if (r.n_inside) {
         const t = page.getByTestId('shelter-inside-toggle');
-        await expect(t).toContainText(`Inside a current alert (${r.n_inside})`);
+        await expect(t).toContainText(`Inside an alert area (${r.n_inside})`);
         await expect(t).toHaveAttribute('aria-expanded', 'false');
         await expect(page.getByTestId('shelter-inside-list')).toHaveCount(0);
         await expect(page.locator('.nowcast-shelter-marker.inside')).toHaveCount(0);
@@ -85,9 +92,8 @@ test('REF045: default point = alert peak nearest Pipalkoti; none outside within 
     await expect(page.getByTestId('shelter-point')).toHaveAttribute('data-lat', dflt.lat.toFixed(4));
     const r = await expectMatchesApi(page, `issues/REF045/${ISSUES.REF045}`);
     expect(r.n_outside).toBe(0);
-    await expect(page.getByTestId('shelter-none-outside')).toHaveText(
-        `None of the ${r.n_within_radius} mapped public buildings within 25 km lies outside the current alerts.`);
-    await expect(page.getByTestId('shelter-widen')).toHaveText('Widen the search to 50 km');
+    await expect(page.getByTestId('shelter-none-outside')).toHaveText('No public building within 25 km is outside the alert areas.');
+    await expect(page.getByTestId('shelter-widen')).toHaveText('Search up to 50 km');
     await page.getByTestId('shelter-widen').click();
     const w = await expectMatchesApi(page, `issues/REF045/${ISSUES.REF045}`, 50);
     expect(w.radius_km).toBe(50);
@@ -124,12 +130,12 @@ test('selected alert and map click still choose the point; the section stays ope
     await page.getByTestId('drawer-tab-shelter').click();
     await expect(page.getByTestId('shelter-point')).toHaveAttribute('data-source', 'site');
     await page.getByTestId('shelter-use-alert').click();
-    await expect(page.getByTestId('shelter-point')).toContainText('(selected alert’s peak cell)');
+    await expect(page.getByTestId('shelter-location-why')).toHaveText('Chosen: the peak of the selected alert');
     await expectMatchesApi(page, `issues/REF045/${ISSUES.REF045}`);
     const b = await page.locator('.leaflet-container').boundingBox();
     await page.mouse.click(b.x + b.width / 2, b.y + b.height / 2);
     await expect(page.getByTestId('drawer')).toHaveAttribute('data-open', 'shelter');
-    await expect(page.getByTestId('shelter-point')).toContainText('(map click)');
+    await expect(page.getByTestId('shelter-location-why')).toHaveText('Chosen: you clicked here');
     await expectMatchesApi(page, `issues/REF045/${ISSUES.REF045}`);
     await page.getByTestId('drawer-close').click();
     await expect(page.locator('.nowcast-shelter-marker')).toHaveCount(0);
@@ -167,7 +173,7 @@ test('shelter options screenshots at 1920x1080 and 1366x768 (REF045 default + wi
             await page.screenshot({ path: path.join(SHOTS, `shelters_${ep}_${w}x${h}.png`) });
             if (ep === 'REF045') {
                 await page.getByTestId('shelter-widen').click();
-                await expect(page.getByTestId('shelter-summary')).toContainText('Within 50 km');
+                await expect(page.getByTestId('shelter-summary')).toContainText('within 50 km of this location');
                 await page.waitForTimeout(1200);
                 await page.screenshot({ path: path.join(SHOTS, `shelters_REF045_50km_${w}x${h}.png`) });
             }

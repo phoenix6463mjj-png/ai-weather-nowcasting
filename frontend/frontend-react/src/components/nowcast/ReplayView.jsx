@@ -4,6 +4,8 @@ import { getEpisodes, getEventCheck, getTimeline, getIssueMeta, getIssueAlerts, 
 import { HAZARDS, fmtUtc, fmtIssueShort, issueDefaultLead, FF_VERIFY_NOTE } from '../../utils/hazardLabels';
 import AlertMap from './AlertMap';
 import { ABOVE_ATTRIBUTION } from '../../utils/mapLayout';
+import { numberShelters } from '../../utils/shelterNumbers';
+import MapToolbar from './MapToolbar';
 import MapControls from './MapControls';
 import AlertList from './AlertList';
 import ExplainPanel from './ExplainPanel';
@@ -21,7 +23,6 @@ import CaveatsPanel from './CaveatsPanel';
 import ShelterPanel, { SHELTER_LABEL } from './ShelterPanel';
 import { nowcastTarget } from '../../utils/nowcastUrl';
 import { StatusLine } from './MapFrame';
-import useEventDrawerWidth from './useEventDrawerWidth';
 
 const tsOf = (iso) => iso.replace(/[-:]/g, '');       // '2023-08-13T12:00Z' -> '20230813T1200Z'
 
@@ -50,6 +51,9 @@ const ReplayView = ({ jump = null, onJump = null, startHere = null, mapOverlay =
     const [lead, setLead] = useState(null);
     const [hazards, setHazards] = useState(HAZARDS);
     const [showWatch, setShowWatch] = useState(false);
+    // observed >= 30 mm/hr and "heavy rain outside displayed alerts": off by default (Layers panel toggles)
+    const [showObserved, setShowObserved] = useState(false);
+    const [showMissed, setShowMissed] = useState(false);
     const [field, setField] = useState('');
     const [selected, setSelected] = useState(null);
     const [error, setError] = useState(null);
@@ -70,7 +74,6 @@ const ReplayView = ({ jump = null, onJump = null, startHere = null, mapOverlay =
     const [insideOpen, setInsideOpen] = useState(false);    // "Inside a current alert (N)" group, collapsed by default
     const setShelterPt = (p) => { setShelterPtRaw(p); setRadius(25); setInsideOpen(false); };
     const [shelter, setShelter] = useState({ key: null, data: null, error: null });
-    const eventWidth = useEventDrawerWidth();
     const terrain = useTerrain(ep);
     const insat = useInsat(ep, ts);
     const pendingRef = useRef(null);            // jump target waiting for its issue to load
@@ -174,7 +177,7 @@ const ReplayView = ({ jump = null, onJump = null, startHere = null, mapOverlay =
     const pointFromAlert = () => selected?.peak_cell && setShelterPt({ lat: selected.peak_cell[0], lon: selected.peak_cell[1], source: 'alert' });
     // default point: the issue's alert peak nearest the documented event site (stated in the panel)
     const pointFromSite = () => getShelterDefault(ep, ts).then((d) => d.available
-        && setShelterPt({ lat: d.lat, lon: d.lon, source: 'site', text: d.text })).catch(() => {});
+        && setShelterPt({ lat: d.lat, lon: d.lon, source: 'site', text: d.text, site: d.site?.name })).catch(() => {});
     const openDrawer = (id) => {
         if (id === 'shelter' && !shelterPt) pointFromSite();
         setDrawer(id);
@@ -188,6 +191,8 @@ const ReplayView = ({ jump = null, onJump = null, startHere = null, mapOverlay =
     }, [ep, ts]);
     const shelterOpen = active === 'shelter';
     const select = (a) => { setSelected(a); if (a) setDrawer('alert'); };
+    // a map click selects the alert and shows its compact popup; the popup's "Details" opens the Alert section
+    const details = (a) => { setSelected(a); setDrawer('alert'); setDeferred(null); };
     const issueInfo = episode?.issues.find((i) => i.ts === ts);
 
     // the other case study, one click away (from /api/start-here)
@@ -228,18 +233,16 @@ const ReplayView = ({ jump = null, onJump = null, startHere = null, mapOverlay =
         return o;
     }, [meta]);
 
-    // map overlays: optional forecast field, then observed >=30 (always on), then the derived
-    // "heavy rain outside displayed alerts" cells for exactly the alerts on screen (always on)
+    // map overlays: optional forecast field, then observed >=30, then the derived "heavy rain outside
+    // displayed alerts" cells for exactly the alerts on screen (both off by default)
     const obsAvailable = !!(meta && lead && meta.per_lead[String(lead)]?.observed_available);
     const overlays = [];
     if (meta && lead && data.key === `${ep}/${ts}`) {
         // INSAT-3DR observation (issue time, availability rule applied by the API): below the forecast rasters
         if (insat.overlay) overlays.push(insat.overlay);
         if (field) overlays.push({ url: issueMapUrl(ep, ts, lead, field), opacity: 1, zIndex: 1, kind: `field-${field}` });
-        if (obsAvailable) {
-            overlays.push({ url: issueMapUrl(ep, ts, lead, 'observed_ge30'), opacity: 0.85, zIndex: 2, kind: 'observed' });
-            overlays.push({ url: issueMissedUrl(ep, ts, lead, showWatch ? 'all' : 'warning', hazards), opacity: 1, zIndex: 3, kind: 'missed' });
-        }
+        if (obsAvailable && showObserved) overlays.push({ url: issueMapUrl(ep, ts, lead, 'observed_ge30'), opacity: 0.85, zIndex: 2, kind: 'observed' });
+        if (obsAvailable && showMissed) overlays.push({ url: issueMissedUrl(ep, ts, lead, showWatch ? 'all' : 'warning', hazards), opacity: 1, zIndex: 3, kind: 'missed' });
     }
 
     const nVer = shown.filter((a) => a.verification?.status === 'verified').length;
@@ -256,7 +259,7 @@ const ReplayView = ({ jump = null, onJump = null, startHere = null, mapOverlay =
     const tabs = [
         { id: 'alert', label: 'Alert', icon: BellRing, width: 420 },
         { id: 'ingredients', label: 'Ingredients', icon: FlaskConical, width: 440 },
-        ...(checkApplies ? [{ id: 'event', label: 'Event check', icon: CalendarClock, width: eventWidth }] : []),
+        ...(checkApplies ? [{ id: 'event', label: 'Event check', icon: CalendarClock, width: 420, expandable: true }] : []),
         { id: 'shelter', label: SHELTER_LABEL, short: 'Shelter options', icon: Building2, width: 440 },
         { id: 'caveats', label: 'Caveats', icon: Info, width: 420 },
     ];
@@ -281,7 +284,7 @@ const ReplayView = ({ jump = null, onJump = null, startHere = null, mapOverlay =
                 )}
                 {!showWatch && hiddenWatch > 0 && (
                     <p className="text-sm text-amber-700 dark:text-amber-400 mt-1">
-                        {hiddenWatch} Watch alert{hiddenWatch === 1 ? '' : 's'} hidden at this lead. Tick "Also show Watch" in Layers.
+                        {hiddenWatch} Watch alert{hiddenWatch === 1 ? '' : 's'} hidden at this lead. Tick "Also show Watch" above the map.
                     </p>
                 )}
                 {meta && (
@@ -293,7 +296,7 @@ const ReplayView = ({ jump = null, onJump = null, startHere = null, mapOverlay =
             </div>
             <AlertList alerts={shown} selectedId={selected?.alert_id} onSelect={select}
                 emptyText={showWatch ? 'No alerts at this lead for the selected hazards.'
-                    : 'No Warnings at this lead for the selected hazards. Tick "Also show Watch" in Layers to see Watch alerts.'} />
+                    : 'No Warnings at this lead for the selected hazards. Tick "Also show Watch" above the map to see Watch alerts.'} />
         </div>
     );
 
@@ -331,42 +334,43 @@ const ReplayView = ({ jump = null, onJump = null, startHere = null, mapOverlay =
                     )}
                 </StatusLine>
                 {error && <div className="bg-red-600 text-white px-6 py-2 text-sm font-semibold">{error}</div>}
-
-                <div className="flex-1 relative min-h-0">
-                    {meta && (
-                        <AlertMap bounds={meta.bounds} alerts={shown} selectedId={selected?.alert_id}
-                            onSelect={select} sites={meta.sites || []} overlays={overlays} dimFill={!!field}
-                            terrain={terrain.layers} terrainNotice={terrain.fullNotice}
-                            onPick={shelterOpen ? (p) => setShelterPt({ ...p, source: 'click' }) : null}
-                            shelter={shelterOpen && shelterPt ? { point: shelterPt, radiusKm: sh.data?.radius_km, candidates: [
-                                ...(sh.data?.candidates || []),
-                                ...(insideOpen ? (sh.data?.inside_candidates || []).map((c) => ({ ...c, prefix: 'i' })) : [])] } : null} />
-                    )}
-                    <div className="absolute top-3 left-3 z-[400] flex flex-col pointer-events-none" style={ABOVE_ATTRIBUTION}>
-                        <LayersPanel summary={meta && lead ? `${episode?.sites?.length ? episode.sites[0].name : episode?.location || ''} · ${fmtIssueShort(meta.issue_time)} · L${lead} h · ${showWatch ? 'Watch + Warning' : 'Warnings'}${insat.on && insat.available ? ' · INSAT-3DR' : ''}` : ''}>
-                            <div className="space-y-1.5">
-                                <p className="text-xs font-black uppercase text-slate-500 dark:text-slate-400">Event and issue</p>
-                                <select data-testid="episode-select" value={ep || ''} onChange={(e) => changeEpisode(e.target.value)}
-                                    className="w-full text-xs font-bold bg-slate-100 dark:bg-slate-700 dark:text-white rounded-md px-2 py-1 border border-slate-200 dark:border-slate-600">
+                <MapToolbar leads={meta && lead ? meta.leads_available : []} lead={lead} setLead={setLead} leadInfo={leadInfo}
+                    showWatch={showWatch} setShowWatch={setShowWatch}>
+                                <select id="episode-select" data-testid="episode-select" aria-label="Event" value={ep || ''} onChange={(e) => changeEpisode(e.target.value)}
+                                    className="w-[12.5rem] max-w-full text-sm font-bold bg-slate-100 dark:bg-slate-700 dark:text-white rounded-md px-2 py-1 border border-slate-200 dark:border-slate-600">
                                     {episodes.map((e) => (
                                         <option key={e.episode} value={e.episode}>
                                             {e.sites?.length ? e.sites.map((s) => s.name).join(' + ') : e.location} ({e.site?.date}){e.in_sample ? ' · IN-SAMPLE' : ''}{e.case_study ? ` · ${e.badge.toUpperCase()} CASE STUDY` : ''}
                                         </option>
                                     ))}
                                 </select>
-                                <select data-testid="issue-select" value={ts || ''} onChange={(e) => changeIssue(e.target.value)}
-                                    className="w-full text-xs font-bold bg-slate-100 dark:bg-slate-700 dark:text-white rounded-md px-2 py-1 border border-slate-200 dark:border-slate-600">
+                                <select data-testid="issue-select" aria-label="Issue time" value={ts || ''} onChange={(e) => changeIssue(e.target.value)}
+                                    className="w-[12.5rem] max-w-full text-sm font-bold bg-slate-100 dark:bg-slate-700 dark:text-white rounded-md px-2 py-1 border border-slate-200 dark:border-slate-600">
                                     {episode?.issues.map((i) => (
                                         <option key={i.ts} value={i.ts}>
                                             issued {fmtIssueShort(i.issue_time)} · {i.n_alerts} alerts{i.explain_available === false ? ' · forecast-only' : ` (${i.n_verified} confirmed by IMERG)`}
                                         </option>
                                     ))}
                                 </select>
-                            </div>
+                </MapToolbar>
+
+                <div className="flex-1 relative min-h-0">
+                    {meta && (
+                        <AlertMap bounds={meta.bounds} alerts={shown} selectedId={selected?.alert_id}
+                            onSelect={setSelected} onDetails={details} sites={meta.sites || []} overlays={overlays} dimFill={!!field}
+                            terrain={terrain.layers} terrainNotice={terrain.fullNotice}
+                            onPick={shelterOpen ? (p) => setShelterPt({ ...p, source: 'click' }) : null}
+                            shelter={shelterOpen && shelterPt ? { point: shelterPt, radiusKm: sh.data?.radius_km, candidates: [
+                                ...numberShelters(sh.data).outside,
+                                ...(insideOpen ? numberShelters(sh.data).inside : [])] } : null} />
+                    )}
+                    <div className="absolute top-3 left-3 z-[400] flex flex-col pointer-events-none" style={ABOVE_ATTRIBUTION}>
+                        <LayersPanel summary={meta && lead ? `${episode?.sites?.length ? episode.sites[0].name : episode?.location || ''} · ${fmtIssueShort(meta.issue_time)} · L${lead} h · ${showWatch ? 'Watch + Warning' : 'Warnings'}${insat.on && insat.available ? ' · INSAT-3DR' : ''}` : ''}>
                             {meta && lead && (
-                                <MapControls leads={meta.leads_available} lead={lead} setLead={setLead} leadInfo={leadInfo}
-                                    hazards={hazards} setHazards={setHazards} showWatch={showWatch} setShowWatch={setShowWatch}
-                                    counts={counts} field={field} setField={setField} terrain={terrain} />
+                                <MapControls hazards={hazards} setHazards={setHazards}
+                                    counts={counts} field={field} setField={setField} terrain={terrain}
+                                    observed={obsAvailable ? { label: meta.legends.observed_ge30?.label || 'Observed ≥30 mm/hr', on: showObserved, setOn: setShowObserved } : null}
+                                    missed={obsAvailable ? { label: meta.legends.missed_ge30?.label || 'Heavy rain outside displayed alerts', on: showMissed, setOn: setShowMissed } : null} />
                             )}
                             <InsatControl insat={insat} />
                         </LayersPanel>
@@ -374,7 +378,7 @@ const ReplayView = ({ jump = null, onJump = null, startHere = null, mapOverlay =
                     {meta && (
                         <div className="absolute top-[84px] right-3 z-[400] flex flex-col justify-end pointer-events-none" style={ABOVE_ATTRIBUTION}>
                             <MapLegend legends={meta.legends} field={field} hazards={hazards} site={(meta.sites || []).length} ffNote={FF_VERIFY_NOTE}
-                                verification={meta.explain_available !== false} observed={obsAvailable} missed={obsAvailable}
+                                verification={meta.explain_available !== false} observed={obsAvailable && showObserved} missed={obsAvailable && showMissed} showWatch={showWatch}
                                 underReport={(meta.sites || []).length ? startHere?.under_report : null}
                                 terrain={terrain.layers.length > 0}
                                 insat={insat.on && insat.info ? {
@@ -401,7 +405,7 @@ const ReplayView = ({ jump = null, onJump = null, startHere = null, mapOverlay =
                             : id === 'event' ? <EventCheckPanel check={eventCheck} timeline={check.ep === ep ? check.timeline : null} onJump={jumpTo} underReport={startHere?.under_report} />
                                 : id === 'shelter' ? <ShelterPanel point={shelterPt} data={sh.data} error={sh.error}
                                     loading={!!shelterKey && shelter.key !== shelterKey} selected={selected} onUseAlert={pointFromAlert} lead={lead}
-                                    onWiden={setRadius} mapAlerts={shown} insideOpen={insideOpen} onInsideToggle={() => setInsideOpen((o) => !o)} />
+                                    onWiden={setRadius} onChoose={setShelterPt} mapAlerts={shown} insideOpen={insideOpen} onInsideToggle={() => setInsideOpen((o) => !o)} />
                                     : <CaveatsPanel />
                 )}
             </Drawer>

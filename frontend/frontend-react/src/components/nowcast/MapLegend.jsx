@@ -4,7 +4,6 @@ import { HAZARD_STYLE, VERIFY_STYLE, IMD_NOTE } from '../../utils/hazardLabels';
 import { TERRAIN_ATTRIBUTION } from './useTerrain';
 import IMDChip from './IMDChip';
 
-const LEGEND_OPEN_MIN_WIDTH = 1600;
 
 const Swatch = ({ color, dashed, fill = 0.35, round }) => (
     <span className={`inline-block w-4 h-3 shrink-0 ${round ? 'rounded-full' : 'rounded-sm'}`}
@@ -23,21 +22,30 @@ const Head = ({ children }) => <p className="text-xs font-black uppercase text-s
  *   insat:     { classes, lines, availability } while the INSAT-3DR layer is switched on, else null
  */
 const MapLegend = ({ legends, field, hazards = [], observed = false, missed = false, verification = true,
-    site = 0, terrain = false, note, noteTitle, ffNote, insat = null, underReport = null }) => {
+    site = 0, terrain = false, note, noteTitle, ffNote, insat = null, underReport = null, showWatch = false }) => {
     const f = field && legends?.[field];
-    // collapsed by default on narrower screens so it does not cover the map
-    const [open, setOpen] = useState(() => typeof window === 'undefined' || window.innerWidth >= LEGEND_OPEN_MIN_WIDTH);
+    // a mini legend is always shown; "Full legend" opens the rest (kept in the page, hidden) until closed
+    const [open, setOpen] = useState(false);
     // explanatory notes stay behind "More" (in the page, hidden) so the legend covers little of the map
     const [more, setMore] = useState(false);
     const alerts = hazards.length > 0;
     return (
         <div data-testid="map-legend" data-open={open}
-            className="pointer-events-auto max-h-full overflow-y-auto bg-white/95 dark:bg-slate-800/95 backdrop-blur shadow-md rounded-xl border border-slate-200 dark:border-slate-700 px-3 py-2 space-y-1.5 w-[290px]">
+            className="pointer-events-auto max-h-full overflow-y-auto bg-white/95 dark:bg-slate-800/95 backdrop-blur shadow-md rounded-xl border border-slate-200 dark:border-slate-700 px-3 py-1.5 space-y-1.5 w-[290px]">
+            {/* mini legend: only the layers on the map, at most two lines */}
+            <div data-testid="mini-legend" className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-slate-700 dark:text-slate-200 leading-tight">
+                {hazards.map((h) => (
+                    <span key={h} data-hazard={h} className="flex items-center gap-1 whitespace-nowrap"><Swatch color={HAZARD_STYLE[h].color} />{HAZARD_STYLE[h].name}</span>
+                ))}
+                {alerts && <span className="flex items-center gap-1 whitespace-nowrap"><Swatch color="#475569" />Warning</span>}
+                {alerts && showWatch && <span className="flex items-center gap-1 whitespace-nowrap"><Swatch color="#475569" dashed fill={0.1} />Watch</span>}
+                {!alerts && f && <span className="truncate" title={f.label}>{f.label}</span>}
+            </div>
             <button type="button" data-testid="legend-toggle" aria-expanded={open} onClick={() => setOpen((o) => !o)}
-                className="w-full flex items-center justify-between text-xs font-black uppercase text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white">
-                Legend {open ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
+                className="flex items-center gap-1 text-sm font-bold text-blue-700 dark:text-blue-300 hover:underline">
+                {open ? 'Hide full legend' : 'Full legend'} {open ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
             </button>
-            {open && (<>
+            <div data-testid="legend-full" hidden={!open} className="space-y-1.5">
                 {insat && (
                     <div data-testid="legend-insat" className="space-y-0.5">
                         <Head>Satellite observation (INSAT via MOSDAC)</Head>
@@ -118,7 +126,7 @@ const MapLegend = ({ legends, field, hazards = [], observed = false, missed = fa
                 )}
                 <button type="button" data-testid="legend-more" aria-expanded={more} onClick={() => setMore((m) => !m)}
                     className="text-sm font-bold text-blue-700 dark:text-blue-300 hover:underline">{more ? 'Fewer notes' : 'More: notes on these layers'}</button>
-            </>)}
+            </div>
         </div>
     );
 };

@@ -345,3 +345,14 @@ def test_terms_record_matches_the_limits():
     # worst case: every point of the 380 list and the 100 list (27 extra) refreshed every hour, all month
     assert (380 + 27) * 24 * 31 < lim["per_month"]
     assert facts["attribution line"]["quote"] == "Weather data © OpenWeather"
+
+
+def test_access_log_never_records_chosen_coordinates():
+    import logging
+    import backend.main as M  # noqa: F401  (importing installs the filter)
+    lg = logging.getLogger("uvicorn.access")
+    rec = logging.LogRecord("uvicorn.access", logging.INFO, __file__, 1, '%s - "%s %s HTTP/%s" %d',
+                            ("1.2.3.4:5", "GET", "/ml/live/X/shelters?lat=31.9579&lon=77.1095", "1.1", 200), None)
+    for f in lg.filters:
+        f.filter(rec)
+    assert "31.9579" not in rec.getMessage() and "lat=***&lon=***" in rec.getMessage()

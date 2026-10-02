@@ -37,7 +37,7 @@ const Dashboard = () => {
     const [baseLayer, setBaseLayer] = useState('map');      // 'map' | 'satellite' | 'terrain'
 
     const isFetchingRef = useRef(false);
-    // the header search on the other pages opens "/dashboard?city=<name>": run that search here once
+    // the header search on the other pages opens "/?city=<name>": run that search here once
     const [searchParams, setSearchParams] = useSearchParams();
 
     const loadAllData = async (silent = false) => {
@@ -319,6 +319,13 @@ const Dashboard = () => {
                 <div className="flex-1 flex flex-col overflow-hidden relative">
                     {/* Scrollable Content Area */}
                     <div className="flex-1 overflow-y-auto pb-4 flex flex-col">
+                        {/* first-visit pointer to the ML system briefing (/overview) */}
+                        <div data-testid="dashboard-briefing-card" className="mx-6 mt-4 shrink-0 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-blue-200 dark:border-blue-900 bg-blue-50 dark:bg-blue-950/40 px-4 py-3">
+                            <p className="text-base font-bold text-blue-950 dark:text-blue-100 flex-1 min-w-[14rem]">New here? See the system briefing: what the ML nowcast warns about, and how well it works.</p>
+                            <Link to="/overview" data-testid="dashboard-briefing-link" className="shrink-0 inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-base">
+                                See the system briefing →
+                            </Link>
+                        </div>
 
                         {/* Error Handling Banner */}
                         {error && (

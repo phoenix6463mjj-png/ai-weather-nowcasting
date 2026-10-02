@@ -4,6 +4,7 @@ import 'leaflet/dist/leaflet.css';
 import { mlUrl } from '../../services/nowcastApi';
 import { HAZARD_STYLE, LEVEL_STYLE } from '../../utils/hazardLabels';
 import { terrainAttribution } from '../nowcast/useTerrain';
+import AttributionHeight from '../nowcast/AttributionHeight';
 import { stepViews, layerNames } from '../../utils/briefing';
 
 // The Overview's pinned map. Each step shows its own layers; images are mounted only for the step that
@@ -50,6 +51,7 @@ const BriefingMap = ({ data, step, scrub, reduced }) => {
                 <TileLayer url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
                     attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' />
                 <ZoomControl position="bottomright" />
+                <AttributionHeight />
                 {views && <Fly bounds={views[step]} reduced={reduced} />}
                 {/* terrain: national hillshade (steps 1, 2, 6, 8), the Malana box (3-5) */}
                 {data && [0, 1, 5, 7].includes(step) && (

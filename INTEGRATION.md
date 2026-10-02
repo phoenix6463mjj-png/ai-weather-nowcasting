@@ -1742,6 +1742,87 @@ Satellite observation (INSAT via MOSDAC). It is not a model input.
   compare the attribution with `/ml/credits`.
 - Screenshots: `terrain_notice_{overview,nowcast}_{1366x768,390x844}`.
 
+### UX fixes from review (3 Oct 2026)
+
+- **Routes:** "/" is the team Dashboard again (unchanged) with one card at the top: "New here? See the system
+  briefing …" → `/overview`.
+  - The Overview moved unchanged to `/overview`, and `/dashboard` (with any `?city=`) redirects to "/".
+  - Nav: Dashboard · Overview · Explore map · Results · Analytics · Current weather (rule-based) (Forecast,
+    Alerts, Reports).
+  - Internal links follow (Sidebar, the rule-based pages' Dashboard buttons, header search, Start here).
+  - `vercel.json` already rewrites every path, so deep links survive a refresh.
+- **Attribution bars** (`components/nowcast/AttributionBars.jsx`, used by the Alert drawer "Why" section and
+  Overview step 4): left-aligned bars.
+  - Length = |SHAP| relative to the largest shown.
+  - Colour + arrow + "raises risk" / "lowers risk" come from the sign of the attribution.
+  - Same rows, same order; the drawer keeps the values.
+- **Drawer:** Alert, Ingredients, Caveats, Shelter options and CAP keep their widths.
+  - Event check now opens at the same width as Alert (420 px, 525 px at ≥ 1600 px); its timeline switches to a
+    compact layout below 760 px (label and right-hand text above a full-width plot, hour labels thinned so
+    they never touch).
+  - "Expand" in the Event check header only widens it to 60 % of the window; "Collapse" goes back.
+- **Shelter options** (`ShelterPanel.jsx`, `LocationChooser.jsx`):
+  - Intro: "Choose a location (where you are, or a place you care about). We list nearby public buildings
+    outside the alert areas."
+  - Ways to choose a location:
+    - search a place (Nominatim, as on the Dashboard, with its credit);
+    - click the map;
+    - "Use my location": browser geolocation, asked only on click; denied or unavailable shows a plain
+      message; outside Uttarakhand and Himachal Pradesh the API answers "Not available for this area yet.";
+    - "Try an example location: Kullu" (coordinates read from `public/india_locations.csv`);
+    - the selected alert's peak.
+  - The location is kept only in page memory. The ML API (`serve/privacy.py`) and the team backend (/ml
+    proxy) replace `lat`/`lon` in their access logs with `***` (tested), so it is used only to compute
+    distances and never stored or logged by the app. The host's own request log (Render) is outside the
+    app's control.
+  - Shown as "Location: 32.15° N, 77.25° E, 3,955 m above sea level" (elevation from the API, only once the
+    response is for that location) plus why it was chosen: "the peak of the alert nearest Malana river"
+    (the default is an alert's peak cell, so "peak", not "centre"), "you clicked here", "your location",
+    "example location (Kullu)", "the peak of the selected alert", or the searched place name.
+  - Plain English:
+    - the summary: "43 public buildings (hospitals, clinics, schools, colleges, town halls, police stations,
+      fire stations) are within 25 km of this location. All 43 are inside an alert area." / "N are outside
+      all alert areas: listed first below." The types are read from the OSM index via the new
+      `building_types` field;
+    - "Search up to 50 km", and "Distances are straight-line, not road routes.";
+    - the alert-check note sits behind "How this is checked".
+  - Pins and list use plain numbers (outside first, then inside): filled = outside all alert areas, hollow =
+    inside an alert area.
+  - The 3D legend reads "Your chosen location", "Public building outside all alert areas" and "Public building
+    inside an alert area"; the elevation text says "… than your chosen location".
+- **/nowcast map:**
+  - "Observed ≥30 mm/hr" and "Heavy rain outside displayed alerts" are off by default; their toggles are in
+    the Layers panel (Observed (replay)). The Overview's own IMERG layer and the Event check are unaffected.
+  - A slim toolbar along the top of the map (`MapToolbar.jsx`), never collapsed, holds the event and issue
+    pickers, lead 1/2/3/4/6 h and "Also show Watch" (lead and Watch only on Live; lead on All-India); it wraps
+    inside itself on a phone.
+  - The Layers panel keeps the rarer settings (forecast layer, terrain + opacity, observed toggles, hazards).
+    It is 280 px wide, at most half the map high with internal scrolling, collapsed ≤ 1366 px and open
+    ≥ 1600 px, and a map click never closes it.
+  - The legend is a mini legend, always shown (hazard colours + Warning, + Watch when shown, at most two
+    lines), plus "Full legend", which opens the rest until closed.
+  - Clicking an alert shows a compact popup (2 lines: hazard, level, value; lead and kind) with "Details",
+    which opens the Alert section. The hover tooltip is the same 2 lines; verification and explanations live
+    only in the drawer.
+  - The map keeps ≥ ~70 % uncovered with the drawer open at 1366×768 and 1920×1080 (tested).
+- **Tests:** new `e2e/ux_review.spec.js` (14), covering:
+  - routes and redirects;
+  - bar direction from the sign;
+  - Event check width vs the other sections, plus Expand / Collapse;
+  - geolocation mocked inside (Shimla) and outside (Mumbai) the region, and denied;
+  - the Kullu example;
+  - the wording;
+  - layer defaults;
+  - toolbar at 1920 / 1366 / 390;
+  - mini legend and panels;
+  - popup length;
+  - uncovered share.
+
+  Also `serve/tests/test_privacy.py` and a backend log-redaction test.
+- **Screenshots:** `ux_dashboard_card_*`, `ux_overview_step4_*`, `ux_nowcast_default_*`,
+  `ux_event_check_{normal,expanded}_*`, `ux_alert_popup_*`, `ux_shelter_*`, `ux_3d_view_*` (1920×1080 and
+  1366×768).
+
 ## 7. Troubleshooting
 
 | symptom | cause / fix |

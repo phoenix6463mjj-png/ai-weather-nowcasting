@@ -193,7 +193,10 @@ test('map popup, legend and Event check use the IMERG wording; site note only ne
     await poly.hover({ force: true });
     const tip = page.getByTestId('alert-tooltip').first();
     await expect(tip).toBeVisible();
-    await expect(tip.getByTestId('tooltip-verification')).toContainText(/Confirmed by IMERG|Not confirmed by IMERG/);
+    // UX review: the map tooltip is 2 short lines (hazard, level, value; lead); the IMERG wording is in the drawer
+    await expect(tip).toContainText(/(Thunderstorm|Cloudburst|Flash flood) (Warning|Watch) · .*lead/);
+    await expect(tip).not.toContainText('IMERG');
+    await expect(page.getByTestId('explain-verification')).toContainText(/Confirmed by IMERG|Not confirmed by IMERG/);
     await shot(page, 'judge_popup_1920x1080');
     // Event check: short chips + the under-reporting line
     await page.getByTestId('drawer-tab-event').click();
@@ -274,7 +277,8 @@ test('typography: drawer sections and Results/Approach >= 14 px, body 16 px; wid
             const panel = page.getByTestId(`drawer-panel-${s}`);
             await expect(panel).toBeVisible();
             await page.waitForTimeout(s === 'shelter' ? 1500 : 400);
-            expect(await minFont(panel), `${s} at ${w}`).toBeGreaterThanOrEqual(15);
+            // the inline licence credits (Nominatim next to the place search) are credit-sized (13 px)
+            expect(await minFont(panel, '[data-testid="nominatim-credit"]'), `${s} at ${w}`).toBeGreaterThanOrEqual(15);
             // the map keeps the main share of the width
             const mapBox = await page.locator('.leaflet-container').boundingBox();
             const pBox = await panel.boundingBox();

@@ -170,9 +170,9 @@ const Overview = () => {
                 </div>
                 <div className="lg:grid lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
                     {/* map: pinned (phones: the top half) */}
-                    <div className="sticky top-0 z-10 h-[50vh] lg:h-[calc(100vh-72px)] lg:col-start-2 lg:row-start-1 border-b lg:border-b-0 lg:border-l border-slate-200 dark:border-slate-800">
+                    <div data-map-host className="sticky top-0 z-10 h-[50vh] lg:h-[calc(100vh-72px)] lg:col-start-2 lg:row-start-1 border-b lg:border-b-0 lg:border-l border-slate-200 dark:border-slate-800">
                         <BriefingMap data={data} step={active} scrub={scrub} reduced={reduced} />
-                        {overlay && wide && <div className="absolute z-[500] left-6 right-3 bottom-10 flex pointer-events-none">{overlay}</div>}
+                        {overlay && wide && <div className="absolute z-[500] left-6 right-16 flex pointer-events-none" style={{ bottom: 'calc(var(--attr-h, 22px) + 12px)' }}>{overlay}</div>}
                         <nav aria-label="Briefing steps" data-testid="overview-dots" className="absolute z-[500] top-3 right-3 flex lg:flex-col gap-2 rounded-full bg-white/90 dark:bg-slate-900/90 p-2 shadow">
                             {STEP_TITLES.map((t, i) => (
                                 <button key={t} type="button" data-testid={`ov-dot-${i + 1}`} aria-label={`Step ${i + 1}: ${t}`} aria-current={active === i ? 'step' : undefined}

@@ -85,7 +85,7 @@ test('header search on another page runs the search on the dashboard (was a no-o
     await page.goto('/alerts');
     await page.locator('header').getByPlaceholder(/Search city/).fill('Pune');
     await page.locator('header').getByRole('button', { name: 'Find' }).click();
-    await expect(page).toHaveURL(/\/dashboard$/);
+    await expect.poll(() => new URL(page.url()).pathname).toBe('/');          // the Dashboard is "/" again (UX review)
     await expect(page.getByTestId('header-city')).toHaveText('Pune', { timeout: 30_000 });
 });
 

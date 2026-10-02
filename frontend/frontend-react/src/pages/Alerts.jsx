@@ -306,7 +306,7 @@ const Alerts = () => {
                         </button>
 
                         <Link
-                            to="/dashboard"
+                            to="/"
                             className="flex items-center gap-1.5 px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs rounded-lg shadow-sm hover:scale-105 active:scale-95 transition-all duration-150"
                         >
                             <ArrowLeft size={13} />

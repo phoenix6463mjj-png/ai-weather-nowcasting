@@ -7,13 +7,13 @@ import TeamCredits from './TeamCredits';
 // Site navigation. The ML pages first; the team's rule-based current-weather pages sit in one menu
 // ("Current weather (rule-based)"), each of which keeps its own "not the ML model" label.
 const ML_NAV = [
-    { to: '/', label: 'Overview', end: true, id: 'overview' },
+    { to: '/', label: 'Dashboard', end: true, id: 'dashboard' },
+    { to: '/overview', label: 'Overview', id: 'overview' },
     { to: '/nowcast', label: 'Explore map', end: true, id: 'explore' },
     { to: '/nowcast/results', label: 'Results', id: 'results' },
     { to: '/analytics', label: 'Analytics', id: 'analytics' },
 ];
 const RULE_NAV = [
-    { to: '/dashboard', label: 'Dashboard', id: 'dashboard' },
     { to: '/forecast', label: 'Forecast', id: 'forecast' },
     { to: '/alerts', label: 'Alerts', id: 'alerts' },
     { to: '/reports', label: 'Reports', id: 'reports' },
@@ -99,7 +99,7 @@ const TopHeader = ({ onSearch, searchLoading, selectedCity, alertCount = null, s
             if (onSearch) {
                 onSearch(searchInput.trim());
             } else {
-                navigate(`/dashboard?city=${encodeURIComponent(searchInput.trim())}`);
+                navigate(`/?city=${encodeURIComponent(searchInput.trim())}`);
             }
         }
     };

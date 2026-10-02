@@ -44,7 +44,7 @@ const StartHere = ({ data, error, onClose, onGo }) => {
             )}
             {data && <p data-testid="start-here-note" className="px-4 pt-1 text-sm text-slate-500 dark:text-slate-400">{data.case_study_note.quote.replace(/\n/g, ' ')}</p>}
             <p className="px-4 pt-1 pb-2.5">
-                <Link to="/" data-testid="start-here-overview" className="inline-flex items-center gap-1 font-bold text-blue-700 dark:text-blue-300 hover:underline">
+                <Link to="/overview" data-testid="start-here-overview" className="inline-flex items-center gap-1 font-bold text-blue-700 dark:text-blue-300 hover:underline">
                     See the overview (a 1-minute visual briefing) <ArrowRight size={16} />
                 </Link>
             </p>

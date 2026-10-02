@@ -55,7 +55,7 @@ const ProfileChart = ({ p, lead }) => {
                 ))}
                 <text data-testid="profile-start" x={PAD.l} y={fs * 0.95} fontSize={fs} fontWeight="700" fill="#0f172a">{fmtM(start)}</text>
                 <text data-testid="profile-end" x={W - PAD.r} y={fs * 0.95} fontSize={fs} fontWeight="700" fill="#0f172a" textAnchor="end">{fmtM(end)}</text>
-                <text x={PAD.l} y={H - 3} fontSize={fs} fill="#64748b">point</text>
+                <text x={PAD.l} y={H - 3} fontSize={fs} fill="#64748b">your location</text>
                 <text x={W - PAD.r} y={H - 3} fontSize={fs} fill="#64748b" textAnchor="end">{p.length_km.toFixed(1)} km · building</text>
             </svg>
             <figcaption className="text-sm leading-normal text-slate-500 dark:text-slate-400">

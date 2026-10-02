@@ -167,7 +167,7 @@ function buildScene(t, point, pins, alerts) {
         const z = Z(c.lat);
         const y = h(elevAt(c.lat, c.lon));
         stem(x, z, y, 1.6 * k, '#6d28d9');
-        const s = label(`${c.prefix || ''}${c.rank}`, c.outside_all_alerts, 1.6 * k);
+        const s = label(String(c.no ?? c.rank), c.outside_all_alerts, 1.6 * k);
         s.position.set(x, y + 2.3 * k, z);
         scene.add(s);
     }
@@ -292,8 +292,9 @@ const Terrain3D = ({ point, radiusKm, pins, alerts, lead, wording, onClose }) =>
                         )}
                         {hazards.map((hz) => <span key={hz} className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm" style={{ background: HAZARD_STYLE[hz].color, opacity: 0.7 }} />{HAZARD_STYLE[hz].name} alert</span>)}
                         <span className="flex items-center gap-1"><span className="inline-block w-4 h-0.5 bg-blue-700" />rivers / streams (OpenStreetMap)</span>
-                        <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-full bg-slate-900" />chosen point</span>
-                        <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-full bg-violet-700" />candidate outside all alerts · <span className="inline-block w-3 h-3 rounded-full border-2 border-violet-700" />inside one</span>
+                        <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-full bg-slate-900" />Your chosen location</span>
+                        <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-full bg-violet-700" />Public building outside all alert areas</span>
+                        <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-full border-2 border-violet-700" />Public building inside an alert area</span>
                     </div>
                     <p data-testid="terrain3d-wording" className="font-bold text-amber-950 dark:text-amber-100 bg-amber-100 dark:bg-amber-900/40 rounded px-2 py-1">{wording}</p>
                     <p className="text-xs text-slate-500">Terrain: Copernicus DEM GLO-90, 9″ grid{t?.stride > 1 ? ` (every ${t.stride}nd cell)` : ''}; rivers/streams © OpenStreetMap contributors (ODbL). Heights are drawn ×{EXAG}; distances are not.</p>

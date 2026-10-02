@@ -48,7 +48,7 @@ const noHScroll = (page) => page.evaluate(() => document.documentElement.scrollW
 
 async function openOverview(page) {
     const resp = page.waitForResponse((r) => r.url().endsWith('/ml/overview') && r.ok());
-    await page.goto('/');
+    await page.goto('/overview');
     const d = await (await resp).json();
     await expect(page.getByTestId('ov-text-2')).toContainText('mm/hr');
     return d;
@@ -172,7 +172,7 @@ test('Overview screenshots: every step at 1920x1080 and 390 px; no horizontal sc
 });
 
 const PAGES = [
-    ['/', 'overview-page'],
+    ['/overview', 'overview-page'],
     ['/nowcast', 'replay-view'],
     ['/nowcast/results', 'results-page'],
     ['/nowcast/approach', 'approach-page'],
@@ -246,7 +246,7 @@ test.describe('first visit at 1366: drawer waits while Start here is open', () =
         await expect(page.getByTestId('replay-view')).toHaveAttribute('data-loaded', /REF051/, { timeout: 60_000 });
         await expect(page.getByTestId('start-here')).toBeVisible();
         await expect(page.getByTestId('drawer')).toHaveAttribute('data-open', '');
-        await expect(page.getByTestId('start-here-overview')).toHaveAttribute('href', '/');
+        await expect(page.getByTestId('start-here-overview')).toHaveAttribute('href', '/overview');
         await page.getByTestId('start-here-close').click();
         await expect(page.getByTestId('drawer')).toHaveAttribute('data-open', 'alert');
         await page.setViewportSize({ width: 1920, height: 1080 });
@@ -257,20 +257,21 @@ test.describe('first visit at 1366: drawer waits while Start here is open', () =
     });
 });
 
-test('nav: Overview · Explore map · Results · Analytics · Current weather (rule-based) menu; deep links survive a refresh', async ({ page }) => {
+test('nav: Dashboard · Overview · Explore map · Results · Analytics · Current weather (rule-based) menu; deep links survive a refresh', async ({ page }) => {
     await page.setViewportSize({ width: 1366, height: 768 });
-    await page.goto('/');
+    await page.goto('/overview');
     const nav = page.getByTestId('site-nav');
-    await expect(nav.locator('a, button')).toHaveText(['Overview', 'Explore map', 'Results', 'Analytics', 'Current weather (rule-based)']);
+    await expect(nav.locator('a, button')).toHaveText(['Dashboard', 'Overview', 'Explore map', 'Results', 'Analytics', 'Current weather (rule-based)']);
     await page.getByTestId('nav-rule-menu').click();
     await expect(page.getByTestId('nav-rule-items')).toContainText('not the ML model');
-    await expect(page.getByTestId('nav-rule-items').getByRole('menuitem')).toHaveText(['Dashboard', 'Forecast', 'Alerts', 'Reports']);
+    await expect(page.getByTestId('nav-rule-items').getByRole('menuitem')).toHaveText(['Forecast', 'Alerts', 'Reports']);
     await shot(page, 'overview_nav_menu_1366x768');
+    await page.keyboard.press('Escape');
     await page.getByTestId('nav-dashboard').click();
-    await expect(page).toHaveURL(/\/dashboard$/);
+    await expect.poll(() => new URL(page.url()).pathname).toBe('/');
     for (const [url, check] of [
-        ['/', () => expect(page.getByTestId('overview-heading')).toHaveText('System briefing')],
-        ['/dashboard', () => expect(page.getByTestId('sidebar-live-map')).toBeVisible()],
+        ['/overview', () => expect(page.getByTestId('overview-heading')).toHaveText('System briefing')],
+        ['/', () => expect(page.getByTestId('sidebar-live-map')).toBeVisible()],
         ['/forecast', () => expect(page.getByTestId('header-title')).toBeVisible()],
         ['/alerts', () => expect(page.getByTestId('header-title')).toBeVisible()],
         ['/reports', () => expect(page.getByTestId('header-title')).toBeVisible()],
@@ -285,9 +286,11 @@ test('nav: Overview · Explore map · Results · Analytics · Current weather (r
         await check();
         expect(new URL(page.url()).pathname, url).toBe(url.split(/[?#]/)[0]);
     }
-    // old Dashboard links now go to /dashboard; rule-based pages keep their label
+    // the rule-based pages' Dashboard links go to "/"; old /dashboard links redirect there
     await page.goto('/reports');
-    await expect(page.getByRole('link', { name: /Dashboard/ }).first()).toHaveAttribute('href', '/dashboard');
+    await expect(page.getByRole('link', { name: /Dashboard/ }).first()).toHaveAttribute('href', '/');
+    await page.goto('/dashboard');
+    await expect.poll(() => new URL(page.url()).pathname).toBe('/');
     // the SPA fallback that makes these refreshes work on Vercel
     const vercel = JSON.parse(await (await import('node:fs/promises')).readFile(new URL('../frontend/frontend-react/vercel.json', import.meta.url), 'utf8'));
     expect(vercel.rewrites).toEqual([{ source: '/(.*)', destination: '/index.html' }]);
@@ -295,10 +298,10 @@ test('nav: Overview · Explore map · Results · Analytics · Current weather (r
 
 test('390 px: one Menu button holds every page', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto('/');
+    await page.goto('/overview');
     await expect(page.getByTestId('site-nav')).toBeHidden();
     await page.getByTestId('nav-compact').click();
-    await expect(page.getByTestId('nav-compact-items').locator('a')).toHaveText(['Overview', 'Explore map', 'Results', 'Analytics', 'Dashboard', 'Forecast', 'Alerts', 'Reports']);
+    await expect(page.getByTestId('nav-compact-items').locator('a')).toHaveText(['Dashboard', 'Overview', 'Explore map', 'Results', 'Analytics', 'Forecast', 'Alerts', 'Reports']);
     await expect(page.getByTestId('nav-compact-items')).toContainText('Current weather (rule-based)');
     await shot(page, 'overview_nav_compact_390x844');
 });
@@ -356,11 +359,11 @@ test('terrain: the full Copernicus DEM notice in the map attribution fits at 136
     for (const [w, h] of [[1366, 768], [390, 844]]) {
         await page.setViewportSize({ width: w, height: h });
         for (const [url, ready, name] of [
-            ['/', () => goStep(page, 1), 'overview'],
+            ['/overview', () => goStep(page, 1), 'overview'],
             ['/nowcast', () => expect(page.getByTestId('replay-view')).toHaveAttribute('data-loaded', /REF051/, { timeout: 60_000 }), 'nowcast'],
         ]) {
             await page.goto(url);
-            if (url === '/') await expect(page.getByTestId('ov-text-2')).toContainText('mm/hr');
+            if (url === '/overview') await expect(page.getByTestId('ov-text-2')).toContainText('mm/hr');
             await ready();
             await expect(page.getByTestId('terrain-attribution').first()).toHaveText(want);
             await page.waitForTimeout(1300);

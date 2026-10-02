@@ -53,7 +53,7 @@ const Nowcast = () => {
 
     // Start here sits over the map, right of the Layers panel (never over the drawer or the badges)
     const overlay = startOpen ? (
-        <div className="absolute z-[600] top-3 left-[294px] right-3 flex flex-col items-start pointer-events-none" style={ABOVE_ATTRIBUTION}>
+        <div className="absolute z-[600] top-3 left-[304px] right-3 flex flex-col items-start pointer-events-none" style={ABOVE_ATTRIBUTION}>
             <StartHere data={start.data} error={start.error} onClose={closeStart} onGo={go} />
         </div>
     ) : null;

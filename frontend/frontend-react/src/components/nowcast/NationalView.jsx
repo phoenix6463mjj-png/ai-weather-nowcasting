@@ -6,6 +6,7 @@ import { fmtUtc, FIELD_OPTIONS } from '../../utils/hazardLabels';
 import AlertMap from './AlertMap';
 import { ABOVE_ATTRIBUTION } from '../../utils/mapLayout';
 import MapControls from './MapControls';
+import MapToolbar from './MapToolbar';
 import MapLegend from './MapLegend';
 import useTerrain from './useTerrain';
 import Drawer from './Drawer';
@@ -55,13 +56,13 @@ const NationalView = ({ mapOverlay = null }) => {
                     )}
                 </StatusLine>
                 {error && <div className="bg-red-600 text-white px-6 py-2 text-sm font-semibold">{error}</div>}
+                {meta && <MapToolbar leads={meta.leads_available} lead={lead} setLead={setLead} />}
                 <div className="flex-1 relative min-h-0">
                     {meta && <AlertMap bounds={meta.bounds} overlays={overlays} alerts={[]} terrain={terrain.layers} terrainNotice={terrain.fullNotice} />}
                     {meta && (
                         <div className="absolute top-3 left-3 z-[400] flex flex-col pointer-events-none" style={ABOVE_ATTRIBUTION}>
                             <LayersPanel summary={`All-India · L${lead} h · ${INDIA_FIELDS.find((o) => o.id === field)?.label || ''}`}>
-                                <MapControls leads={meta.leads_available} lead={lead} setLead={setLead}
-                                    field={field} setField={setField} fieldOptions={INDIA_FIELDS} alertControls={false} terrain={terrain} />
+                                <MapControls field={field} setField={setField} fieldOptions={INDIA_FIELDS} alertControls={false} terrain={terrain} />
                             </LayersPanel>
                         </div>
                     )}

@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { ArrowRight, BarChart3, Radio } from 'lucide-react';
 import SvgPlot from '../nowcast/SvgPlot';
+import AttributionBars from '../nowcast/AttributionBars';
 import { mlUrl } from '../../services/nowcastApi';
 
 // Overview pieces drawn over the map or under a step's text. Every number comes from /api/overview.
@@ -11,37 +12,19 @@ export const Overlay = ({ children, testid, className = '' }) => (
     </div>
 );
 
-// Step 4: top-5 reasons as signed bars (raises risk to the right, lowers to the left); no numbers.
-export const ReasonsChart = ({ e }) => {
-    const max = Math.max(...e.reasons.map((r) => Math.abs(r.shap_logodds)));
-    return (
-        <Overlay testid="ov-reasons" className="w-[min(30rem,100%)]">
-            <p className="font-black text-base leading-snug">{e.label}: top {e.reasons.length} reasons</p>
-            {e.fallback && <p data-testid="ov-reasons-fallback" className="text-sm text-amber-800 dark:text-amber-300">{e.label}</p>}
-            <ul className="mt-2 space-y-2">
-                {e.reasons.map((r) => {
-                    const up = r.shap_logodds > 0;
-                    const w = `${(Math.abs(r.shap_logodds) / max) * 50}%`;
-                    return (
-                        <li key={r.text} data-testid="ov-reason" data-effect={r.effect}>
-                            <span className="text-sm">{r.text}</span>
-                            <div className="relative h-3 mt-0.5 bg-slate-100 dark:bg-slate-800 rounded">
-                                <div className="absolute top-0 bottom-0 left-1/2 w-px bg-slate-400" />
-                                <div className={`absolute top-0 bottom-0 rounded ${up ? 'bg-rose-600' : 'bg-sky-600'}`}
-                                    style={up ? { left: '50%', width: w } : { right: '50%', width: w }} />
-                            </div>
-                        </li>
-                    );
-                })}
-            </ul>
-            <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
-                <span className="inline-block w-3 h-3 rounded bg-rose-600 align-middle mr-1" />raises risk
-                <span className="inline-block w-3 h-3 rounded bg-sky-600 align-middle ml-3 mr-1" />lowers risk
-                <span className="ml-2">(model attributions)</span>
-            </p>
-        </Overlay>
-    );
-};
+// Step 4: top-5 reasons as left-aligned bars (length = strength; colour, arrow and label = raises / lowers
+// risk, from the sign); no numbers.
+export const ReasonsChart = ({ e }) => (
+    <Overlay testid="ov-reasons" className="w-[min(30rem,100%)]">
+        <p className="font-black text-base leading-snug">{e.label}: top {e.reasons.length} reasons</p>
+        {e.fallback && <p data-testid="ov-reasons-fallback" className="text-sm text-amber-800 dark:text-amber-300">{e.label}</p>}
+        <div className="mt-2">
+            <AttributionBars testid="ov-reason"
+                rows={e.reasons.map((r) => ({ key: r.text, text: r.text, value: r.shap_logodds, effect: r.effect }))} />
+        </div>
+        <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">Bar length = how strongly each reason moved this alert (model attributions).</p>
+    </Overlay>
+);
 
 // Step 6: CSI at >=10 mm/hr by lead, validation: model vs advection vs persistence.
 const SERIES = [

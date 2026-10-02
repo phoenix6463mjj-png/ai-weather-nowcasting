@@ -1,4 +1,5 @@
-import { ChevronLeft, ArrowUpRight, ArrowDownRight, FlaskConical } from 'lucide-react';
+import { ChevronLeft, FlaskConical } from 'lucide-react';
+import AttributionBars from './AttributionBars';
 import { issueFileUrl } from '../../services/nowcastApi';
 import { HAZARD_STYLE, LEVEL_STYLE, VERIFY_STYLE, valueText, kindText, fmtUtc, stateName, FF_VERIFY_NOTE } from '../../utils/hazardLabels';
 import IMDChip from './IMDChip';
@@ -15,47 +16,25 @@ const fmtNum = (v) => (v === null || v === undefined ? '—' : Math.abs(v) >= 10
 
 const Waterfall = ({ items }) => {
     const shapItems = items.filter((w) => w.shap_logodds_total !== null && w.shap_logodds_total !== undefined);
-    const max = Math.max(0.001, ...shapItems.map((w) => Math.abs(w.shap_logodds_total)));
+    const rows = items.map((w) => ({
+        key: w.concept, text: w.text, effect: w.effect, noScale: 'basin physics (no SHAP scale)',
+        value: w.shap_logodds_total ?? null,
+        extra: w.features?.some((f) => f.patch_normal_range_p5_p95) && (
+            <ul className="mt-0.5">
+                {w.features.filter((f) => f.patch_normal_range_p5_p95).map((f) => (
+                    <li key={f.name} className="text-sm text-slate-500 dark:text-slate-400">
+                        {f.name} = {fmtNum(f.value)} (normal here and now, p5–p95: {fmtNum(f.patch_normal_range_p5_p95[0])}–{fmtNum(f.patch_normal_range_p5_p95[1])})
+                    </li>
+                ))}
+            </ul>
+        ),
+    }));
     return (
-        <div className="space-y-2">
-            {items.map((w) => {
-                const up = w.effect === 'raises risk';
-                const has = w.shap_logodds_total !== null && w.shap_logodds_total !== undefined;
-                return (
-                    <div key={w.concept}>
-                        <div className="flex items-start gap-1.5 text-base text-slate-800 dark:text-slate-100">
-                            {up ? <ArrowUpRight size={14} className="text-red-600 shrink-0 mt-0.5" />
-                                : <ArrowDownRight size={14} className="text-emerald-600 shrink-0 mt-0.5" />}
-                            <span>{w.text}</span>
-                        </div>
-                        {has ? (
-                            <div className="flex items-center gap-2 mt-1 ml-5">
-                                <div className="flex-1 h-1.5 bg-slate-100 dark:bg-slate-800 rounded">
-                                    <div className={`h-1.5 rounded ${up ? 'bg-red-500' : 'bg-emerald-500'}`}
-                                        style={{ width: `${(Math.abs(w.shap_logodds_total) / max) * 100}%` }} />
-                                </div>
-                                <span className="text-sm tabular-nums text-slate-500 w-14 text-right">
-                                    {w.shap_logodds_total > 0 ? '+' : ''}{w.shap_logodds_total.toFixed(2)}
-                                </span>
-                            </div>
-                        ) : (
-                            <p className="ml-5 text-sm text-slate-400">basin physics (no SHAP scale)</p>
-                        )}
-                        {w.features?.some((f) => f.patch_normal_range_p5_p95) && (
-                            <ul className="ml-5 mt-0.5">
-                                {w.features.filter((f) => f.patch_normal_range_p5_p95).map((f) => (
-                                    <li key={f.name} className="text-sm text-slate-500 dark:text-slate-400">
-                                        {f.name} = {fmtNum(f.value)} (normal here and now, p5–p95: {fmtNum(f.patch_normal_range_p5_p95[0])}–{fmtNum(f.patch_normal_range_p5_p95[1])})
-                                    </li>
-                                ))}
-                            </ul>
-                        )}
-                    </div>
-                );
-            })}
+        <div data-testid="why-bars" className="space-y-2">
+            <AttributionBars rows={rows} showValue testid="why-row" />
             {shapItems.length > 0 && (
                 <p className="text-sm text-slate-400 leading-normal">
-                    Bars are SHAP contributions in log-odds: the signs and ranking carry over to the probability, but the sizes do not add up to it.
+                    Bar length is the strength of each reason (SHAP contribution in log-odds): the signs and ranking carry over to the probability, but the sizes do not add up to it.
                 </p>
             )}
         </div>
