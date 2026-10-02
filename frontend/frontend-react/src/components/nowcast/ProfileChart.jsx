@@ -9,7 +9,7 @@ const fmtM = (m) => (m == null ? 'no data' : `${m.toLocaleString()} m`);
 
 const ProfileChart = ({ p, lead }) => {
     const pts = p.km.map((k, i) => [k, p.elev_m[i]]).filter(([, e]) => e != null);
-    if (pts.length < 2) return <p className="text-[10px] text-slate-500">Elevation profile: no DEM data along this line.</p>;
+    if (pts.length < 2) return <p className="text-sm text-slate-500">Elevation profile: no DEM data along this line.</p>;
     const L = Math.max(p.length_km, 1e-6);
     const es = pts.map(([, e]) => e);
     let lo = Math.min(...es);
@@ -53,7 +53,7 @@ const ProfileChart = ({ p, lead }) => {
                 <text x={PAD.l} y={H - 3} fontSize="8" fill="#64748b">point</text>
                 <text x={W - PAD.r} y={H - 3} fontSize="8" fill="#64748b" textAnchor="end">{p.length_km.toFixed(1)} km · building</text>
             </svg>
-            <figcaption className="text-[10px] leading-snug text-slate-500 dark:text-slate-400">
+            <figcaption className="text-sm leading-normal text-slate-500 dark:text-slate-400">
                 Terrain every {p.spacing_m} m (9″ DEM grid).
                 {p.crossings.length > 0 && <> <span className="text-blue-700 dark:text-blue-400 font-bold">Blue</span>: {p.crossings.length} river/stream crossing{p.crossings.length === 1 ? '' : 's'}.</>}
                 {p.alert_stretches.length > 0 && <> <span className="text-red-700 dark:text-red-400 font-bold">Red</span>: inside a current alert (darker: at +{lead} h).</>}

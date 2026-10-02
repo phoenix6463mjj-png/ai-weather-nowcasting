@@ -63,3 +63,10 @@
   animation: riskWave ease-in-out infinite;
   transform-origin: bottom;
 }
+
+/* Results / Approach: the section a "Start here" link jumped to */
+[data-target="true"] {
+  outline: 3px solid #2563eb;
+  outline-offset: 3px;
+  scroll-margin-top: 12px;
+}

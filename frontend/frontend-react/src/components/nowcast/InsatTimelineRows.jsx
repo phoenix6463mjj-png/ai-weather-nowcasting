@@ -7,7 +7,7 @@ import { useState } from 'react';
 const M30 = 30 * 60e3;
 const ms = (iso) => new Date(iso).getTime();
 const hm = (iso) => iso.slice(11, 16);
-const MIN_TEXT_PX = 15;
+const MIN_TEXT_PX = 34;                       // a 14 px "-12" fits; narrower cells show colour only (value in the tooltip)
 
 const luminance = (hex) => {
     const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
@@ -60,7 +60,7 @@ const InsatTimelineRows = ({ insat, siteEpisode, t0, t1, x, plotPx, Row, band })
         return (
             <span key={s.slot} data-testid={`insat-cell-${kind}`} data-slot={s.slot} data-value={v ?? ''} data-floor={floor}
                 title={title}
-                className={`absolute top-0.5 bottom-0.5 rounded-[2px] border border-white/60 dark:border-slate-900/60 flex items-center justify-center text-[7px] tracking-tighter font-bold tabular-nums overflow-hidden ${fg}`}
+                className={`absolute top-0.5 bottom-0.5 rounded-[2px] border border-white/60 dark:border-slate-900/60 flex items-center justify-center text-sm tracking-tighter font-bold tabular-nums overflow-hidden ${fg}`}
                 style={{ left: x(ms(s.slot)), width: w, background: bg }}>
                 {text ? label : ''}
             </span>
@@ -68,7 +68,7 @@ const InsatTimelineRows = ({ insat, siteEpisode, t0, t1, x, plotPx, Row, band })
     };
     const gapCell = (g) => (
         <span key={g.slot} data-testid="insat-gap" data-slot={g.slot} title={`${hm(g.slot)}Z: ${g.reason}`}
-            className="absolute top-0.5 bottom-0.5 rounded-[2px] border border-dashed border-slate-400 flex items-center justify-center text-[8px] text-slate-500"
+            className="absolute top-0.5 bottom-0.5 rounded-[2px] border border-dashed border-slate-400 flex items-center justify-center text-sm text-slate-500"
             style={{ left: x(ms(g.slot)), width: w, background: 'repeating-linear-gradient(-45deg,#e2e8f0 0 2px,transparent 2px 5px)' }}>
             {text ? 'gap' : ''}
         </span>
@@ -88,7 +88,7 @@ const InsatTimelineRows = ({ insat, siteEpisode, t0, t1, x, plotPx, Row, band })
                 {series.map((s) => cell(s, 'd30'))}
                 {gaps.map(gapCell)}
             </Row>
-            <div data-testid="insat-notes" className="pl-[215px] pr-2 text-[9px] leading-snug space-y-0.5 text-slate-600 dark:text-slate-300">
+            <div data-testid="insat-notes" className="pl-[215px] pr-2 text-sm leading-normal space-y-0.5 text-slate-600 dark:text-slate-300">
                 {insat.lines.map((l) => <p key={l} data-testid="insat-line" className="text-amber-700 dark:text-amber-400">{l}</p>)}
                 <p>
                     Every downloaded scan of {site.site} at its acquisition time.
@@ -119,7 +119,7 @@ const InsatTimelineRows = ({ insat, siteEpisode, t0, t1, x, plotPx, Row, band })
                         {th && <p>Reference source: {th.citation} {th.context}</p>}
                     </div>
                     <p data-testid="insat-table-floor-line" className="text-slate-600 dark:text-slate-300">{insat.floor_line}</p>
-                    <table data-testid="insat-table" className="w-full text-[9px] tabular-nums">
+                    <table data-testid="insat-table" className="w-full text-sm tabular-nums">
                         <thead><tr className="text-left text-slate-500"><th>scan (UTC)</th><th>10th pct (K)</th><th>min (K)</th><th>30-min change (K)</th><th>pixels</th></tr></thead>
                         <tbody>
                             {site.series.map((s) => (

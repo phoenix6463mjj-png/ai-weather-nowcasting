@@ -33,22 +33,23 @@ const SOURCE_STYLE = {
     derived: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300',
 };
 const Source = ({ s }) => (
-    <span data-testid="tl-source" data-source={s} className={`px-1 rounded text-[9px] font-black uppercase ${SOURCE_STYLE[s]}`}>{s}</span>
+    <span data-testid="tl-source" data-source={s} className={`px-1 rounded text-sm font-black uppercase ${SOURCE_STYLE[s]}`}>{s}</span>
 );
 
 const Row = ({ label, source, children, right, h = 'h-6', testid, wrap = false }) => (
     <div className="flex items-stretch" data-testid={testid}>
-        <div className={`w-[215px] shrink-0 pr-2 flex items-center gap-1.5 text-slate-700 dark:text-slate-200 leading-tight ${wrap ? 'text-[9px]' : 'text-[10px] whitespace-nowrap'}`}>
-            {source && <Source s={source} />}<span data-testid="tl-row-label" className={`min-w-0 ${wrap ? '' : 'truncate'}`}>{label}</span>
+        {/* 14 px text: labels wrap instead of truncating (wrap kept for callers) */}
+        <div data-wrap={wrap} className="w-[215px] shrink-0 pr-2 py-0.5 flex flex-wrap items-center gap-x-1.5 text-sm text-slate-700 dark:text-slate-200 leading-snug">
+            {source && <Source s={source} />}<span data-testid="tl-row-label" className="min-w-0">{label}</span>
         </div>
         <div className={`relative flex-1 ${h}`}>{children}</div>
-        <div className="w-[190px] shrink-0 pl-2 flex items-center gap-1 text-[9px] text-slate-600 dark:text-slate-300 whitespace-nowrap">{right}</div>
+        <div className="w-[190px] shrink-0 pl-2 py-0.5 flex flex-wrap items-center gap-x-1 text-sm leading-snug text-slate-600 dark:text-slate-300">{right}</div>
     </div>
 );
 const Note = ({ children, testid }) => (
-    <p data-testid={testid} className="pl-[215px] pr-[190px] text-[9px] leading-snug">{children}</p>
+    <p data-testid={testid} className="pl-[215px] pr-[190px] text-sm leading-normal">{children}</p>
 );
-const imergShort = (st) => (st === 'verified' ? 'IMERG verified' : st === 'false_alarm' ? 'IMERG false alarm' : 'IMERG n/a');
+const imergShort = (st) => (st === 'verified' ? 'IMERG confirmed' : st === 'false_alarm' ? 'IMERG not confirmed' : 'IMERG n/a');
 const laneRight = (a, kind) => (kind === 'alert'
     ? <><Source s="model" /> L{a.lead_time_h} · <b>{a.precision}</b> · {imergShort(a.imerg_verification?.status)}</>
     : <><Source s="model" /> L{a.lead_time_h} · {a.n_cells} cells, nearest {a.nearest_cell_km} km</>);
@@ -85,7 +86,7 @@ const WarningTimeline = ({ site, timeline, onJump }) => {
         <button key={i.ts} data-testid="tl-ingredient" data-ts={i.ts} data-field={key} data-forecast-only={i.forecast_only}
             onClick={() => onJump({ issue_time: i.issue_time })}
             title={i.forecast_only ? `forecast-only issue: ${i.note}` : `${timeline.ingredient_labels[key]} at issue ${fmtIssueShort(i.issue_time)} (ERA5 ${fmtIssueShort(i.era5_valid_time)})`}
-            className={`absolute top-0.5 -translate-x-1/2 px-1 rounded text-[9px] tabular-nums font-semibold ${i.forecast_only
+            className={`absolute top-0.5 -translate-x-1/2 px-1 rounded text-sm tabular-nums font-semibold ${i.forecast_only
                 ? 'bg-[repeating-linear-gradient(45deg,#e2e8f0_0_3px,#fff_3px_6px)] text-slate-500 border border-dashed border-slate-400'
                 : i[key] == null ? 'text-slate-400' : i[key] > 0 ? 'bg-amber-100 text-amber-900' : 'bg-sky-100 text-sky-900'}`}
             style={{ left: x(ms(i.issue_time)) }}>
@@ -104,7 +105,7 @@ const WarningTimeline = ({ site, timeline, onJump }) => {
                     style={{ left: x(ti), width: `calc(${x(w0)} - ${x(ti)})` }} />
                 <span className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-2.5 h-2.5 rounded-full border-2 border-white shadow"
                     style={{ left: x(ti), background: kind === 'alert' ? HAZARD_STYLE[a.hazard].color : '#64748b' }} />
-                <span className="absolute -top-0.5 text-[9px] font-black text-slate-800 dark:text-slate-100 -translate-x-1/2"
+                <span className="absolute -top-0.5 text-sm font-black text-slate-800 dark:text-slate-100 -translate-x-1/2"
                     style={{ left: `calc((${x(ti)} + ${x(w0)}) / 2)` }}>{a.hours_of_warning} h</span>
             </button>
         );
@@ -113,13 +114,13 @@ const WarningTimeline = ({ site, timeline, onJump }) => {
     return (
         <div ref={rootRef} data-testid="warning-timeline" data-t0={new Date(t0).toISOString()} data-t1={new Date(t1).toISOString()} className="rounded-lg border border-slate-200 dark:border-slate-700 p-2.5 space-y-1">
             <div className="flex items-baseline justify-between">
-                <p className="text-[11px] font-black">Warning timeline: {site.site}</p>
-                <p className="text-[9px] text-slate-500">times UTC (IST = UTC + 5:30) · click a marker to open it on the map</p>
+                <p className="text-sm font-black">Warning timeline: {site.site}</p>
+                <p className="text-sm text-slate-500">times UTC (IST = UTC + 5:30) · click a marker to open it on the map</p>
             </div>
             <Row label={`${new Date(t0).toUTCString().slice(5, 11)} (UTC)`} h="h-4">
                 {/* label every 2 h (readable in the narrower drawer), tick the hours between */}
                 {hours.map((t) => (new Date(t).getUTCHours() % 2 === 0
-                    ? <span key={t} className="absolute -translate-x-1/2 text-[9px] text-slate-400 tabular-nums" style={{ left: x(t) }}>{hh(t)}</span>
+                    ? <span key={t} className="absolute -translate-x-1/2 text-sm text-slate-400 tabular-nums" style={{ left: x(t) }}>{hh(t)}</span>
                     : <span key={t} className="absolute top-1 h-1.5 w-px bg-slate-300" style={{ left: x(t) }} />))}
             </Row>
 
@@ -131,16 +132,16 @@ const WarningTimeline = ({ site, timeline, onJump }) => {
             {site.source.window_label && <Note testid="tl-window-label"><span className="text-violet-800 dark:text-violet-300">{site.source.window_label}</span></Note>}
 
             <Row label={`IMERG ≥30 mm/hr (${im.radius_km} km)`} source="satellite" testid="tl-imerg"
-                right={<>peak {im.peak.max_mmhr} mm/hr</>}>
+                right={<>{im.onset_ge30 ? '▲ onset, ' : ''}◆ peak {im.peak.max_mmhr} mm/hr</>}>
                 {band}
                 {im.onset_ge30 && (
-                    <span data-testid="tl-imerg-onset" className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 text-[9px] font-bold text-lime-800 whitespace-nowrap"
-                        style={{ left: x(ms(im.onset_ge30.t)) }} title={`first half-hour frame ≥30 mm/hr: ${im.onset_ge30.t}`}>▲ onset {im.onset_ge30.max_mmhr}</span>
+                    <span data-testid="tl-imerg-onset" className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 text-sm font-bold text-lime-800 whitespace-nowrap"
+                        style={{ left: x(ms(im.onset_ge30.t)) }} title={`onset: first half-hour frame ≥30 mm/hr: ${im.onset_ge30.t}`}>▲ {im.onset_ge30.max_mmhr}</span>
                 )}
-                <span data-testid="tl-imerg-peak" className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 text-[9px] font-bold text-lime-800 whitespace-nowrap"
-                    style={{ left: x(ms(im.peak.t)) }} title={`peak half-hour frame: ${im.peak.t}`}>◆ peak {im.peak.max_mmhr}</span>
+                <span data-testid="tl-imerg-peak" className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 text-sm font-bold text-lime-800 whitespace-nowrap"
+                    style={{ left: x(ms(im.peak.t)) }} title={`peak half-hour frame: ${im.peak.t}`}>◆ {im.peak.max_mmhr}</span>
             </Row>
-            <p data-testid="tl-imerg-note" className="pl-[215px] pr-[190px] text-[9px] text-slate-600 dark:text-slate-300 leading-snug">
+            <p data-testid="tl-imerg-note" className="pl-[215px] pr-[190px] text-sm text-slate-600 dark:text-slate-300 leading-normal">
                 {im.onset_ge30
                     ? `IMERG first reached 30 mm/hr at ${fmtIssueShort(im.onset_ge30.t)} (${im.onset_ge30.max_mmhr} mm/hr); peak ${im.peak.max_mmhr} mm/hr at ${fmtIssueShort(im.peak.t)} (${im.n_frames_ge30} half-hour frames ≥30).`
                     : `IMERG never reached 30 mm/hr within ${im.radius_km} km of the site (peak ${im.peak.max_mmhr} mm/hr at ${fmtIssueShort(im.peak.t)}).`}
@@ -160,15 +161,15 @@ const WarningTimeline = ({ site, timeline, onJump }) => {
             <Note><span className="text-slate-500">Patch means at each issue (ERA5 at issue − 1 h), quoted from explain.json inputs; n/a = forecast-only issue (no explanation inputs).{hidden > 0 ? ` ${hidden} earlier/later issues are outside this time range.` : ''}</span></Note>
 
             <div className="pt-1 border-t border-slate-100 dark:border-slate-800">
-                <p className="text-[10px] font-bold mb-0.5">Early-warning alerts covering the site (issued before the window, valid during it)</p>
-                {q.length === 0 && <p className="text-[10px] text-slate-500">None.</p>}
+                <p className="text-sm font-bold mb-0.5">Early-warning alerts covering the site (issued before the window, valid during it)</p>
+                {q.length === 0 && <p className="text-sm text-slate-500">None.</p>}
                 {q.map((a) => (
                     <Row key={a.alert_id} h="h-6" right={laneRight(a, 'alert')} label={
                         <span className="flex items-center gap-1">
                             <span className="w-2 h-2 rounded-full shrink-0" style={{ background: HAZARD_STYLE[a.hazard].color }} />
                             {a.hazard_name}
-                            <span className={`px-1 rounded text-[9px] font-bold ${LEVEL_STYLE[a.level]?.badge}`}>{a.level}</span>
-                            <IMDChip level={a.level} />
+                            <span className={`px-1 rounded text-sm font-bold ${LEVEL_STYLE[a.level]?.badge}`}>{a.level}</span>
+                            <IMDChip level={a.level} large />
                         </span>}>
                         {band}
                         {lane(a, 'alert')}
@@ -177,7 +178,7 @@ const WarningTimeline = ({ site, timeline, onJump }) => {
             </div>
             {near.length > 0 && (
                 <div className="pt-1 border-t border-dashed border-slate-200 dark:border-slate-700">
-                    <p className="text-[10px] font-bold mb-0.5">Separate criterion: {site.nearby_cells.criterion}</p>
+                    <p className="text-sm font-bold mb-0.5">Separate criterion: {site.nearby_cells.criterion}</p>
                     {near.map((n) => (
                         <Row key={`${n.issue_time}-${n.lead_time_h}`} right={laneRight(n, 'nearby')} label={<span className="text-slate-500" title={n.note}>forecast-only issue (no explanation)</span>}>
                             {band}

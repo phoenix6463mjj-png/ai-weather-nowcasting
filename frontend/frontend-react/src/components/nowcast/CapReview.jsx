@@ -65,8 +65,8 @@ const CapReview = ({ src, alertId, review, onChange }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [alertId, src.kind, src.ep, src.ts, src.run]);
 
-    if (error) return <p className="text-xs text-red-600">CAP preview unavailable: {error}</p>;
-    if (!cap) return <p className="text-xs text-slate-500">Loading CAP preview…</p>;
+    if (error) return <p className="text-base text-red-600">CAP preview unavailable: {error}</p>;
+    if (!cap) return <p className="text-base text-slate-500">Loading CAP preview…</p>;
 
     const headline = r.headline ?? cap.headline;
     const description = r.description ?? cap.description;
@@ -92,28 +92,28 @@ const CapReview = ({ src, alertId, review, onChange }) => {
         }
     };
 
-    const btn = 'flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-bold border disabled:opacity-40 disabled:cursor-not-allowed';
+    const btn = 'flex items-center gap-1 px-2.5 py-1 rounded-md text-sm font-bold border disabled:opacity-40 disabled:cursor-not-allowed';
     return (
         <div data-testid="cap-review" data-status={r.status} className="space-y-2">
             <div className="flex items-center gap-2 flex-wrap">
-                <span data-testid="cap-review-status" className={`px-2 py-0.5 rounded text-[11px] font-black ${statusCls}`}>{statusText}</span>
-                <span className="text-[10px] text-slate-500 dark:text-slate-400">
+                <span data-testid="cap-review-status" className={`px-2 py-0.5 rounded text-sm font-black ${statusCls}`}>{statusText}</span>
+                <span className="text-sm text-slate-500 dark:text-slate-400">
                     CAP status <b data-testid="cap-status">{cap.status}</b> · severity {cap.severity} · certainty {cap.certainty} · urgency {cap.urgency}
                 </span>
             </div>
             {editing ? (
                 <div className="space-y-1.5">
-                    <label className="block text-[10px] font-bold text-slate-500">Headline
+                    <label className="block text-sm font-bold text-slate-500">Headline
                         <input data-testid="cap-edit-headline" maxLength={160} value={draft.headline}
                             onChange={(e) => setDraft({ ...draft, headline: e.target.value })}
-                            className="mt-0.5 w-full text-xs rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-2 py-1" />
+                            className="mt-0.5 w-full text-base rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-2 py-1" />
                     </label>
-                    <label className="block text-[10px] font-bold text-slate-500">Description
+                    <label className="block text-sm font-bold text-slate-500">Description
                         <textarea data-testid="cap-edit-description" maxLength={4000} rows={6} value={draft.description}
                             onChange={(e) => setDraft({ ...draft, description: e.target.value })}
-                            className="mt-0.5 w-full text-xs rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-2 py-1" />
+                            className="mt-0.5 w-full text-base rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-2 py-1" />
                     </label>
-                    <p className="text-[10px] text-slate-500">Only the headline and description can be edited. Saving returns the alert to review.</p>
+                    <p className="text-sm text-slate-500">Only the headline and description can be edited. Saving returns the alert to review.</p>
                     <div className="flex gap-2">
                         <button type="button" data-testid="cap-save" onClick={saveEdit} disabled={!draft.headline.trim() || !draft.description.trim()}
                             className={`${btn} border-blue-600 bg-blue-600 text-white`}>Save edit</button>
@@ -122,9 +122,9 @@ const CapReview = ({ src, alertId, review, onChange }) => {
                 </div>
             ) : (
                 <div className="rounded-lg bg-slate-50 dark:bg-slate-900/50 p-2.5 space-y-1">
-                    <p data-testid="cap-headline" className="text-xs font-bold">{headline}</p>
-                    <p data-testid="cap-description" className="text-[11px] text-slate-700 dark:text-slate-300 leading-snug">{description}</p>
-                    {r.edited && <p className="text-[10px] text-amber-700 dark:text-amber-400">edited by the forecaster</p>}
+                    <p data-testid="cap-headline" className="text-base font-bold">{headline}</p>
+                    <p data-testid="cap-description" className="text-sm text-slate-700 dark:text-slate-300 leading-normal">{description}</p>
+                    {r.edited && <p className="text-sm text-amber-700 dark:text-amber-400">edited by the forecaster</p>}
                 </div>
             )}
             {!editing && (
@@ -141,10 +141,10 @@ const CapReview = ({ src, alertId, review, onChange }) => {
                 </div>
             )}
             {dl && dl !== 'working' && (
-                <p data-testid="cap-download-result" className="text-[10px] text-slate-500">{dl === 'done' ? `Saved ${alertId}.cap.xml (not sent anywhere).` : `Download ${dl}`}</p>
+                <p data-testid="cap-download-result" className="text-sm text-slate-500">{dl === 'done' ? `Saved ${alertId}.cap.xml (not sent anywhere).` : `Download ${dl}`}</p>
             )}
-            {saveErr && <p data-testid="cap-save-error" className="text-[10px] text-red-600">Decision not stored: {saveErr}</p>}
-            <div data-testid="cap-feed" className="rounded-md border border-slate-200 dark:border-slate-700 px-2 py-1.5 text-[11px] space-y-0.5">
+            {saveErr && <p data-testid="cap-save-error" className="text-sm text-red-600">Decision not stored: {saveErr}</p>}
+            <div data-testid="cap-feed" className="rounded-md border border-slate-200 dark:border-slate-700 px-2 py-1.5 text-sm space-y-0.5">
                 <p className="flex items-center gap-2">
                     <a data-testid="cap-feed-link" href={capFeedUrl()} target="_blank" rel="noreferrer"
                         className="flex items-center gap-1 font-bold text-blue-700 dark:text-blue-400 hover:underline"><Rss size={12} /> Feed (Atom)</a>
@@ -152,10 +152,10 @@ const CapReview = ({ src, alertId, review, onChange }) => {
                         {feed ? `${feed.n_approved} approved message${feed.n_approved === 1 ? '' : 's'} in the feed` : 'loading…'}
                     </span>
                 </p>
-                {feed && <p data-testid="cap-feed-storage" className="text-[10px] text-slate-500 dark:text-slate-400">{feed.storage_note}</p>}
-                <p className="text-[10px] text-slate-500 dark:text-slate-400">Exercise feed — not an official warning; not connected to IMD, NDMA or Sachet.</p>
+                {feed && <p data-testid="cap-feed-storage" className="text-sm text-slate-500 dark:text-slate-400">{feed.storage_note}</p>}
+                <p className="text-sm text-slate-500 dark:text-slate-400">Exercise feed — not an official warning; not connected to IMD, NDMA or Sachet.</p>
             </div>
-            <p data-testid="cap-format" className="text-[10px] text-slate-500 dark:text-slate-400 flex items-start gap-1">
+            <p data-testid="cap-format" className="text-sm text-slate-500 dark:text-slate-400 flex items-start gap-1">
                 <FileCode2 size={12} className="shrink-0 mt-px" /><span>{CAP_FORMAT_LABEL}. <b>{CAP_NOT_SENT}</b></span>
             </p>
         </div>

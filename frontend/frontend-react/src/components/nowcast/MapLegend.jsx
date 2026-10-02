@@ -23,7 +23,7 @@ const Head = ({ children }) => <p className="text-[10px] font-black uppercase te
  *   insat:     { classes, lines, availability } while the INSAT-3DR layer is switched on, else null
  */
 const MapLegend = ({ legends, field, hazards = [], observed = false, missed = false, verification = true,
-    site = 0, terrain = false, note, noteTitle, ffNote, insat = null }) => {
+    site = 0, terrain = false, note, noteTitle, ffNote, insat = null, underReport = null }) => {
     const f = field && legends?.[field];
     // collapsed by default on narrower screens so it does not cover the map
     const [open, setOpen] = useState(() => typeof window === 'undefined' || window.innerWidth >= LEGEND_OPEN_MIN_WIDTH);
@@ -74,10 +74,11 @@ const MapLegend = ({ legends, field, hazards = [], observed = false, missed = fa
                                 <span key={h} data-hazard={h} className="flex items-center gap-1"><Swatch color={HAZARD_STYLE[h].color} />{HAZARD_STYLE[h].name}</span>
                             ))}
                         </Row>
-                        {verification && (<Row>
-                            <span className="w-2.5 h-2.5 rounded-full" style={{ background: VERIFY_STYLE.verified.color }} /> verified
-                            <span className="w-2.5 h-2.5 rounded-full border-2 bg-white" style={{ borderColor: VERIFY_STYLE.false_alarm.color }} /> not verified (false alarm)
-                        </Row>)}
+                        {verification && (<>
+                            <Row testid="legend-verified"><span className="w-2.5 h-2.5 shrink-0 rounded-full" style={{ background: VERIFY_STYLE.verified.color }} />{VERIFY_STYLE.verified.label}</Row>
+                            <Row testid="legend-false-alarm"><span className="w-2.5 h-2.5 shrink-0 rounded-full border-2 bg-white" style={{ borderColor: VERIFY_STYLE.false_alarm.color }} />{VERIFY_STYLE.false_alarm.label}</Row>
+                            {underReport && <p data-testid="legend-under-report" className="text-[10px] text-violet-800 dark:text-violet-300 leading-snug">{underReport}</p>}
+                        </>)}
                         {verification && ffNote && hazards.includes('flash_flood') && (
                             <p data-testid="ff-verify-note-legend" className="text-[10px] text-amber-700 dark:text-amber-400 leading-snug">{ffNote}</p>
                         )}

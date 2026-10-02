@@ -27,9 +27,10 @@ export const IMD_STYLE = {
 };
 
 export const VERIFY_STYLE = {
-    verified: { color: '#16a34a', label: 'verified', badge: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300' },
-    false_alarm: { color: '#6b7280', label: 'not verified (false alarm)', badge: 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200' },
-    unavailable: { color: '#9ca3af', label: 'not verifiable', badge: 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400' },
+    // wording (judge-first pass): the same texts as serve/labels.py verification()
+    verified: { color: '#16a34a', label: 'Confirmed by IMERG satellite rain (≥30 mm/hr within r)', short: 'confirmed by IMERG', badge: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300' },
+    false_alarm: { color: '#6b7280', label: 'Not confirmed by IMERG satellite rain – counted as a false alarm in our scores.', short: 'not confirmed by IMERG', badge: 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200' },
+    unavailable: { color: '#9ca3af', label: 'not verifiable', short: 'not verifiable', badge: 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400' },
 };
 
 export function valueText(alert) {

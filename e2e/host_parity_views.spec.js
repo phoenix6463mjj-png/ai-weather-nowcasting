@@ -101,11 +101,11 @@ async function drawerSections(page) {
 }
 
 async function clickThrough(page) {
-    await page.goto('/nowcast');
-    await expect(page.getByTestId('replay-view')).toHaveAttribute('data-loaded', /REF045\//, { timeout: 60_000 });
+    await page.goto('/nowcast');                                        // judge-first opening view: REF051 15:00Z
+    await expect(page.getByTestId('replay-view')).toHaveAttribute('data-loaded', 'REF051/20240731T1500Z', { timeout: 60_000 });
     await cycleLeadsAndFields(page);
     await drawerSections(page);
-    for (const ep of ['REF051', 'REF025']) {
+    for (const ep of ['REF045', 'REF025']) {
         await openLayers(page);
         await page.getByTestId('episode-select').selectOption(ep);
         await expect(page.getByTestId('replay-view')).toHaveAttribute('data-loaded', new RegExp(`${ep}/`), { timeout: 60_000 });

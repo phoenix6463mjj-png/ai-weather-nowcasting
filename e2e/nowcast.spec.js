@@ -17,25 +17,12 @@ async function shot(page, name) {
     await page.screenshot({ path: path.join(SHOTS, `${name}.png`) });
 }
 
-// Open /nowcast and switch to (ep, ts); returns the ui-alerts JSON the page itself received.
+// Open /nowcast on (ep, ts); returns the ui-alerts JSON the page itself received. The issue is named in the URL:
+// plain /nowcast opens the judge-first view (REF051 15:00Z with its cloudburst Warning selected, e2e/judge_first.spec.js).
 async function openIssue(page, ep, ts) {
-    const isTarget = (r) => r.url().includes(`/issues/${ep}/${ts}/ui-alerts`) && r.ok();
-    const first = page.waitForResponse((r) => r.url().includes('/ui-alerts') && r.ok());
-    await page.goto('/nowcast');
-    const firstResp = await first;
-    let body;
-    if (isTarget(firstResp)) {
-        body = await firstResp.json();
-    } else {
-        const target = page.waitForResponse(isTarget);
-        // the selectors live in the Layers panel, which starts collapsed on small screens
-        if ((await page.getByTestId('layers-panel').getAttribute('data-open')) === 'false') await page.getByTestId('layers-toggle').click();
-        if ((await page.getByTestId('episode-select').inputValue()) !== ep) {
-            await page.getByTestId('episode-select').selectOption(ep);
-        }
-        await page.getByTestId('issue-select').selectOption(ts);
-        body = await (await target).json();
-    }
+    const target = page.waitForResponse((r) => r.url().includes(`/issues/${ep}/${ts}/ui-alerts`) && r.ok());
+    await page.goto(`/nowcast?ep=${ep}&ts=${ts}`);
+    const body = await (await target).json();
     await expect(page.getByTestId('replay-view')).toHaveAttribute('data-loaded', `${ep}/${ts}`);
     return body.alerts;
 }
@@ -387,7 +374,7 @@ test('documented-event check REF045: 8 early-warning alerts (2 precise), rules, 
     await expect(site.locator('[data-testid="event-alert"][data-precision="precise"]')).toHaveCount(2);
     await expect(site.getByTestId('event-source-note')).toHaveText('Uses documented reports, not satellite rain');
     await expect(site).toContainText('late night of Aug 13, 2023');
-    await expect(site).toContainText('IMERG: not verified (false alarm)');
+    await expect(site).toContainText('IMERG: not confirmed by IMERG');                       // judge-first wording
     const rules = page.getByTestId('event-rules');
     await expect(rules).toContainText('± 1 h tolerance');
     await expect(rules).toContainText('≤ 25 km from the site AND area ≤ 5,000 km²');
@@ -574,9 +561,9 @@ test('forecast-only issue legend explains peak markers instead of verification d
     await openIssue(page, 'REF051', '20240731T1300Z');
     const legend = page.getByTestId('map-legend');
     await expect(legend).toContainText('alert peak (colour = hazard)');
-    await expect(legend).not.toContainText('not verified (false alarm)');
+    await expect(legend).not.toContainText('Not confirmed by IMERG satellite rain');
     await openIssue(page, 'REF051', '20240731T1400Z');
-    await expect(page.getByTestId('map-legend')).toContainText('not verified (false alarm)');
+    await expect(page.getByTestId('map-legend')).toContainText('Not confirmed by IMERG satellite rain – counted as a false alarm in our scores.');
 });
 
 // ---------------------------------------------------------------- data credits footer (checkpoint 02 follow-up)
@@ -944,7 +931,7 @@ test('Results page: CSI points = API, caveat markers, case studies from event-ch
     await expect(p).toContainText(`${pa.hours_of_warning} h before the earliest reported time`);
     await expect(p).toContainText(`${pa.peak_to_site_km} km from the site`);
     await expect(p).toContainText(`${Math.round(pa.area_km2)} km²`);
-    await expect(p).toContainText('not verified (false alarm)');
+    await expect(p).toContainText('Not confirmed by IMERG satellite rain – counted as a false alarm in our scores.');
     await expect(p).toContainText('17.52 mm/hr');
     await expect(p).toContainText('never reached 30 mm/hr');
     await expect(p).toContainText('approximate');

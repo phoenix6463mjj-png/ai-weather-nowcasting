@@ -18,14 +18,14 @@ const CaveatsPanel = () => {
 
     return (
         <div data-testid="caveats-panel" className="p-4 space-y-3">
-            <p className="text-[11px] font-black uppercase tracking-wide text-amber-800 dark:text-amber-300">Read before using these forecasts</p>
-            {error && <p className="text-xs text-red-700">Caveats unavailable: {error}</p>}
-            {!caveats && !error && <p className="text-xs text-slate-500">Loading…</p>}
+            <p className="text-sm font-black uppercase tracking-wide text-amber-800 dark:text-amber-300">Read before using these forecasts</p>
+            {error && <p className="text-base text-red-700">Caveats unavailable: {error}</p>}
+            {!caveats && !error && <p className="text-base text-slate-500">Loading…</p>}
             <ul className="space-y-2.5">
                 {(caveats || []).map((c) => (
-                    <li key={c.id} data-testid="caveat" className="text-xs text-slate-800 dark:text-slate-200 leading-snug">
+                    <li key={c.id} data-testid="caveat" className="text-base text-slate-800 dark:text-slate-200 leading-normal">
                         <p className="font-semibold">• {c.short}</p>
-                        <p className="ml-3 mt-0.5 text-[10px] text-slate-500 dark:text-slate-400">“{c.quote}” ({c.source})</p>
+                        <p className="ml-3 mt-0.5 text-sm text-slate-500 dark:text-slate-400">“{c.quote}” ({c.source})</p>
                     </li>
                 ))}
             </ul>

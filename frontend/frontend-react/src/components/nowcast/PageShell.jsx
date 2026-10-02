@@ -22,14 +22,14 @@ export const NowcastPageLinks = () => (
 );
 
 export const Quote = ({ q, testid }) => (
-    <blockquote data-testid={testid} className="border-l-2 border-slate-300 dark:border-slate-600 pl-2 text-[11px] text-slate-600 dark:text-slate-300 leading-snug">
+    <blockquote data-testid={testid} className="border-l-2 border-slate-300 dark:border-slate-600 pl-2 text-sm text-slate-600 dark:text-slate-300 leading-normal">
         “{q.quote.replace(/\*\*/g, '').replace(/\\_/g, '_').replace(/\n\s*/g, ' ')}” <span className="text-slate-400">({q.source})</span>
     </blockquote>
 );
 
 export const Card = ({ title, children, testid, className = '' }) => (
     <section data-testid={testid} className={`bg-white dark:bg-[#0f172a] rounded-xl border border-slate-200 dark:border-slate-800 p-4 ${className}`}>
-        {title && <h3 className="text-sm font-black mb-2">{title}</h3>}
+        {title && <h3 className="text-base font-black mb-2">{title}</h3>}
         {children}
     </section>
 );

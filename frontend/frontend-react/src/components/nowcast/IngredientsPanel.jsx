@@ -6,7 +6,7 @@ const Bar = ({ label, value, max, testid, group, muted }) => {
     const w = `${(Math.abs(value) / max) * 50}%`;
     const up = value > 0;
     return (
-        <div data-testid={testid} data-group={group} data-value={value} className="flex items-center gap-2 text-[11px]">
+        <div data-testid={testid} data-group={group} data-value={value} className="flex items-center gap-2 text-sm">
             <span className={`w-36 shrink-0 ${muted ? 'text-slate-400' : 'text-slate-700 dark:text-slate-200'}`}>{label}</span>
             <div className="flex-1 h-2.5 relative bg-slate-100 dark:bg-slate-800 rounded">
                 <div className="absolute top-0 bottom-0 left-1/2 w-px bg-slate-400" />
@@ -22,7 +22,7 @@ const IngredientsPanel = ({ ing }) => {
     if (!ing) return null;
     if (!ing.available) {
         return (
-            <p data-testid="ingredients-unavailable" className="text-[11px] font-bold text-slate-600 dark:text-slate-300">
+            <p data-testid="ingredients-unavailable" className="text-sm font-bold text-slate-600 dark:text-slate-300">
                 Not available{ing.note ? `: ${ing.note}` : ''}.
             </p>
         );
@@ -31,7 +31,7 @@ const IngredientsPanel = ({ ing }) => {
     const agg = ing.aggregate;
     return (
         <div data-testid="ingredients-panel" data-model={ing.model} className="space-y-1.5">
-            <p data-testid="ingredients-label" className="text-[11px] text-slate-600 dark:text-slate-300 leading-snug">{ing.label}</p>
+            <p data-testid="ingredients-label" className="text-sm text-slate-600 dark:text-slate-300 leading-normal">{ing.label}</p>
             <div className="space-y-1">
                 {ing.groups.map((g) => (
                     <Bar key={g.group} testid="ingredient-row" group={g.group} label={g.label} value={g.shap_logodds} max={max} />
@@ -40,24 +40,24 @@ const IngredientsPanel = ({ ing }) => {
                     <Bar testid="ingredient-lead" label={ing.lead.label} value={ing.lead.shap_logodds} max={max} muted />
                 </div>
             </div>
-            <p className="text-[10px] text-slate-400">red = raises, green = lowers the model score</p>
+            <p className="text-sm text-slate-400">red = raises, green = lowers the model score</p>
             {ing.boost && (
-                <p data-testid="ingredients-boost" className="text-[11px] font-semibold text-pink-700 dark:text-pink-300 leading-snug">{ing.boost}</p>
+                <p data-testid="ingredients-boost" className="text-sm font-semibold text-pink-700 dark:text-pink-300 leading-normal">{ing.boost}</p>
             )}
             {agg && (
                 <div className="mt-2 rounded-lg bg-slate-50 dark:bg-slate-900/50 p-2.5 space-y-1">
-                    <p className="text-[10px] font-black uppercase tracking-wide text-slate-500 dark:text-slate-400">Across the demo alerts (descriptive)</p>
-                    <p data-testid="ingredients-agg-lead" className="text-[11px] text-slate-700 dark:text-slate-200 leading-snug">{agg.lead_trend}</p>
-                    <p data-testid="ingredients-agg-moisture" className="text-[11px] text-slate-700 dark:text-slate-200 leading-snug">{agg.moisture}</p>
-                    <p data-testid="ingredients-agg-scope" className="text-[10px] text-slate-500 dark:text-slate-400 leading-snug">{agg.scope}</p>
+                    <p className="text-sm font-black uppercase tracking-wide text-slate-500 dark:text-slate-400">Across the demo alerts (descriptive)</p>
+                    <p data-testid="ingredients-agg-lead" className="text-sm text-slate-700 dark:text-slate-200 leading-normal">{agg.lead_trend}</p>
+                    <p data-testid="ingredients-agg-moisture" className="text-sm text-slate-700 dark:text-slate-200 leading-normal">{agg.moisture}</p>
+                    <p data-testid="ingredients-agg-scope" className="text-sm text-slate-500 dark:text-slate-400 leading-normal">{agg.scope}</p>
                 </div>
             )}
             {ing.aggregate_val && (
                 <div data-testid="ingredients-val" className="rounded-lg bg-slate-50 dark:bg-slate-900/50 p-2.5 space-y-1">
-                    <p className="text-[10px] font-black uppercase tracking-wide text-slate-500 dark:text-slate-400">Validation 2022–23 (descriptive)</p>
-                    <p data-testid="ingredients-val-lead" className="text-[11px] text-slate-700 dark:text-slate-200 leading-snug">{ing.aggregate_val.lead_trend}</p>
-                    <p data-testid="ingredients-val-moisture" className="text-[11px] text-slate-700 dark:text-slate-200 leading-snug">{ing.aggregate_val.moisture}</p>
-                    <p data-testid="ingredients-val-scope" className="text-[10px] text-slate-500 dark:text-slate-400 leading-snug">{ing.aggregate_val.scope}</p>
+                    <p className="text-sm font-black uppercase tracking-wide text-slate-500 dark:text-slate-400">Validation 2022–23 (descriptive)</p>
+                    <p data-testid="ingredients-val-lead" className="text-sm text-slate-700 dark:text-slate-200 leading-normal">{ing.aggregate_val.lead_trend}</p>
+                    <p data-testid="ingredients-val-moisture" className="text-sm text-slate-700 dark:text-slate-200 leading-normal">{ing.aggregate_val.moisture}</p>
+                    <p data-testid="ingredients-val-scope" className="text-sm text-slate-500 dark:text-slate-400 leading-normal">{ing.aggregate_val.scope}</p>
                 </div>
             )}
         </div>

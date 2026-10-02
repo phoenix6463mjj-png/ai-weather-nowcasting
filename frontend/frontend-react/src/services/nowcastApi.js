@@ -78,6 +78,9 @@ export const getAnalytics = () => request('analytics');
 export const liveInsatUrl = (id) => mlUrl(`live-insat/frames/${id}.png`);
 export const getLiveRunInsat = (run) => request(`live/${run}/insat`);
 export const getResults = () => request('results');
+// /nowcast "Start here": opening view + key findings; measured compute time for the Live freshness strip
+export const getStartHere = () => request('start-here');
+export const getComputeLatency = () => request('compute-latency');
 export const getApproach = () => request('approach');
 
 // CAP 1.2 (checkpoint 05). `src` = { kind: 'replay', ep, ts } or { kind: 'live', run }.

@@ -32,24 +32,24 @@ const ReplayButton = ({ episode, issueTime }) => {
     if (avail && avail.enabled === false) {
         return (
             <div data-testid="replay-box" className="px-4 py-3 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40">
-                <p data-testid="replay-disabled-note" className="text-[11px] text-slate-600 dark:text-slate-300">{avail.note}</p>
+                <p data-testid="replay-disabled-note" className="text-sm text-slate-600 dark:text-slate-300">{avail.note}</p>
             </div>
         );
     }
     return (
         <div data-testid="replay-box" className="px-4 py-3 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40">
             <button onClick={run} disabled={status === 'running'} data-testid="replay-button"
-                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-bold">
+                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-base font-bold">
                 {status === 'running'
                     ? <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                     : <Play size={14} />}
                 {status === 'running' ? 'Running the model…' : 'Re-run model now (replay)'}
             </button>
-            <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
                 Runs the frozen model on the archived inputs for this issue time (about 3–15 s) and checks it against the files shown here.
             </p>
             {status === 'done' && (
-                <div data-testid="replay-result" className="mt-2 text-xs text-slate-700 dark:text-slate-200 space-y-0.5">
+                <div data-testid="replay-result" className="mt-2 text-base text-slate-700 dark:text-slate-200 space-y-0.5">
                     {r.all_match === true && (
                         <p className="flex items-center gap-1 font-bold text-emerald-700 dark:text-emerald-400">
                             <CheckCircle2 size={14} /> Output matches the precomputed files byte-for-byte ({Object.keys(r.matches_precomputed).length} files)
@@ -69,7 +69,7 @@ const ReplayButton = ({ episode, issueTime }) => {
                 </div>
             )}
             {status === 'error' && (
-                <p data-testid="replay-error" className="mt-2 text-xs text-red-700 dark:text-red-400">
+                <p data-testid="replay-error" className="mt-2 text-base text-red-700 dark:text-red-400">
                     {state.code === 503 ? 'Another replay is running; try again in a few seconds.'
                         : state.code === 504 ? 'The replay took too long; it keeps running and will be cached. Try again shortly.'
                             : `Replay failed: ${state.message}`}

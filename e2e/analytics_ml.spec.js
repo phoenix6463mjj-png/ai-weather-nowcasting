@@ -95,9 +95,9 @@ test('Live and National: numbers from the API; the national sample says it has n
         await expect(page.getByTestId('analytics-thumbnail')).toBeVisible();
         expect(await page.locator('main').innerText()).not.toMatch(/\bsafe\b/i);
     }
-    await source(page, 'National sample');
+    await source(page, 'All-India example');
     await expect(page.getByTestId('analytics-s1-sentence')).toHaveText(
-        'The national sample has probability maps only: no alerts are produced (absence of alerts does not mean no risk).');
+        'The all-India example has probability maps only: no alerts are produced (absence of alerts does not mean no risk).');
     await expect(page.locator('[data-testid="hazard-tile"]').first()).toContainText('—');
     await expect(page.getByTestId('analytics-thumbnail').locator('image')).toHaveAttribute('href', /\/india\/map\/6\/thunderstorm\.png$/);
 });

@@ -33,7 +33,10 @@ function applyTarget(t, list, set) {
 }
 
 
-const ReplayView = () => {
+// jump: a replay target from Start here / the case links ({ episode, ts, lead, hazard, level, alert_id }); the
+// parent remounts this view for each jump, so it is the opening view, like /api/episodes `start`;
+// startHere: the /api/start-here payload (Pipalkoti / Malana links, IMERG under-reporting line)
+const ReplayView = ({ jump = null, onJump = null, startHere = null, mapOverlay = null }) => {
     const [episodes, setEpisodes] = useState([]);
     const [ep, setEp] = useState(null);
     const [ts, setTs] = useState(null);
@@ -67,11 +70,19 @@ const ReplayView = () => {
             const q = new URLSearchParams(window.location.search);
             const e = r.episodes.find((x) => x.episode === q.get('ep'));
             const i = e?.issues.find((x) => x.ts === q.get('ts'));
-            setEp(e ? e.episode : r.default.episode);
-            setTs(e ? (i ? i.ts : e.issues[0].ts) : r.default.ts);
-            if (e && q.get('tab') === 'event') setDrawer('event');
+            // judge-first opening view: the Malana cloudburst Warning issued 15:00Z, selected (or a Start-here jump)
+            const want = jump || (!e ? r.start : null);
+            const st = want && r.episodes.some((x) => x.episode === want.episode && x.issues.some((y) => y.ts === want.ts)) ? want : null;
+            if (st) {
+                pendingRef.current = { key: `${st.episode}/${st.ts}`, lead: st.lead, level: st.level, hazard: st.hazard, alertId: st.alert_id };
+                setDrawer('alert');
+            }
+            setEp(st ? st.episode : e ? e.episode : r.default.episode);
+            setTs(st ? st.ts : e ? (i ? i.ts : e.issues[0].ts) : r.default.ts);
+            if (!st && e && q.get('tab') === 'event') setDrawer('event');
         }).catch((e) => setError(e.message));
-    }, []);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);                                     // `jump` is fixed for this mount (the parent remounts per jump)
 
     useEffect(() => {
         if (!ep || !ts) return;
@@ -159,6 +170,11 @@ const ReplayView = () => {
     const select = (a) => { setSelected(a); if (a) setDrawer('alert'); };
     const issueInfo = episode?.issues.find((i) => i.ts === ts);
 
+    // the other case study, one click away (from /api/start-here)
+    const caseLink = startHere && onJump ? (ep === startHere.pipalkoti.episode
+        ? { t: startHere.start, label: `Malana case (2024 test) →` }
+        : { t: startHere.pipalkoti, label: `Pipalkoti case (2023 validation) →` }) : null;
+
     // documented-event check -> open that issue, lead (and alert) on the map
     const jumpTo = (item) => {
         const key = `${ep}/${tsOf(item.issue_time)}`;
@@ -233,25 +249,25 @@ const ReplayView = () => {
         <div data-testid="alert-list-view">
             {meta && data.key === `${ep}/${ts}` && <ReplayButton key={data.key} episode={ep} issueTime={meta.issue_time} />}
             <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-700">
-                <h3 className="text-sm font-black text-slate-900 dark:text-white">
+                <h3 className="text-base font-black text-slate-900 dark:text-white">
                     {meta ? `Issued ${fmtUtc(meta.issue_time)}` : 'Loading…'}
                 </h3>
                 {meta && lead && (
-                    <p className="text-xs text-slate-600 dark:text-slate-300 mt-1">
+                    <p className="text-base text-slate-600 dark:text-slate-300 mt-1">
                         Lead {lead} h: {shown.length} alert{shown.length === 1 ? '' : 's'} shown ·{' '}
-                        <span className="text-emerald-700 dark:text-emerald-400 font-bold">{nVer} verified</span> ·{' '}
-                        <span className="font-bold">{nFa} not verified (false alarm)</span>
+                        <span data-testid="summary-confirmed" className="text-emerald-700 dark:text-emerald-400 font-bold">{nVer} confirmed by IMERG satellite rain</span> ·{' '}
+                        <span data-testid="summary-not-confirmed" className="font-bold">{nFa} not confirmed (counted as false alarms in our scores)</span>
                     </p>
                 )}
                 {!showWatch && hiddenWatch > 0 && (
-                    <p className="text-[11px] text-amber-700 dark:text-amber-400 mt-1">
+                    <p className="text-sm text-amber-700 dark:text-amber-400 mt-1">
                         {hiddenWatch} Watch alert{hiddenWatch === 1 ? '' : 's'} hidden at this lead. Tick "Also show Watch" in Layers.
                     </p>
                 )}
                 {meta && (
                     <>
-                        <p className="text-[10px] text-slate-400 mt-1 leading-snug">{meta.verification_definition}</p>
-                        <p data-testid="ff-verify-note-summary" className="text-[10px] text-amber-700 dark:text-amber-400 mt-0.5 leading-snug">{FF_VERIFY_NOTE}</p>
+                        <p className="text-sm text-slate-400 mt-1 leading-normal">{meta.verification_definition}</p>
+                        <p data-testid="ff-verify-note-summary" className="text-sm text-amber-700 dark:text-amber-400 mt-0.5 leading-normal">{FF_VERIFY_NOTE}</p>
                     </>
                 )}
             </div>
@@ -278,6 +294,12 @@ const ReplayView = () => {
                             <span className="font-black">Forecast-only issue: {issueInfo.note}.</span>{' '}
                             Alerts and maps come from the same frozen model; there is no explanation panel and no per-alert IMERG verification for this issue.
                         </span>
+                    )}
+                    {caseLink && (
+                        <button type="button" data-testid="case-link" onClick={() => onJump(caseLink.t)}
+                            className="text-[11px] font-bold px-2 py-0.5 rounded border border-blue-600 text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-slate-800">
+                            {caseLink.label}
+                        </button>
                     )}
                     <span className="ml-auto text-[10px] text-slate-500 dark:text-slate-400">
                         Replay of archived inputs (IMERG Final + ERA5) · model lgbm_v0 (frozen), {meta?.cutset} cut-offs
@@ -311,7 +333,7 @@ const ReplayView = () => {
                                     className="w-full text-xs font-bold bg-slate-100 dark:bg-slate-700 dark:text-white rounded-md px-2 py-1 border border-slate-200 dark:border-slate-600">
                                     {episode?.issues.map((i) => (
                                         <option key={i.ts} value={i.ts}>
-                                            issued {fmtIssueShort(i.issue_time)} · {i.n_alerts} alerts{i.explain_available === false ? ' · forecast-only' : ` (${i.n_verified} verified)`}
+                                            issued {fmtIssueShort(i.issue_time)} · {i.n_alerts} alerts{i.explain_available === false ? ' · forecast-only' : ` (${i.n_verified} confirmed by IMERG)`}
                                         </option>
                                     ))}
                                 </select>
@@ -328,6 +350,7 @@ const ReplayView = () => {
                         <div className="absolute top-[84px] bottom-[26px] right-3 z-[400] flex flex-col justify-end pointer-events-none">
                             <MapLegend legends={meta.legends} field={field} hazards={hazards} site={(meta.sites || []).length} ffNote={FF_VERIFY_NOTE}
                                 verification={meta.explain_available !== false} observed={obsAvailable} missed={obsAvailable}
+                                underReport={(meta.sites || []).length ? startHere?.under_report : null}
                                 terrain={terrain.layers.length > 0}
                                 insat={insat.on && insat.info ? {
                                     classes: insat.info.colour_scale.classes, lines: insat.info.lines, floorLine: insat.info.floor_line,
@@ -337,6 +360,7 @@ const ReplayView = () => {
                                 note={obsAvailable ? null : 'Observed frame unavailable for this lead: no verification overlay.'} />
                         </div>
                     )}
+                    {mapOverlay}
                     {loading && (
                         <div className="absolute inset-0 z-[500] flex items-center justify-center bg-white/40 dark:bg-black/30">
                             <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
@@ -349,7 +373,7 @@ const ReplayView = () => {
                 {(id) => (
                     id === 'alert' ? alertSection
                         : id === 'ingredients' ? <IngredientsTab selected={selected} d={det.d} error={det.error} />
-                            : id === 'event' ? <EventCheckPanel check={eventCheck} timeline={check.ep === ep ? check.timeline : null} onJump={jumpTo} />
+                            : id === 'event' ? <EventCheckPanel check={eventCheck} timeline={check.ep === ep ? check.timeline : null} onJump={jumpTo} underReport={startHere?.under_report} />
                                 : id === 'shelter' ? <ShelterPanel point={shelterPt} data={sh.data} error={sh.error}
                                     loading={!!shelterKey && shelter.key !== shelterKey} selected={selected} onUseAlert={pointFromAlert} lead={lead}
                                     onWiden={setRadius} mapAlerts={shown} insideOpen={insideOpen} onInsideToggle={() => setInsideOpen((o) => !o)} />

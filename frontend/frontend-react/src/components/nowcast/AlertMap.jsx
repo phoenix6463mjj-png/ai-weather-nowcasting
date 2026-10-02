@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { MapContainer, TileLayer, GeoJSON, CircleMarker, Circle, Tooltip, ImageOverlay, Rectangle, Pane, ZoomControl, useMap, useMapEvents } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import { HAZARD_STYLE, LEVEL_STYLE, VERIFY_STYLE, valueText, FF_VERIFY_NOTE } from '../../utils/hazardLabels';
@@ -6,11 +6,30 @@ import { TERRAIN_ATTRIBUTION } from './useTerrain';
 
 const esc = (t) => String(t || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
 
+// Fit the issue's bounds (4 px padding: India stays at zoom 4 at 1366x768); until the user pans or zooms, a container resize (the drawer opening on load, badges
+// wrapping) fits them again, so the opening view always shows the whole domain.
 const FitBounds = ({ bounds }) => {
     const map = useMap();
     const key = JSON.stringify(bounds);
+    const touched = useRef(false);
     useEffect(() => {
-        if (bounds) map.fitBounds(bounds, { padding: [12, 12] });
+        const el = map.getContainer();
+        const touch = () => { touched.current = true; };
+        el.addEventListener('pointerdown', touch);
+        el.addEventListener('wheel', touch, { passive: true });
+        el.addEventListener('keydown', touch);
+        return () => { el.removeEventListener('pointerdown', touch); el.removeEventListener('wheel', touch); el.removeEventListener('keydown', touch); };
+    }, [map]);
+    useEffect(() => {
+        touched.current = false;
+        if (!bounds) return undefined;
+        const box = map.getContainer();
+        box.dataset.userView = '';
+        const fit = () => { map.invalidateSize({ animate: false }); map.fitBounds(bounds, { padding: [4, 4], animate: false }); };
+        fit();
+        const ro = new ResizeObserver(() => { if (!touched.current && !box.dataset.userView) fit(); });
+        ro.observe(map.getContainer());
+        return () => ro.disconnect();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [key, map]);
     return null;
@@ -48,6 +67,7 @@ const FitShelter = ({ point, radiusKm }) => {
         if (!point) return;
         const dLat = radiusKm / 111.2;
         const dLon = radiusKm / (111.2 * Math.cos((point.lat * Math.PI) / 180));
+        map.getContainer().dataset.userView = '1';         // a chosen shelter view is kept on resize
         map.fitBounds([[point.lat - dLat, point.lon - dLon], [point.lat + dLat, point.lon + dLon]], { padding: [16, 16] });
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [point?.lat, point?.lon, radiusKm, map]);
@@ -57,7 +77,8 @@ const FitShelter = ({ point, radiusKm }) => {
 /**
  * Leaflet map of model alert polygons.
  *  - fill/stroke colour = hazard; Warning = solid & opaque, Watch = dashed & light
- *  - dot at the alert's peak cell = contract sec. 7 verification (green = verified, grey = false alarm)
+ *  - dot at the alert's peak cell = contract sec. 7 verification (green = confirmed by IMERG, white/grey = not
+ *    confirmed: counted as a false alarm in the scores)
  *  - overlays: PNG rasters already resampled to Web-Mercator rows by the API, placed at `bounds`
  *  - terrain: hillshade PNGs (same row mapping) in the lowest pane, under every risk layer and alert
  *  - onPick (shelter section open): map clicks choose a point instead of selecting an alert;
@@ -111,10 +132,11 @@ const AlertMap = ({ bounds, alerts = [], selectedId, onSelect: onSelectProp, sit
                     eventHandlers={{ click: () => onSelect && onSelect(a) }}
                 >
                     <Tooltip sticky>
-                        <div className="text-xs">
+                        <div className="text-xs" style={{ whiteSpace: 'normal', width: 300 }} data-testid="alert-tooltip">
                             <b>{hz.name} {a.level}</b> · L{a.lead_time_h} h · {valueText(a)}
                             <br />{a.display.kind === 'probability' ? 'probability' : a.display.kind === 'risk_index' ? 'risk index — not a probability' : 'risk ratio — not a probability'}
-                            {a.verification && <><br />{VERIFY_STYLE[a.verification.status]?.label}</>}
+                            {a.verification && <><br /><span data-testid="tooltip-verification">{VERIFY_STYLE[a.verification.status]?.label}</span></>}
+                            {a.site_note && <><br /><span data-testid="tooltip-site-note" className="text-violet-800">{a.site_note.text}</span></>}
                             {a.hazard === 'flash_flood' && a.verification && a.verification.status !== 'unavailable' && <><br /><i>{FF_VERIFY_NOTE}</i></>}
                         </div>
                     </Tooltip>

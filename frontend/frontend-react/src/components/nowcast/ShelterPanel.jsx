@@ -30,10 +30,10 @@ const Candidate = ({ c, lead, prefix = '' }) => (
     <li data-testid="shelter-candidate" data-outside={String(c.outside_all_alerts)} data-distance={c.distance_km}
         className="rounded-lg border border-slate-200 dark:border-slate-700 p-2.5">
         <div className="flex items-start gap-2">
-            <span className={`shrink-0 min-w-5 h-5 px-0.5 rounded-full text-[10px] font-black flex items-center justify-center border-2 border-violet-700 ${c.outside_all_alerts ? 'bg-violet-700 text-white' : 'bg-white text-violet-800'}`}>{prefix}{c.rank}</span>
+            <span className={`shrink-0 min-w-5 h-5 px-0.5 rounded-full text-sm font-black flex items-center justify-center border-2 border-violet-700 ${c.outside_all_alerts ? 'bg-violet-700 text-white' : 'bg-white text-violet-800'}`}>{prefix}{c.rank}</span>
             <div className="min-w-0">
-                <p className="font-black text-slate-900 dark:text-white leading-tight">{c.name || `Unnamed ${c.type_label.toLowerCase()}`}</p>
-                <p className="text-[11px] text-slate-500">{c.type_label} · OSM {c.osm_id}</p>
+                <p className="font-black text-slate-900 dark:text-white leading-snug">{c.name || `Unnamed ${c.type_label.toLowerCase()}`}</p>
+                <p className="text-sm text-slate-500">{c.type_label} · OSM {c.osm_id}</p>
             </div>
             <span data-testid="shelter-distance" className="ml-auto shrink-0 font-black tabular-nums">{c.distance_km.toFixed(1)} km {c.direction}</span>
         </div>
@@ -42,11 +42,11 @@ const Candidate = ({ c, lead, prefix = '' }) => (
                 : `Inside a current alert at +${insideLeads(c.inside_alerts).join(', +')} h`}
         </p>
         {!c.outside_all_alerts && atLead(c.inside_alerts, lead) && (
-            <p data-testid="shelter-at-lead" className="text-[11px] text-red-700 dark:text-red-400">
+            <p data-testid="shelter-at-lead" className="text-sm text-red-700 dark:text-red-400">
                 At +{lead} h (shown on the map): {atLead(c.inside_alerts, lead)}
             </p>
         )}
-        <dl className="mt-1.5 grid grid-cols-[auto_auto_1fr] gap-x-3 gap-y-0.5 text-[11px]">
+        <dl className="mt-1.5 grid grid-cols-[auto_auto_1fr] gap-x-3 gap-y-0.5 text-sm">
             <dt className="text-slate-500">Slope</dt><dt className="text-slate-500">Nearest mapped stream</dt><dt className="text-slate-500">Elevation</dt>
             <dd data-testid="shelter-slope" className="font-bold">{c.slope_deg != null ? `${c.slope_deg}°` : 'no data'}</dd>
             <dd data-testid="shelter-stream" className="font-bold">{fmtM(c.stream_distance_m)}</dd>
@@ -60,13 +60,13 @@ const ShelterPanel = ({ point, data, error, loading, selected, onUseAlert, onWid
     const [open3d, setOpen3d] = useState(false);
     const pins = data?.available ? [...data.candidates, ...data.inside_candidates.map((c) => ({ ...c, prefix: 'i' }))] : [];
     return (
-    <div data-testid="shelter-panel" className="text-xs">
+    <div data-testid="shelter-panel" className="text-base">
         <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-700 space-y-2">
-            <p data-testid="shelter-wording" className="text-[11px] font-bold leading-snug text-amber-950 dark:text-amber-100 bg-amber-100 dark:bg-amber-900/40 border border-amber-300 dark:border-amber-800 rounded px-2 py-1.5">
+            <p data-testid="shelter-wording" className="text-sm font-bold leading-normal text-amber-950 dark:text-amber-100 bg-amber-100 dark:bg-amber-900/40 border border-amber-300 dark:border-amber-800 rounded px-2 py-1.5">
                 Candidate public buildings outside the current alert area, not verified shelters. Roads may be blocked. Follow evacuation instructions from district authorities and IMD. Emergency: 112.
             </p>
             {data?.advice && (
-                <p data-testid="shelter-advice" className="text-[11px] leading-snug text-slate-700 dark:text-slate-200">
+                <p data-testid="shelter-advice" className="text-sm leading-normal text-slate-700 dark:text-slate-200">
                     <span className="font-bold">NDMA flood guidance</span> (&ldquo;{data.advice.section}&rdquo;): &ldquo;{data.advice.quote}&rdquo;{' '}
                     <a data-testid="shelter-advice-source" href={data.advice.url} target="_blank" rel="noreferrer" className="text-blue-700 dark:text-blue-400 underline">
                         {data.advice.source}, {data.advice.page_title}
@@ -74,12 +74,12 @@ const ShelterPanel = ({ point, data, error, loading, selected, onUseAlert, onWid
                 </p>
             )}
             {live && (
-                <p data-testid="shelter-badge-live" className="text-[11px] font-black text-amber-900 bg-amber-200 rounded px-2 py-1">
+                <p data-testid="shelter-badge-live" className="text-sm font-black text-amber-900 bg-amber-200 rounded px-2 py-1">
                     Live output: not validated. The alert check uses this live run&apos;s alerts.
                 </p>
             )}
             {data?.source?.in_sample && (
-                <p data-testid="shelter-badge-in-sample" className="text-[11px] font-black text-violet-950 dark:text-violet-100 bg-violet-200 dark:bg-violet-900/60 rounded px-2 py-1">
+                <p data-testid="shelter-badge-in-sample" className="text-sm font-black text-violet-950 dark:text-violet-100 bg-violet-200 dark:bg-violet-900/60 rounded px-2 py-1">
                     {data.source.sample_label}
                 </p>
             )}
@@ -101,7 +101,7 @@ const ShelterPanel = ({ point, data, error, loading, selected, onUseAlert, onWid
                 className="px-4 py-2 border-b border-slate-100 dark:border-slate-800 text-slate-700 dark:text-slate-200">
                 Chosen point: <b>{point.lat.toFixed(3)}N {point.lon.toFixed(3)}E</b>{POINT_SOURCE[point.source]}
                 {data?.available && <> · elevation {data.point.elevation_m != null ? `${data.point.elevation_m.toLocaleString()} m` : 'no data'}</>}
-                {point.source === 'site' && point.text && <p data-testid="shelter-default-text" className="mt-0.5 text-[11px] text-slate-600 dark:text-slate-300">{point.text}</p>}
+                {point.source === 'site' && point.text && <p data-testid="shelter-default-text" className="mt-0.5 text-sm text-slate-600 dark:text-slate-300">{point.text}</p>}
             </div>
         )}
         {point && loading && <p className="px-4 py-3 text-slate-500">Loading…</p>}
@@ -128,7 +128,7 @@ const ShelterPanel = ({ point, data, error, loading, selected, onUseAlert, onWid
                     </button>
                 </div>
                 {open3d && (
-                    <Suspense fallback={<div data-testid="terrain3d-loading" className="fixed inset-0 z-[2000] bg-black/40 flex items-center justify-center text-white text-sm">Loading 3D view…</div>}>
+                    <Suspense fallback={<div data-testid="terrain3d-loading" className="fixed inset-0 z-[2000] bg-black/40 flex items-center justify-center text-white text-base">Loading 3D view…</div>}>
                         <Terrain3D point={point} radiusKm={data.radius_km} pins={pins} alerts={mapAlerts} lead={lead}
                             wording={data.wording} onClose={() => setOpen3d(false)} />
                     </Suspense>
@@ -146,7 +146,7 @@ const ShelterPanel = ({ point, data, error, loading, selected, onUseAlert, onWid
                     </div>
                 ) : (
                     <>
-                        <h4 data-testid="shelter-outside-heading" className="px-4 pt-2 text-[10px] font-black uppercase text-slate-500">
+                        <h4 data-testid="shelter-outside-heading" className="px-4 pt-2 text-sm font-black uppercase text-slate-500">
                             Outside all current alerts{data.n_outside > data.candidates.length ? ` (nearest ${data.candidates.length} of ${data.n_outside})` : ` (${data.n_outside})`}
                         </h4>
                         <ol data-testid="shelter-outside-list" className="px-3 py-1 space-y-2">
@@ -170,7 +170,7 @@ const ShelterPanel = ({ point, data, error, loading, selected, onUseAlert, onWid
                     </div>
                 )}
 
-                <div className="px-4 py-3 text-[10px] text-slate-500 dark:text-slate-400 space-y-1 leading-snug">
+                <div className="px-4 py-3 text-sm text-slate-500 dark:text-slate-400 space-y-1 leading-normal">
                     <p>Values only: no thresholds are applied (none cited).</p>
                     <p>Map: ◉ chosen point, dashed circle {data.radius_km} km, filled numbered dots = candidates outside all alerts; hollow &ldquo;i&rdquo; dots = the inside group, while it is open.</p>
                     <p>Slope: native 90 m DEM cell. Elevation: 270 m mean DEM cell, compared with the same grid at the chosen point. Stream distance: to the nearest OpenStreetMap river/stream line.</p>

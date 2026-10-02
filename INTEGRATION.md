@@ -1553,6 +1553,65 @@ Satellite observation (INSAT via MOSDAC). It is not a model input.
 - **Screenshots:** `live_oct_insat_*` (real frames), `live_oct_drawer_*`, `live_oct_shelter_*`,
   `live_oct_analytics_*` and `live_oct_analytics_s2_*`, at 1920×1080 and 1366×768.
 
+### Judge-first pass: /nowcast explains itself (2 Oct 2026)
+
+- **Opening view:** plain `/nowcast` opens REF051 (2024 test badge) at the 15:00Z issue, lead 4 h,
+  with the cloudburst Warning that IMERG confirmed selected (Alert section open).
+  - `/api/episodes` keeps `default` (REF045 15:00Z, still used by Analytics links) and adds `start`, which
+    `serve/start_here.py` derives from the event check: the cloudburst Warning issued 15:00Z, IMERG status
+    verified, 3 h before the reported Malana window.
+  - A `?ep=&ts=` URL still opens that issue with nothing selected; the e2e helper `openIssue` now uses it.
+  - "Pipalkoti case (2023 validation) →" in the badge row (and "Malana case (2024 test) →" back).
+- **Wording** (map popups, Alert drawer, legend, Event check; `serve/labels.py` and `VERIFY_STYLE` agree):
+  - verified → "Confirmed by IMERG satellite rain (≥30 mm/hr within r)" (the drawer adds r = N km);
+  - false alarm → "Not confirmed by IMERG satellite rain – counted as a false alarm in our scores.";
+  - Event-check chips "IMERG: confirmed by IMERG" / "IMERG: not confirmed by IMERG";
+  - each replay alert carries `site_note` when a documented site lies inside it (distance to its peak) or
+    within 25 km of its edge: "A documented cloudburst (<site>) occurred … ; IMERG under-reports
+    cloudbursts (median peak 17.6 mm/hr at 24 documented events – see Results)." The 17.6 and 24 are parsed
+    from the `docs/cloudburst_reference.md` row quoted in `serve/results.py`.
+  - Results score tables keep CSI / FAR.
+- **Start here** (`/api/start-here`): shown on the first visit, × / Esc closes it (Esc does not also close
+  the drawer), the header's "Start here" button reopens it.
+  - The dismissal is kept in `localStorage` (`nowcast.startHere.dismissed`), read and written in try/catch.
+  - It shows 5 findings, each with its number read from a file and a button to the view that proves it:
+    - Malana Warning 3 h before the reported window (case study, from the event check);
+    - Pipalkoti Watch 2.8 km from the site, 4.5 h before the reported time, IMERG peak 17.5 mm/hr near
+      the site (case study);
+    - higher CSI than advection in 15/15 cells on validation and 15/15 on the 2024 test (recomputed from
+      the score CSVs);
+    - 14 s per all-India nowcast (`docs/latency_benchmark.json`);
+    - INSAT files listed a median N min after the scan ends (`docs/insat_latency.json`, which the poller
+      keeps rewriting, so N and the file count follow it).
+  - Results and Approach scroll to `#csi-section`, `#approach-compute-latency` or `#approach-insat-latency`
+    and outline it.
+  - It sits over the map, right of the Layers panel, inside whichever view is shown.
+  - Playwright specs written before it start with it dismissed (`playwright.config.js` `storageState`);
+    `e2e/judge_first.spec.js` clears that to test the first visit.
+- **Live:**
+  - A "Data freshness" strip: run issued (and how long ago), IMERG Early and GFS age at issue (run
+    manifest), each satellite's newest INSAT frame and its age, and compute time
+    (`/api/compute-latency`). No thresholds.
+  - The thunderstorm-probability layer is on by default.
+  - "See the 26 Sep run (8 alerts)" loads that run in place (`/api/live` now gives `n_alerts` per run),
+    then "Back to the newest run: 2 Oct run (0 alerts)".
+- **Tab renamed** "All-India example". Its subtitle reads the issue time and the input note ("inputs from
+  REF054 …") from `/api/india/meta`. Analytics' source label follows.
+- **Typography** (Alert, Ingredients, Event check, Shelter options, CAP review, Caveats; Results, Approach):
+  - 16 px body, nothing below 14 px except the data-credits footer and SVG chart ticks, line-height 1.5;
+  - drawer headings 18 px; sections up to 500 px get 25 % wider at ≥ 1600 px (alert 525 px);
+  - timeline labels wrap; INSAT timeline cells narrower than 34 px show colour only (value in the tooltip);
+  - the map re-fits the issue bounds when its container resizes, until the user pans or zooms, so the opening
+    view (drawer open on load) shows the whole domain.
+- **Tests:**
+  - serve 176 (NOWCAST_TEST_REPLAY=1), including 6 new in `serve/tests/test_start_here.py`;
+  - backend 60, with host parity on the rebuilt package;
+  - e2e 176 in 24 files, run in groups, including host parity views on `:10000`;
+  - new `e2e/judge_first.spec.js` (9).
+- **Screenshots** (1920×1080 and 1366×768): `judge_default_starthere_open_*`, `judge_default_starthere_closed_*`,
+  `judge_alert_pipalkoti_watch_*`, `judge_live_freshness_*`, `judge_drawer_{alert,ingredients,event,shelter,caveats}_*`,
+  `judge_results_*`, `judge_approach_*`, and `judge_popup_1920x1080`.
+
 ## 7. Troubleshooting
 
 | symptom | cause / fix |

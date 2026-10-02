@@ -297,7 +297,7 @@ const Analytics = () => {
             const list = [];
             if (lr.runs.length) list.push({ id: 'live', kind: 'live', run: lr.runs[0].run, issue: lr.runs[0].issue_time,
                 label: `Live run (not validated) · issued ${lr.runs[0].issue_time.slice(5, 16).replace('T', ' ')}Z`, badge: 'Not validated' });
-            list.push({ id: 'india', kind: 'india', label: 'National sample (probability maps only)', badge: 'Sample' });
+            list.push({ id: 'india', kind: 'india', label: 'All-India example (probability maps only)', badge: 'Sample' });
             for (const e of eps.episodes) {
                 const it = e.episode === eps.default.episode ? e.issues.find((i) => i.ts === eps.default.ts) : e.issues[Math.floor(e.issues.length / 2)];
                 list.push({ id: e.episode, kind: 'replay', ep: e.episode, ts: it.ts, issue: it.issue_time, forecastOnly: it.explain_available === false,
@@ -391,7 +391,7 @@ const Analytics = () => {
                 </header>
 
                 <Section n="1" q="What is the model warning about?" testid="analytics-s1"
-                    sentence={!ready ? 'Loading…' : noAlerts ? `The national sample has probability maps only: no alerts are produced (absence of alerts does not mean no risk).`
+                    sentence={!ready ? 'Loading…' : noAlerts ? `The all-India example has probability maps only: no alerts are produced (absence of alerts does not mean no risk).`
                         : emptyRun ? (src.kind === 'live' ? sentenceNoAlertsRun(data.meta, lead) : 'No Watch or Warning in this issue at any lead.')
                             : sentenceWarning(stats, lead, hazards, levels)}>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -422,7 +422,7 @@ const Analytics = () => {
                 </Section>
 
                 <Section n="2" q="How does it change with lead time?" testid="analytics-s2"
-                    sentence={!ready ? null : noAlerts ? 'No alerts in the national sample, so there is no alert area to compare.'
+                    sentence={!ready ? null : noAlerts ? 'No alerts in the all-India example, so there is no alert area to compare.'
                         : emptyRun ? `No alerts at any lead in this ${src.kind === 'live' ? 'run' : 'issue'}, so there is no alert area to compare.`
                             : sentenceLeads(byLead)}>
                     {ready && !noAlerts && !emptyRun && <AreaChart rows={byLead} hazards={hazards} lead={lead} onLead={(L) => { setPlaying(false); setLeadIdx(LEADS.indexOf(L)); }} />}
