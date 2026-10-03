@@ -109,6 +109,17 @@ test('OpenWeather + Open-Meteo + sample: one part per source, each with its own 
         + `Open-Meteo (model data) for ${c('open_meteo')} of ${T} zones, updated 13:30 UTC`);
     await expect(page.getByTestId('openweather-credit').first()).toBeVisible();
     await expect(page.getByTestId('open-meteo-credit').first()).toBeVisible();
+    // the map's one-line summary: real counts, the newest time; on a narrow map the counts shorten, the time stays whole
+    const line = page.getByTestId('dashboard-source-line');
+    await expect(line).toHaveText(`OpenWeather ${c('openweather')}/${T} · Open-Meteo ${c('open_meteo')}/${T} · sample data ${c('sample')}/${T} · updated 13:45 UTC`);
+    await page.setViewportSize({ width: 1366, height: 768 });
+    const clip = await line.evaluate((el) => {
+        const t = el.lastElementChild.getBoundingClientRect(), box = el.getBoundingClientRect();
+        const gap = t.left - el.firstElementChild.getBoundingClientRect().right;      // the space before "·" is kept
+        return { text: el.lastElementChild.textContent, spaced: gap >= 0 && el.lastElementChild.getBoundingClientRect().width > 0
+            && getComputedStyle(el.lastElementChild).whiteSpace === 'pre', inside: t.left >= box.left - 0.5 && t.right <= box.right + 0.5 && el.lastElementChild.scrollWidth <= el.lastElementChild.clientWidth + 1 };
+    });
+    expect(clip).toEqual({ text: ' · updated 13:45 UTC', spaced: true, inside: true });
 });
 
 // Key Insights: a HIGH zone with only 0.4 mm of rain (HIGH from humidity + wind). No invented rain figure.

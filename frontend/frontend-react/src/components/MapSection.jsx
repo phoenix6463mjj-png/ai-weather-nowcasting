@@ -3,6 +3,7 @@ import { MapContainer, TileLayer, ImageOverlay, Marker, Popup, Tooltip, useMap }
 import { SAMPLE_ZONE_TEXT, isUnratedZone, primaryThreat, riskColour } from '../utils/dashboardRisk';
 import { getTerrain, terrainUrl } from '../services/nowcastApi';
 import { terrainAttribution } from './nowcast/useTerrain';
+import AttributionHeight from './nowcast/AttributionHeight';
 import MarkerClusterGroup from 'react-leaflet-cluster';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet.markercluster/dist/MarkerCluster.css';
@@ -73,6 +74,18 @@ const useNationalHillshade = (on) => {
     return lay ? { url: terrainUrl('national'), bounds: lay.bounds, credit: idx.attribution, notice: idx.attribution_full } : null;
 };
 
+// Extra credits in the map's attribution corner (the Dashboard's weather-source credits)
+const ExtraAttribution = ({ html }) => {
+    const map = useMap();
+    useEffect(() => {
+        const ctl = map.attributionControl;
+        if (!html || !ctl) return undefined;
+        ctl.addAttribution(html);
+        return () => { ctl.removeAttribution(html); };
+    }, [map, html]);
+    return null;
+};
+
 // Custom Icon for Stations
 const createStationIcon = (risk) => {
     const color = getColor(risk);
@@ -108,6 +121,7 @@ const MapSection = ({
     activeLayers = { thunderstorm: true, cloudburst: true, flood: true },
     baseLayer = 'map',
     hideRisk = false,       // sample data: neutral markers, no risk level or rule reason anywhere
+    attribution = '',       // extra attribution HTML (weather-source credits)
 }) => {
     // Event-layer toggles filter markers by their primary threat; zones with none (low risk) always show
     const locations = (allCities.length > 0 ? allCities : (locationsProp || [])).filter((loc) => {
@@ -141,6 +155,8 @@ const MapSection = ({
             )}
 
             <MapController selectedCity={activeCity} />
+            <ExtraAttribution html={attribution} />
+            <AttributionHeight />
 
             {/* Clustered Station Markers */}
             <MarkerClusterGroup

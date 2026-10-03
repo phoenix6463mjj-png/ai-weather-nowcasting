@@ -1,6 +1,7 @@
 import React from 'react';
 import { AlertTriangle, Info } from 'lucide-react';
 import { sourceShort, unratedNote } from '../utils/dashboardRisk';
+import InfoTip from './InfoTip';
 
 // Warning-style banner (icon + pill) only when there are HIGH zones; otherwise a neutral info strip.
 const AlertBanner = ({ locations = [], summary = null, sample = false, source = null, unrated = 0 }) => {
@@ -33,14 +34,21 @@ const AlertBanner = ({ locations = [], summary = null, sample = false, source = 
         );
     }
 
+    // one short line; the source and the sample-zone note sit in its (i)
     return (
-        <div data-testid="info-strip" className="w-full bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-xl px-3.5 py-2.5 flex items-center gap-2 text-slate-600 dark:text-slate-300 text-sm transition-all duration-300">
+        <div data-testid="info-strip" className="w-full bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-xl px-3.5 py-1.5 flex items-center gap-2 text-slate-600 dark:text-slate-300 text-sm transition-all duration-300">
             <Info size={16} className="text-slate-400 shrink-0" />
             <span data-testid="info-strip-text">
-                {mixed
-                    ? <>Rule-based indicators: {modCount} moderate, {highCount} high zones (zones with weather data only; {unratedNote(unrated)}). Not an official warning.</>
-                    : <>Rule-based indicators: {modCount} moderate, {highCount} high zones ({sourceShort(source || (sample ? 'sample' : null))}). Not an official warning.</>}
+                Rule-based indicators: {modCount} moderate · {highCount} high · not an official warning
             </span>
+            <InfoTip label="About these counts" testid="info-strip-detail" place="below-start">
+                <p>
+                    {mixed
+                        ? <>Zones with weather data only; {unratedNote(unrated)}. Sources: see the line at the top right of the map.</>
+                        : <>Source: {sourceShort(source || (sample ? 'sample' : null))}.</>}
+                    {' '}Fixed rules on current weather, not the ML model.
+                </p>
+            </InfoTip>
         </div>
     );
 };

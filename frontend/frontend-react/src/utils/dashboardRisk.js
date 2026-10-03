@@ -166,6 +166,42 @@ export function sourceBadge(source, observedAt, dataTime, summary = null, zones 
     return 'Sample data — no live weather feed';
 }
 
+// One compact line for the Dashboard map: "OpenWeather 150/380 · Open-Meteo 230/380 · updated 19:30 UTC"
+// (real counts of the zone list, the newest update time of its live sources). The full wording
+// (sourceBadge / mixedBadge) sits in the line's (i) popover.
+export function compactSourceLine(summary, zones = []) {
+    const { counts, updated } = compactSourceParts(summary, zones);
+    return [counts, updated].filter(Boolean).join(' · ');
+}
+
+// The same line in two parts, so a narrow map can shorten the counts and keep the update time
+export function compactSourceParts(summary, zones = []) {
+    const src = summary?.source;
+    if (!src) return { counts: 'Loading weather source…', updated: '' };
+    if (isSampleSource(src)) return { counts: 'Sample data · no live weather feed', updated: '' };
+    const m = mixedCounts(summary, zones);
+    const parts = [];
+    if (m.openWeather > 0) parts.push(`OpenWeather ${m.openWeather}/${m.total}`);
+    if (m.openMeteo > 0) parts.push(`Open-Meteo ${m.openMeteo}/${m.total}`);
+    if (m.sample > 0) parts.push(`sample data ${m.sample}/${m.total}`);
+    const st = summary.source_times || {};
+    const latest = [st.openweather?.max, st['open-meteo']?.max, summary.data_time, summary.latest_observed_at]
+        .filter((t) => parseUtcIso(t)).sort((a, b) => parseUtcIso(a) - parseUtcIso(b)).at(-1);
+    return { counts: parts.join(' · '), updated: latest ? `updated ${hhmmUtc(parseUtcIso(latest).toISOString())}` : '' };
+}
+
+// Map attribution credits for the weather sources in use (HTML for Leaflet's attribution control), with
+// the links the stored terms ask for (backend/assets/openweather_terms.json, open_meteo_terms.json).
+export function weatherAttribution({ openWeather = false, openMeteo = false } = {}) {
+    const a = (href, text) => `<a href="${href}" target="_blank" rel="noreferrer">${text}</a>`;
+    const parts = [];
+    if (openWeather) parts.push(`<span data-testid="openweather-credit">${a('https://openweathermap.org/', 'Weather data © OpenWeather')}`
+        + ` (${a('https://opendatacommons.org/licenses/odbl/', 'ODbL')})</span>`);
+    if (openMeteo) parts.push(`<span data-testid="open-meteo-credit">${parts.length ? '' : 'Weather data: '}${a('https://open-meteo.com/', 'Open-Meteo.com')}`
+        + ` (${a('https://creativecommons.org/licenses/by/4.0/', 'CC BY 4.0')})</span>`);
+    return parts.join(' · ');
+}
+
 // Summary of a plain zone array (/batch_predict has no summary): total, times of the zones with weather data
 export function zonesSummary(zones = []) {
     const live = zones.filter((z) => !isUnratedZone(z));

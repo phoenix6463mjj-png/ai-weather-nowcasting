@@ -100,7 +100,7 @@ test('mixed "/": badge states real counts; banner/strip counts exclude sample zo
     await expect(page.getByTestId('risk-unrated')).toHaveText(`+${summary.n_sample} with sample data (risk not shown)`);
     // map: sample zones are grey and unrated
     await expect(page.getByTestId('dashboard-markers')).toHaveAttribute('data-unrated', String(summary.n_sample));
-    await expect(page.getByTestId('legend-unrated')).toHaveText('Grey: sample data — risk not shown');
+    await expect(page.getByTestId('legend-unrated')).toHaveText('Sample (risk not shown)');
     // right panel on a sample zone: no risk pill, primary threat, hazard levels or explanation
     await expect(page.getByRole('heading', { name: new RegExp(`^${sampleCity}`) })).toBeVisible();
     await expect(page.getByTestId('panel-no-risk')).toHaveText('Sample data — risk not shown');
@@ -137,10 +137,12 @@ test('mixed "/": the neutral strip counts exclude sample zones', async ({ page }
     });
     await page.goto('/dashboard');
     const strip = page.getByTestId('info-strip-text');
-    await expect(strip).toContainText(/Rule-based indicators: \d+ moderate, 0 high zones \(zones with weather data only; \d+ zones with sample data: risk not shown\)\. Not an official warning\./);
-    const text = await strip.innerText();
-    const mod = Number(text.match(/(\d+) moderate/)[1]);
-    const unrated = Number(text.match(/; (\d+) zones with sample/)[1]);
+    await expect(strip).toHaveText(/^Rule-based indicators: \d+ moderate · 0 high · not an official warning$/);
+    await page.getByTestId('info-strip-detail-button').click();
+    const detail = page.getByTestId('info-strip-detail');
+    await expect(detail).toContainText(/^Zones with weather data only; \d+ zones with sample data: risk not shown\./);
+    const mod = Number((await strip.innerText()).match(/(\d+) moderate/)[1]);
+    const unrated = Number((await detail.innerText()).match(/; (\d+) zones with sample/)[1]);
     expect(mod).toBe(60);                                       // zones i < 90 that are not sample: 60 of 90
     expect(unrated).toBeGreaterThan(100);
 });
@@ -185,7 +187,7 @@ test('mixed screenshots of /, Alerts, Forecast, Analytics at 1920x1080 and 1366x
     await mockMixed(page, { tiles: true });                  // real map tiles for the screenshots
     for (const [w, h] of [[1920, 1080], [1366, 768]]) {
         await page.setViewportSize({ width: w, height: h });
-        for (const [r, id] of [['dashboard', 'dashboard-source-badge'], ['alerts', 'alerts-total-caption'], ['forecast', 'forecast-list-source']]) {
+        for (const [r, id] of [['dashboard', 'dashboard-source-line'], ['alerts', 'alerts-total-caption'], ['forecast', 'forecast-list-source']]) {
             await page.goto(`/${r}`);
             await expect(page.getByTestId(id)).toBeVisible();
             await page.waitForTimeout(r === 'dashboard' ? 4000 : 1200);          // map tiles on the Dashboard

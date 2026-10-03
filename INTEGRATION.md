@@ -1823,6 +1823,49 @@ Satellite observation (INSAT via MOSDAC). It is not a model input.
   `ux_event_check_{normal,expanded}_*`, `ux_alert_popup_*`, `ux_shelter_*`, `ux_3d_view_*` (1920×1080 and
   1366×768).
 
+### Dashboard map declutter (4 Oct 2026)
+
+Approved exception to the 15 px type scale: overlays on the Dashboard map (only there) use 14 px.
+
+- **Source line (top right):** the 5-line box is now one line built from the zone list (`compactSourceLine`
+  in `utils/dashboardRisk.js`), e.g. "OpenWeather 150/380 · Open-Meteo 230/380 · updated 19:30 UTC".
+  - Counts come from `summary.zone_sources`, plus "sample data N/T" for a mixed list. The time is the newest of
+    `source_times`, `data_time` and `latest_observed_at`.
+  - On a narrow map the counts shorten with "…" and "updated HH:MM UTC" stays whole (tested at 1366).
+  - Its (i) (`components/InfoTip.jsx`: click to open; Esc or a click outside closes it) shows the full
+    wording, unchanged (`dashboard-source-badge`). That includes "the rest switch to OpenWeather as they are
+    fetched" while OpenWeather fills the list, and "Licence credits: bottom-right corner of the map."
+- **Licence credits in the map's attribution corner** (`weatherAttribution`, added via Leaflet's attribution
+  control), for each source whose data appear:
+  - "Weather data © OpenWeather (ODbL)": the attribution line from `openweather_terms.json`, linked to
+    openweathermap.org, plus an ODbL link;
+  - "Open-Meteo.com (CC BY 4.0)": linked to open-meteo.com, plus a CC BY 4.0 link. It reads "Weather data:
+    Open-Meteo.com (CC BY 4.0)" when it is the only weather source.
+  - Both terms are met: OpenWeather "on the screen or page where weather data appears", not hidden; Open-Meteo
+    "a link next to any location Open-Meteo data are displayed" plus a licence link.
+  - The right panel keeps its full credit lines (`OpenMeteoCredit` / `OpenWeatherCredit`).
+- **Legend:** one row above the attribution (bottom left): "● Low ● Moderate ● High", plus "● Sample (risk not
+  shown)" only when the list has sample zones. Its (i) says "Marker colour = the zone's rule-based risk level
+  (not the ML model)."
+- **Base-map switch:** a compact Map / Satellite / Terrain pill (top left).
+- **Status line above the map:** "Rule-based indicators: N moderate · N high · not an official warning", with an
+  (i) for the source, the sample-zone note on mixed lists, and "Fixed rules on current weather, not the ML
+  model." The red "High Risk in N locations" banner (HIGH zones present) is unchanged.
+- **Coverage (tested):** at 1920×1080 and 1366×768 and on all three base maps (Terrain wraps the long DEM notice):
+  - the overlays cover ≤ 15 % of the map;
+  - none overlaps the attribution, another overlay or the map edge (the Dashboard map has no zoom buttons;
+    wheel / pinch zoom);
+  - the legend is one row, and overlay text is 13–14 px.
+- **Tests:** in `e2e/dashboard.spec.js`, 2 new tests:
+  - source line vs the summary, (i) open / Esc / click outside, legend (i), credits and links in the
+    attribution;
+  - coverage and overlap at both sizes.
+
+  Also updated: `calm.spec.js` and `mixed_zones.spec.js` (new strip wording, detail in the (i), legend
+  label), and `openweather.spec.js` (three-source line, time whole at 1366).
+- **Screenshots:** `dashboard_{1920x1080,1366x768}`, `dashboard_map_*`, `dashboard_map_info_*` (popover open),
+  `dashboard_map_terrain_*`, plus `openweather_dashboard_*` and `mixed_dashboard_*`.
+
 ## 7. Troubleshooting
 
 | symptom | cause / fix |
@@ -1844,8 +1887,8 @@ Satellite observation (INSAT via MOSDAC). It is not a model input.
 |---|---|---|
 | Copernicus DEM GLO-90 | terrain hillshade (ML Nowcast, Dashboard "Terrain") | "produced using Copernicus WorldDEM-90 © DLR e.V. 2010-2014 and © Airbus Defence and Space GmbH 2014-2018 provided under COPERNICUS by the European Union and ESA; all rights reserved", verbatim in the Data credits footer + licence and DOI links (`serve/assets/terrain/ATTRIBUTION.md`) |
 | INSAT-3DR via MOSDAC | INSAT layer + Event-check rows (REF045, REF051) | "Data Source MOSDAC/SAC/ISRO. https://mosdac.gov.in" + DOI https://doi.org/10.19038/SAC/10/3RIMG_L1C_ASIA_MER in the footer (`serve/assets/insat/ATTRIBUTION.md`). Only value-added derivatives are shipped, never raw files |
-| OpenWeather (ODbL) | team pages' weather when `OPENWEATHER_API_KEY` is set: "/", Forecast, Alerts, Analytics | "Weather data © OpenWeather" (link) + ODbL link + "current weather, used as input to rule-based indicators", next to every place its data appear (`OpenWeatherCredit.jsx`); team credits entry `openweather`. Terms, limits and quotes: `backend/assets/openweather_terms.json` |
-| Open-Meteo (CC BY 4.0) | team pages' weather when no OpenWeather key is set: "/", Forecast, Alerts, Analytics | "Weather data by Open-Meteo.com" (link) + CC BY 4.0 link + "model data, used as input to rule-based indicators", next to every place its data appear (`OpenMeteoCredit.jsx`). Terms, limits and quotes: `backend/assets/open_meteo_terms.json` |
+| OpenWeather (ODbL) | team pages' weather when `OPENWEATHER_API_KEY` is set: "/", Forecast, Alerts, Analytics | "Weather data © OpenWeather" (link) + ODbL link + "current weather, used as input to rule-based indicators", next to every place its data appear (`OpenWeatherCredit.jsx`; on the Dashboard map, "Weather data © OpenWeather (ODbL)" in the map attribution); team credits entry `openweather`. Terms, limits and quotes: `backend/assets/openweather_terms.json` |
+| Open-Meteo (CC BY 4.0) | team pages' weather when no OpenWeather key is set: "/", Forecast, Alerts, Analytics | "Weather data by Open-Meteo.com" (link) + CC BY 4.0 link + "model data, used as input to rule-based indicators", next to every place its data appear (`OpenMeteoCredit.jsx`; on the Dashboard map, "Open-Meteo.com (CC BY 4.0)" in the map attribution). Terms, limits and quotes: `backend/assets/open_meteo_terms.json` |
 | NASA GIBS | Dashboard "Satellite" (VIIRS SNPP corrected reflectance, yesterday UTC) | map attribution "Imagery: NASA GIBS (ESDIS), VIIRS SNPP corrected reflectance, <date>" |
 | OpenStreetMap | all base maps | "© OpenStreetMap contributors" (map attribution); tiles from `https://tile.openstreetmap.org` under the OSM tile usage policy (light use) |
 | IMERG (NASA GPM), ERA5 / GFS | model inputs | named on the pages where they are used (replay banner, Live banner, Approach). Required wording + DOIs in the Data credits footer (Batch 3) |
@@ -1917,6 +1960,14 @@ Satellite observation (INSAT via MOSDAC). It is not a model input.
 **Known issues (team pages; not changed):**
 - Dashboard sidebar: "Live Map" and "Locations" only reload the zone list, "Settings" opens Analytics,
   and the avatar does nothing.
+- (4 Oct 2026) The backend's MODERATE reason reads "Moderate convective indicators observed"
+  (`backend/main.py`, `predict_nowcast`). When the default (first) zone is MODERATE, as on 4 Oct with 0 HIGH
+  zones, the right panel shows it, and the "never 'observed' on model / sample data" checks fail:
+  - `weather_sources.spec.js` ("open-meteo");
+  - `openweather.spec.js` ("OpenWeather for every zone").
+
+  This is data-dependent: they fail the same way without the declutter changes (checked with the changes
+  stashed). The wording is not changed here.
 - **Honesty fixes (Batch 1, audit A1–A6, F2):**
   - **Analytics:** "Rule-based indicator (not the ML model)" and "Rule-based summary of sample data /
     OpenWeather data / built-in example data (backend not reachable)". The XGBoost, "Validated" and

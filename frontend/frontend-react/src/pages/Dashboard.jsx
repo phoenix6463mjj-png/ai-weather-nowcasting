@@ -3,10 +3,10 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { API_BASE } from '../config';
 import { fetchWithWake, isServerUnavailable, WAKE_UNAVAILABLE } from '../utils/serverWake';
 import { askShownFirst, useFillPoll } from '../utils/weatherFill';
-import { RISK_COLOURS, isLiveSource, isSampleSource, isUnratedZone, mixedCounts, sourceBadge } from '../utils/dashboardRisk';
+import { RISK_COLOURS, compactSourceLine, compactSourceParts, isLiveSource, isSampleSource, isUnratedZone, mixedCounts, sourceBadge, weatherAttribution } from '../utils/dashboardRisk';
+import { ABOVE_ATTRIBUTION } from '../utils/mapLayout';
 import SampleSafetyNotice from '../components/SampleSafetyNotice';
-import OpenMeteoCredit from '../components/OpenMeteoCredit';
-import OpenWeatherCredit from '../components/OpenWeatherCredit';
+import InfoTip from '../components/InfoTip';
 import NominatimCredit from '../components/NominatimCredit';
 import { geocode, SupersededError } from '../utils/nominatim';
 import Sidebar from '../components/Sidebar';
@@ -293,6 +293,14 @@ const Dashboard = () => {
         ? sourceBadge(badgeSource, (!mixed && selSource && selectedCity.weather.observed_at) || source.observedAt,
             (!mixed && selSource && selectedCity.weather.data_time) || source.dataTime, summary, allCities)
         : 'Loading weather source…';
+    // the map's one-line source summary (list counts) and the credits of the sources whose data appear
+    const listSummary = source.source ? { ...summary, source: source.source } : null;
+    const sourceLine = compactSourceLine(listSummary, allCities);
+    const sourceParts = compactSourceParts(listSummary, allCities);
+    const counts = isLiveSource(source.source) || mixed ? mixedCounts(summary, allCities) : null;
+    const useOW = [badgeSource, source.source].includes('openweather') || (mixed && counts.openWeather > 0);
+    const useOM = [badgeSource, source.source].includes('open-meteo') || (mixed && counts.openMeteo > 0);
+    const fillingNote = !mixed && !!counts && !!summary?.openweather_filling && counts.openWeather < counts.total;
 
     return (
         <div className="flex flex-col h-screen bg-slate-50 dark:bg-[#0b0f19] text-slate-900 dark:text-slate-100 font-sans overflow-hidden transition-colors duration-300">
@@ -364,33 +372,34 @@ const Dashboard = () => {
                         {/* Interactive Main Map & Right Panel */}
                         <div className="flex-1 flex px-6 py-4 gap-6 min-h-[500px]">
                             {/* Map Container */}
-                            <div className="flex-1 relative rounded-2xl overflow-hidden shadow-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#020617] flex flex-col">
-                                {/* Map Controls Header */}
-                                <div className="absolute top-4 left-4 z-[400] flex gap-2">
-                                    <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur shadow-sm rounded-lg p-1 flex border border-slate-200 dark:border-slate-700">
-                                        {[['map', 'Map'], ['satellite', 'Satellite'], ['terrain', 'Terrain']].map(([id, label]) => (
-                                            <button key={id} type="button" data-testid={`basemap-${id}`} aria-pressed={baseLayer === id}
-                                                onClick={() => setBaseLayer(id)}
-                                                className={baseLayer === id
-                                                    ? 'px-4 py-1.5 bg-blue-600 text-white rounded-md text-sm font-medium shadow-sm'
-                                                    : 'px-4 py-1.5 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-md text-sm font-medium transition-colors'}>
-                                                {label}
-                                            </button>
-                                        ))}
-                                    </div>
+                            <div data-map-host data-testid="dashboard-map" className="flex-1 relative rounded-2xl overflow-hidden shadow-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#020617] flex flex-col">
+                                {/* Map overlays (13-14 px allowed here only): compact base-map pill, one-line source, one-row legend */}
+                                <div data-testid="dashboard-basemap" className="absolute top-3 left-3 z-[400] bg-white/90 dark:bg-slate-800/90 backdrop-blur shadow-sm rounded-full p-0.5 flex border border-slate-200 dark:border-slate-700">
+                                    {[['map', 'Map'], ['satellite', 'Satellite'], ['terrain', 'Terrain']].map(([id, label]) => (
+                                        <button key={id} type="button" data-testid={`basemap-${id}`} aria-pressed={baseLayer === id}
+                                            onClick={() => setBaseLayer(id)}
+                                            className={baseLayer === id
+                                                ? 'px-2.5 py-0.5 bg-blue-600 text-white rounded-full text-[14px] font-semibold shadow-sm'
+                                                : 'px-2.5 py-0.5 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full text-[14px] font-medium transition-colors'}>
+                                            {label}
+                                        </button>
+                                    ))}
                                 </div>
 
-                                <div className="absolute top-4 right-4 z-[400]">
-                                    <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur shadow-sm rounded-lg px-4 py-2 border border-slate-200 dark:border-slate-700 flex items-center gap-2">
-                                        <span className={`w-2.5 h-2.5 rounded-full ${loading ? "bg-blue-500 animate-spin" : isLiveSource(badgeSource) ? "bg-emerald-500" : "bg-amber-500"}`}></span>
-                                        <span className="flex flex-col max-w-[330px]">
-                                            <span data-testid="dashboard-source-badge" data-source={badgeSource || ''} className="text-sm font-bold text-slate-800 dark:text-slate-100">
-                                                {loading && allCities.length > 0 ? "Updating…" : badgeText}
-                                            </span>
-                                            {(badgeSource === 'open-meteo' || (mixed && mixedCounts(summary, allCities).openMeteo > 0)) && <OpenMeteoCredit />}
-                                            {(badgeSource === 'openweather' || (mixed && mixedCounts(summary, allCities).openWeather > 0)) && <OpenWeatherCredit />}
-                                        </span>
-                                    </div>
+                                {/* weather sources in one line; full wording in the (i); licence credits in the attribution corner */}
+                                <div data-testid="dashboard-source" className="absolute top-3 right-3 z-[400] max-w-[calc(100%-14rem)] min-w-0 bg-white/90 dark:bg-slate-800/90 backdrop-blur shadow-sm rounded-full pl-2.5 pr-1 py-0.5 border border-slate-200 dark:border-slate-700 flex items-center gap-1.5 text-[14px] text-slate-800 dark:text-slate-100">
+                                    <span className={`w-2 h-2 shrink-0 rounded-full ${loading ? "bg-blue-500 animate-spin" : isLiveSource(badgeSource) ? "bg-emerald-500" : "bg-amber-500"}`}></span>
+                                    <span data-testid="dashboard-source-line" className="flex min-w-0 font-semibold whitespace-nowrap" title={sourceLine}>
+                                        <span className="truncate min-w-0">{sourceParts.counts}</span>
+                                        {sourceParts.updated && <span className="shrink-0 whitespace-pre">{` · ${sourceParts.updated}`}</span>}
+                                    </span>
+                                    <InfoTip label="About the weather sources" testid="dashboard-source-info" size={14} panelClassName="text-[14px] leading-snug">
+                                        <p data-testid="dashboard-source-badge" data-source={badgeSource || ''} className="font-semibold">
+                                            {loading && allCities.length > 0 ? "Updating…" : badgeText}
+                                        </p>
+                                        {fillingNote && <p data-testid="dashboard-source-filling" className="mt-1">The rest switch to OpenWeather as they are fetched.</p>}
+                                        {(useOW || useOM) && <p className="mt-1 text-slate-500 dark:text-slate-400">Licence credits: bottom-right corner of the map.</p>}
+                                    </InfoTip>
                                 </div>
 
                                 {loading && allCities.length === 0 ? (
@@ -407,25 +416,26 @@ const Dashboard = () => {
                                         activeLayers={activeLayers}
                                         baseLayer={baseLayer}
                                         hideRisk={sampleOnly}
+                                        attribution={weatherAttribution({ openWeather: useOW, openMeteo: useOM })}
                                     />
                                 )}
 
-                                {/* Legend: markers are coloured by the zone's rule-based risk level (no percentages) */}
-                                {!sampleOnly && <div data-testid="dashboard-legend" className="absolute bottom-6 left-6 z-[400] bg-white/90 dark:bg-slate-800/90 backdrop-blur-md rounded-xl p-4 shadow-lg border border-slate-200 dark:border-slate-700 w-64">
-                                    <p className="text-xs font-bold mb-2 uppercase text-slate-500 dark:text-slate-400">Risk level (rule-based)</p>
-                                    <div className="flex justify-between text-xs font-semibold text-slate-600 dark:text-slate-300">
-                                        {[['LOW', 'Low'], ['MODERATE', 'Moderate'], ['HIGH', 'High']].map(([k, label]) => (
-                                            <span key={k} className="flex items-center gap-1.5">
-                                                <span className="w-3 h-3 rounded-full border-2 border-white shadow" style={{ background: RISK_COLOURS[k] }} />{label}
-                                            </span>
-                                        ))}
-                                    </div>
+                                {/* Legend, one row above the attribution: markers are coloured by the zone's rule-based risk level (no percentages) */}
+                                {!sampleOnly && <div data-testid="dashboard-legend" style={ABOVE_ATTRIBUTION}
+                                    className="absolute left-3 z-[400] bg-white/90 dark:bg-slate-800/90 backdrop-blur-md rounded-full pl-3 pr-1 py-0.5 shadow-sm border border-slate-200 dark:border-slate-700 flex items-center gap-3 text-[14px] font-semibold text-slate-700 dark:text-slate-200">
+                                    {[['LOW', 'Low'], ['MODERATE', 'Moderate'], ['HIGH', 'High']].map(([k, label]) => (
+                                        <span key={k} className="flex items-center gap-1">
+                                            <span className="w-2.5 h-2.5 rounded-full border border-white shadow" style={{ background: RISK_COLOURS[k] }} />{label}
+                                        </span>
+                                    ))}
                                     {mixed && (
-                                        <p data-testid="legend-unrated" className="mt-1.5 flex items-center gap-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300">
-                                            <span className="w-3 h-3 rounded-full border-2 border-white shadow" style={{ background: RISK_COLOURS.NONE }} />Grey: sample data — risk not shown
-                                        </p>
+                                        <span data-testid="legend-unrated" className="flex items-center gap-1">
+                                            <span className="w-2.5 h-2.5 rounded-full border border-white shadow" style={{ background: RISK_COLOURS.NONE }} />Sample (risk not shown)
+                                        </span>
                                     )}
-                                    <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400 leading-snug">Marker colour = the zone&apos;s rule-based risk level (not the ML model).</p>
+                                    <InfoTip label="About the marker colours" testid="legend-info" place="above-start" size={14} panelClassName="text-[14px] leading-snug">
+                                        <p>Marker colour = the zone&apos;s rule-based risk level (not the ML model).</p>
+                                    </InfoTip>
                                 </div>}
                             </div>
 

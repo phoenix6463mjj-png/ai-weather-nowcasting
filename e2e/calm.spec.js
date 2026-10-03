@@ -93,8 +93,12 @@ test('explanation: the reason once, never together with "No explanation availabl
 test('no warning banner with 0 HIGH zones: neutral info strip; warning banner only with HIGH zones', async ({ page }) => {
     await mockZones(page, [MOD, BARE], 'Mumbai');
     await page.goto('/dashboard');
-    await expect(page.getByTestId('info-strip-text')).toHaveText(
-        'Rule-based indicators: 2 moderate, 0 high zones (Open-Meteo model data). Not an official warning.');
+    await expect(page.getByTestId('info-strip-text')).toHaveText('Rule-based indicators: 2 moderate · 0 high · not an official warning');
+    await expect(page.getByTestId('info-strip-detail')).toBeHidden();                    // the detail sits in the (i)
+    await page.getByTestId('info-strip-detail-button').click();
+    await expect(page.getByTestId('info-strip-detail')).toHaveText('Source: Open-Meteo model data. Fixed rules on current weather, not the ML model.');
+    await page.keyboard.press('Escape');
+    await expect(page.getByTestId('info-strip-detail')).toBeHidden();
     await expect(page.getByTestId('alert-banner-text')).toHaveCount(0);
     await expect(page.getByText('Advisory', { exact: true })).toHaveCount(0);
     await expect(page.getByText('High Alert', { exact: true })).toHaveCount(0);
