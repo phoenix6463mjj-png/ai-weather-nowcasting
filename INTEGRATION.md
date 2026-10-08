@@ -1866,6 +1866,30 @@ Approved exception to the 15 px type scale: overlays on the Dashboard map (only 
 - **Screenshots:** `dashboard_{1920x1080,1366x768}`, `dashboard_map_*`, `dashboard_map_info_*` (popover open),
   `dashboard_map_terrain_*`, plus `openweather_dashboard_*` and `mixed_dashboard_*`.
 
+### City search restored (8 Oct 2026)
+
+- **Cause:** commit `33c17ff` (Overview / navigation / declutter pass, 2 Oct) changed the header search form
+  from `hidden md:flex` (shown from 768 px) to `hidden min-[1600px]:flex` and added nothing in its place. Below
+  1600 px (e.g. a 1366 px laptop, phones) the search was gone on the Dashboard and the rule-based pages.
+- **Now** (`CitySearch` in `components/TopHeader.jsx`, on the pages that pass `selectedCity` / `onSearch`:
+  Dashboard "/", Forecast, Alerts, Reports):
+  - from 1600 px, the full field in the header, as before;
+  - below 1600 px, a search icon that expands into the same field under the header, focused. Esc, an outside
+    click or a search closes it, and it stays within the screen at 390 px. There is one input either way.
+- **Behaviour unchanged:**
+  - Dashboard: Nominatim (≤ 1 request/s, cached, credit next to the result).
+  - Alerts and Reports: open `/?city=<name>`, and the Dashboard runs the search.
+  - Forecast: keeps its own search (backend `/nowcast`).
+  - ML pages (Overview, Explore map, Results, Analytics): no search.
+- **Tests:** new `e2e/city_search.spec.js` (5):
+  - Dashboard at 1920×1080, 1366×768 and 390×844: field or icon, focus, Esc, the search updates the
+    Dashboard with the Nominatim credit, a second search ≥ 1 s after the first, the header fits;
+  - Alerts and Reports → Dashboard;
+  - Forecast field at 1366;
+  - no search on the ML pages.
+- **Screenshots:** `city_search_{dashboard,open,result}_*` (1920×1080, 1366×768, 390×844),
+  `city_search_forecast_open_1366x768`.
+
 ## 7. Troubleshooting
 
 | symptom | cause / fix |

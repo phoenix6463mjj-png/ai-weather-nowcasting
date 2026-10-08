@@ -87,11 +87,14 @@ const CompactMenu = () => {
     );
 };
 
-const TopHeader = ({ onSearch, searchLoading, selectedCity, alertCount = null, showCredits = false }) => {
+// City search of the rule-based pages: the full field from 1600 px; below that a search icon that expands
+// into the same field under the header (Esc, an outside click or a search closes it). One input either way.
+const CitySearch = ({ onSearch, searchLoading }) => {
     const [searchInput, setSearchInput] = useState('');
     const navigate = useNavigate();
-    // The city pill, search and alert bell belong to the rule-based pages (they pass selectedCity).
-    const ruleBased = selectedCity !== undefined || Boolean(onSearch);
+    const { open, setOpen, box } = useDropdown();
+    const input = useRef(null);
+    useEffect(() => { if (open) input.current?.focus(); }, [open]);
 
     const handleSubmit = (e) => {
         if (e) e.preventDefault();
@@ -101,11 +104,55 @@ const TopHeader = ({ onSearch, searchLoading, selectedCity, alertCount = null, s
             } else {
                 navigate(`/?city=${encodeURIComponent(searchInput.trim())}`);
             }
+            setOpen(false);
         }
     };
 
     return (
-        <header className="h-[72px] bg-white dark:bg-[#0f172a] border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3 px-4 sm:px-6 z-50 shrink-0">
+        <div ref={box} className="flex items-center">
+            <button type="button" data-testid="header-search-toggle" aria-label="Search city" aria-expanded={open}
+                onClick={() => setOpen((o) => !o)}
+                className="min-[1600px]:hidden p-2 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800">
+                {open ? <X size={20} /> : <Search size={20} />}
+            </button>
+            <form onSubmit={handleSubmit} data-testid="header-search" role="search"
+                className={`${open ? 'flex absolute right-2 sm:right-6 top-full mt-1 z-[2100] w-[min(24rem,calc(100vw-1rem))] p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl' : 'hidden'}
+                    min-[1600px]:flex min-[1600px]:static min-[1600px]:w-auto min-[1600px]:p-0 min-[1600px]:mt-0 min-[1600px]:border-0 min-[1600px]:shadow-none min-[1600px]:bg-transparent min-[1600px]:dark:bg-transparent items-center`}>
+                <div className="relative flex items-center w-full">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                    <input
+                        ref={input}
+                        type="text"
+                        value={searchInput}
+                        onChange={(e) => setSearchInput(e.target.value)}
+                        placeholder="Search city…"
+                        aria-label="Search city (e.g. Mumbai, Jaipur)"
+                        disabled={searchLoading}
+                        className="w-full min-[1600px]:w-56 2xl:w-64 pl-9 pr-20 py-2 bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-blue-500 dark:focus:border-blue-500 rounded-lg text-sm outline-none transition-colors dark:text-white placeholder:text-slate-400 text-ellipsis"
+                    />
+                    <button
+                        type="submit"
+                        disabled={searchLoading || !searchInput.trim()}
+                        className="absolute right-1.5 top-1/2 -translate-y-1/2 px-2.5 py-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white rounded text-sm font-bold transition-all shadow-sm flex items-center gap-1 cursor-pointer"
+                    >
+                        {searchLoading ? (
+                            <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        ) : (
+                            <span>Find</span>
+                        )}
+                    </button>
+                </div>
+            </form>
+        </div>
+    );
+};
+
+const TopHeader = ({ onSearch, searchLoading, selectedCity, alertCount = null, showCredits = false }) => {
+    // The city pill, search and alert bell belong to the rule-based pages (they pass selectedCity).
+    const ruleBased = selectedCity !== undefined || Boolean(onSearch);
+
+    return (
+        <header className="relative h-[72px] bg-white dark:bg-[#0f172a] border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3 px-4 sm:px-6 z-50 shrink-0">
             <div className="flex items-center gap-4 min-w-0">
                 <Link to="/" className="flex items-center gap-3 hover:opacity-95 transition-opacity min-w-0">
                     <div className="bg-blue-600 p-2 rounded-xl text-white shadow-md shadow-blue-500/20 shrink-0">
@@ -134,31 +181,7 @@ const TopHeader = ({ onSearch, searchLoading, selectedCity, alertCount = null, s
             </nav>
 
             <div className="flex items-center shrink-0 gap-2 sm:gap-3 2xl:gap-5">
-                {ruleBased && (
-                    <form onSubmit={handleSubmit} className="relative hidden min-[1600px]:flex items-center">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                        <input
-                            type="text"
-                            value={searchInput}
-                            onChange={(e) => setSearchInput(e.target.value)}
-                            placeholder="Search city…"
-                            aria-label="Search city (e.g. Mumbai, Jaipur)"
-                            disabled={searchLoading}
-                            className="w-56 2xl:w-64 pl-9 pr-20 py-2 bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-blue-500 dark:focus:border-blue-500 rounded-lg text-sm outline-none transition-colors dark:text-white placeholder:text-slate-400 text-ellipsis"
-                        />
-                        <button
-                            type="submit"
-                            disabled={searchLoading || !searchInput.trim()}
-                            className="absolute right-1.5 top-1/2 -translate-y-1/2 px-2.5 py-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white rounded text-sm font-bold transition-all shadow-sm flex items-center gap-1 cursor-pointer"
-                        >
-                            {searchLoading ? (
-                                <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                            ) : (
-                                <span>Find</span>
-                            )}
-                        </button>
-                    </form>
-                )}
+                {ruleBased && <CitySearch onSearch={onSearch} searchLoading={searchLoading} />}
 
                 {showCredits && <TeamCredits />}
 
