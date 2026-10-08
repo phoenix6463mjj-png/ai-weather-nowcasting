@@ -18,8 +18,8 @@ UI_MODERATE_CUT = 0.40          # frontend dashboardRisk.hazardLevels: >= 0.40 i
 
 
 def test_gate_function():
-    assert M.flash_flood_gate(0.0, 0.45, "Moderate convective indicators observed") == (
-        0.08, "Moderate convective indicators observed; flash flood Low (no rain in the last hour)", "no rain in the last hour")
+    assert M.flash_flood_gate(0.0, 0.45, "Rule-based Moderate: humidity above 70 %") == (
+        0.08, "Rule-based Moderate: humidity above 70 %; flash flood Low (no rain in the last hour)", "no rain in the last hour")
     assert M.flash_flood_gate(0.04, 0.85, "r")[0] == 0.08            # shown as 0.0 mm -> gated
     assert M.flash_flood_gate(0.1, 0.45, "r") == (0.45, "r", None)     # any rain -> unchanged
     assert M.flash_flood_gate(None, 0.45, "r")[0] == 0.08

@@ -175,35 +175,38 @@ def calculate_rule_risk(rainfall: float, humidity: float, wind_speed: float) -> 
         return "LOW", 0
 
 
-def generate_explainable_reason(rainfall: float, humidity: float, wind_speed: float, risk_level: str = "LOW") -> str:
-    """
-    Explainable AI (XAI) Rule Engine:
-    - rainfall > 20 -> "Heavy rainfall indicates flood risk"
-    - humidity > 90 -> "High humidity supports storm formation"
-    - wind_speed > 10 -> "Strong wind indicates thunderstorm"
-    - Combine reasons if multiple
-    """
-    reasons = []
+def calculate_rules_fired(rainfall: float, humidity: float, wind_speed: float, risk_level: str) -> List[str]:
+    """The calculate_rule_risk rules (same thresholds) that put a place at `risk_level`, as short labels."""
     rain = float(rainfall if rainfall is not None else 0.0)
     hum = float(humidity if humidity is not None else 0.0)
     wind = float(wind_speed if wind_speed is not None else 0.0)
+    risk = str(risk_level).upper()
+    if risk == "HIGH":
+        return (["Rain above 20 mm in the last hour"] if rain > 20.0 else []) + (
+            ["Humidity above 90 %"] if hum > 90.0 else []) + (["Wind above 10 m/s"] if wind > 10.0 else [])
+    if risk == "MODERATE":
+        return (["Rain above 5 mm in the last hour"] if rain > 5.0 else []) + (
+            ["Humidity above 70 %"] if hum > 70.0 else [])
+    return []
 
-    if rain > 20.0:
-        reasons.append("Heavy rainfall indicates flood risk")
-    if hum > 90.0:
-        reasons.append("High humidity supports storm formation")
-    if wind > 10.0:
-        reasons.append("Strong wind indicates thunderstorm")
 
-    if reasons:
-        return " | ".join(reasons)
+def _rule_list(fired: List[str]) -> str:
+    return "; ".join(r[:1].lower() + r[1:] for r in fired)
 
-    if str(risk_level).upper() == "HIGH":
-        return "Severe atmospheric instability detected"
-    elif str(risk_level).upper() == "MODERATE":
-        return "Moderate convective indicators observed"
-    else:
-        return "Normal atmospheric conditions"
+
+def rule_reason(risk_level: str, fired: List[str], rules_level: Optional[str] = None,
+                rules_level_fired: Optional[List[str]] = None) -> str:
+    """Reason text = the rule(s) that fired (team pages, 8 Oct 2026), e.g. "Rule-based Moderate: humidity
+    above 70 %". No hazard is claimed as observed or detected. When the /predict hybrid score raised the
+    level above the rules (`rules_level`, with its own fired rules), the text says so instead of naming a rule."""
+    level = str(risk_level or "LOW").strip().capitalize()
+    if fired:
+        return f"Rule-based {level}: {_rule_list(fired)}"
+    if level == "Low":
+        return "Rule-based Low: no rule fired"
+    base = str(rules_level or "LOW").strip().capitalize()
+    rest = f": {_rule_list(rules_level_fired)}" if rules_level_fired else " (no rule fired)"
+    return f"{level} from the team's combined weather score; the rules alone give {base}{rest}"
 
 
 # Team rule change (2026-09-30, "calm-down fix"; INTEGRATION.md): with no rain in the last hour
@@ -335,7 +338,7 @@ def generate_actionable_alert(risk_level, rainfall, humidity, wind_speed):
             return {
                 "type": "Moderate Risk",
                 "severity": "MODERATE",
-                "action": "Moderate atmospheric indicators observed. Stay updated with local advisories."
+                "action": "Stay updated with local advisories."
             }
     else:
         return {
@@ -488,7 +491,8 @@ def predict_risk(request: PredictionRequest):
     p_cloud = float(hybrid_pred.get("cloudburst", hybrid_pred.get("probabilities", {}).get("HIGH", 0.05)))
     p_flood = float(hybrid_pred.get("flood", hybrid_pred.get("probabilities", {}).get("HIGH", 0.05)))
 
-    reason = generate_explainable_reason(rainfall, hum, wind, final_risk)
+    reason = rule_reason(final_risk, calculate_rules_fired(rainfall, hum, wind, final_risk),
+                         rule_level, calculate_rules_fired(rainfall, hum, wind, rule_level))
     p_flood, reason, flood_note = flash_flood_gate(rainfall, p_flood, reason)
     hybrid_pred["flood"] = hybrid_pred["prob_flood"] = round(p_flood, 2)
     alerts = get_alert(hybrid_pred)
@@ -715,9 +719,9 @@ async def get_unified_alerts_dataset(limit: int = 380) -> Dict[str, Any]:
             p_thunder = round(0.80 if risk == "HIGH" else (0.40 if risk == "MODERATE" else 0.12), 2)
             p_cloud = round(0.75 if risk == "HIGH" else (0.35 if risk == "MODERATE" else 0.05), 2)
 
-            reason = generate_explainable_reason(rain, hum, wind, risk)
-            p_flood, reason, flood_note = flash_flood_gate(rain, p_flood, reason)
             fired = rules_fired(features, risk)
+            reason = rule_reason(risk, fired)          # the predict_nowcast rule(s) behind this level
+            p_flood, reason, flood_note = flash_flood_gate(rain, p_flood, reason)
 
             alert_item = {
                 "id": i,

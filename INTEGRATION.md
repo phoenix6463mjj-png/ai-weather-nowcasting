@@ -1890,6 +1890,54 @@ Approved exception to the 15 px type scale: overlays on the Dashboard map (only 
 - **Screenshots:** `city_search_{dashboard,open,result}_*` (1920×1080, 1366×768, 390×844),
   `city_search_forecast_open_1366x768`.
 
+### Rule reason wording (8 Oct 2026)
+
+- **Why:** the backend gave a zone's reason from `generate_explainable_reason`, which overclaimed:
+  - "Moderate convective indicators observed" (most MODERATE zones come from the humidity rule alone);
+  - "Severe atmospheric instability detected";
+  - "Heavy rainfall indicates flood risk", "High humidity supports storm formation", "Strong wind indicates
+    thunderstorm";
+  - "Normal atmospheric conditions".
+
+  That function is removed.
+- **Now** (`backend/main.py`, `rule_reason`): the reason is the rule(s) that fired, with the existing
+  thresholds only. Examples:
+  - "Rule-based Moderate: humidity above 70 %";
+  - "Rule-based High: rain above 20 mm in the last hour";
+  - "Rule-based High: humidity above 90 % with wind above 8 m/s";
+  - "Rule-based Low: no rule fired".
+
+  The flash-flood note "; flash flood Low (no rain in the last hour)" is unchanged.
+  - **Zone list (`/alerts`):** the `predict_nowcast` rules, the same list as `rules_fired`. A MODERATE or HIGH
+    level always names its rule.
+  - **Dashboard search (`/predict`):** its own `calculate_rule_risk` rules (`calculate_rules_fired`). When the
+    team's combined score raised the level above the rules, it says so, e.g. "High from the team's combined
+    weather score; the rules alone give Moderate: humidity above 70 %".
+  - **Other texts:** the MODERATE alert action "Moderate atmospheric indicators observed. Stay updated…" →
+    "Stay updated with local advisories.". The hybrid explanation "Moderate rainfall detected (x mm)" → "Rain
+    of 5 mm or more in the last hour (x mm)" (`utils/v2_predictor.py`, same `>= 5` test). "High weather event
+    risk detected." → "High weather event risk." (`utils/alert_system.py`).
+- **Where it shows:**
+  - The reason text: the Dashboard right panel ("Reason: …") and the map popup.
+  - Alerts cards, Forecast and Reports build their text from `rules_fired` (unchanged, already rule names).
+  - No "observed" / "detected" wording is left for rule-based levels on these pages. The ML pages' IMERG
+    "observed" is correct and unchanged.
+- **Tests:**
+  - New `tests/test_rule_reason.py` (8):
+    - forced zone lists (Open-Meteo mocked): MODERATE from humidity alone, MODERATE from rain, HIGH from
+      rain, HIGH from humidity + wind, LOW. Reason, `prediction.reason`, `rules_fired`, nothing
+      observed / detected;
+    - a 125-point grid: only fired rules, only existing thresholds;
+    - the `/predict` wording;
+    - the old texts are gone.
+  - `test_open_meteo` and `test_flash_flood_gate` updated.
+  - e2e: `dashboard.spec.js` checks every zone reason starts "Rule-based <level>:" and the page says
+    neither "observed" nor "detected", whatever the weather. Its "no %" check allows the humidity-rule
+    threshold ("humidity above 70 %").
+  - e2e fixtures in `calm`, `primary_threat` and `forecast_leftovers` use the new wording.
+- **Host:** `hosting/space` rebuilt (`team_app/backend/main.py`, `team_app/utils/v2_predictor.py`; `alert_system.py`
+  is not shipped).
+
 ## 7. Troubleshooting
 
 | symptom | cause / fix |
@@ -1984,14 +2032,9 @@ Approved exception to the 15 px type scale: overlays on the Dashboard map (only 
 **Known issues (team pages; not changed):**
 - Dashboard sidebar: "Live Map" and "Locations" only reload the zone list, "Settings" opens Analytics,
   and the avatar does nothing.
-- (4 Oct 2026) The backend's MODERATE reason reads "Moderate convective indicators observed"
-  (`backend/main.py`, `predict_nowcast`). When the default (first) zone is MODERATE, as on 4 Oct with 0 HIGH
-  zones, the right panel shows it, and the "never 'observed' on model / sample data" checks fail:
-  - `weather_sources.spec.js` ("open-meteo");
-  - `openweather.spec.js` ("OpenWeather for every zone").
-
-  This is data-dependent: they fail the same way without the declutter changes (checked with the changes
-  stashed). The wording is not changed here.
+- (4 Oct 2026; **fixed 8 Oct**, see "Rule reason wording") The backend's MODERATE reason read "Moderate
+  convective indicators observed". When the default zone was MODERATE, it made the "never 'observed'" checks
+  in `weather_sources.spec.js` and `openweather.spec.js` fail.
 - **Honesty fixes (Batch 1, audit A1–A6, F2):**
   - **Analytics:** "Rule-based indicator (not the ML model)" and "Rule-based summary of sample data /
     OpenWeather data / built-in example data (backend not reachable)". The XGBoost, "Validated" and

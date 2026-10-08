@@ -144,7 +144,8 @@ def test_identical_open_meteo_weather_gives_identical_rule_risk():
     res = []
     for name in ("Place A", "Place B", "Shillong"):
         f = M.engineer_features({**w, "city": name, "lat": 1, "lon": 2})
-        res.append((M.predict_nowcast(f), M.generate_explainable_reason(w["rainfall"], w["humidity"], w["wind_speed"])))
+        risk = M.predict_nowcast(f)
+        res.append((risk, M.rule_reason(risk["risk_level"], M.rules_fired(f, risk["risk_level"]))))
     assert res[0] == res[1] == res[2]
 
 

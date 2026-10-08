@@ -54,9 +54,11 @@ test('Dashboard: no % for any hazard, rule-based levels, primary threat agrees w
     for (const lv of await page.getByTestId('hazard-level').all()) {
         expect(['Low', 'Moderate', 'High', 'Not rated']).toContain(await lv.getAttribute('data-level'));   // Not rated: no rule points to it
     }
-    // the only % left on the page are humidity values
+    // the only % left on the page are humidity values and the humidity rule thresholds in the rule reason
+    // ("Rule-based Moderate: humidity above 70 %", "humidity above 90 % with wind above 8 m/s")
     const body = await page.locator('body').innerText();
-    const pctLines = body.split('\n').map((l) => l.trim()).filter((l) => l.includes('%'));
+    const pctLines = body.split('\n').map((l) => l.trim().replace(/humidity above (70|90) %/gi, '').trim())
+        .filter((l) => l.includes('%'));
     for (const l of pctLines) expect(l, `unexpected % line: ${l}`).toMatch(/^\d+(\.\d+)?%$/);
     for (const re of [/(cloudburst|flash flood|flood|thunderstorm)[^\n]{0,40}\d+\s*%/i, /\bSafe\b/, /All Clear/i]) {
         expect(body).not.toMatch(re);
@@ -70,6 +72,9 @@ test('Dashboard: no % for any hazard, rule-based levels, primary threat agrees w
     await expect(panel.getByTestId('primary-threat')).toHaveCount(first.risk_level === 'HIGH' ? 1 : 0);
     if (first.risk_level !== 'LOW') await expect(panel).not.toContainText(/stable/i);
     const expl = panel.getByTestId('rule-explanation');
+    // reason = the rule that fired, whatever the day's weather; never "observed" / "detected" (8 Oct 2026)
+    for (const a of data.alerts.filter((z) => z.reason)) expect(a.reason).toMatch(/^Rule-based (Low|Moderate|High): /);
+    expect(body).not.toMatch(/\b(observed|detected)\b/i);
     if (first.reason) {
         await expect(expl).toContainText(`Reason: ${first.reason}`);
         await expect(expl).not.toContainText('No explanation available');

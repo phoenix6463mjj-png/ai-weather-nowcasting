@@ -22,8 +22,8 @@ function zone(city, risk, { rain = 0, hum = 84, wind = 1.8, reason, flood, thund
         probabilities: { flash_flood: flood, thunderstorm: thunder, cloudburst: cloud } };
 }
 
-const HIGH = zone('Highville', 'HIGH', { rain: 24.0, hum: 93, wind: 9, reason: 'Heavy rainfall indicates flood risk', flood: 0.85, thunder: 0.8, cloud: 0.75, lat: 26.1, lon: 91.7 });
-const MOD = zone('Mumbai', 'MODERATE', { reason: `Moderate convective indicators observed; flash flood Low (${NO_RAIN})`, flood: 0.08, thunder: 0.4, cloud: 0.35, note: NO_RAIN, lat: 18.97, lon: 72.83 });
+const HIGH = zone('Highville', 'HIGH', { rain: 24.0, hum: 93, wind: 9, reason: 'Rule-based High: rain above 20 mm in the last hour; humidity above 90 % with wind above 8 m/s', flood: 0.85, thunder: 0.8, cloud: 0.75, lat: 26.1, lon: 91.7 });
+const MOD = zone('Mumbai', 'MODERATE', { reason: `Rule-based Moderate: humidity above 70 %; flash flood Low (${NO_RAIN})`, flood: 0.08, thunder: 0.4, cloud: 0.35, note: NO_RAIN, lat: 18.97, lon: 72.83 });
 const BARE = zone('Quietpur', 'MODERATE', { reason: null, flood: 0.08, thunder: 0.4, cloud: 0.35, note: NO_RAIN, lat: 23.2, lon: 77.4 });
 
 function summaryOf(alerts) {

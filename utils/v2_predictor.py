@@ -412,7 +412,7 @@ def compute_hybrid_risk(
         p_low = round((1.0 - p_mod) * 0.65, 2)
         p_high = round(1.0 - p_mod - p_low, 2)
         if rain >= 5.0:
-            explanation = f"Moderate rainfall detected ({rain:.1f}mm): localized runoff advisory"
+            explanation = f"Rain of 5 mm or more in the last hour ({rain:.1f}mm): localized runoff advisory"
         elif thunderstorm >= 0.40:
             explanation = f"{reg_tag}: moderate convective thunderstorm indicator"
         elif cloudburst >= 0.35:

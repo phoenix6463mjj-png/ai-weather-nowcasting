@@ -9,7 +9,7 @@ const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
 
 function zone(city, risk, rules, source, { rain = 0, hum = 84, wind = 1.8 } = {}) {
     return { city, state: 'Test State', lat: 20, lon: 78, risk_level: risk, risk, severity: risk, rules_fired: rules,
-        reason: 'Moderate convective indicators observed', temperature: 27.3, humidity: hum, rainfall: rain,
+        reason: rules && rules.length ? `Rule-based ${risk[0]}${risk.slice(1).toLowerCase()}: ${rules.map((r) => r[0].toLowerCase() + r.slice(1)).join('; ')}` : 'Rule-based Low: no rule fired', temperature: 27.3, humidity: hum, rainfall: rain,
         wind_speed: wind, timestamp: new Date().toISOString(), source,
         weather: { temperature: 27.3, humidity: hum, rainfall: rain, wind_speed: wind, source,
             observed_at: source === 'openweather' ? '2026-09-30T18:00:00Z' : null, data_time: '2026-09-30T18:00Z' },

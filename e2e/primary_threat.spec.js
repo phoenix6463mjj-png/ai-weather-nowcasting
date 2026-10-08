@@ -15,7 +15,7 @@ function zone(city, { rain, hum, wind, rules, lat, lon }) {
     const w = { temperature: 26.0, humidity: hum, rainfall: rain, wind_speed: wind, wind, pressure: 1006,
         source: 'open-meteo', zone_source: 'open_meteo', observed_at: null, data_time: T, conditions: 'Slight rain', stale: false };
     const pred = { risk_level: 'HIGH', risk_label: 2, risk_text: 'HIGH', prob_flood: 0.85, prob_thunderstorm: 0.8,
-        prob_cloudburst: 0.75, reason: 'High humidity supports storm formation', flood_note: null };
+        prob_cloudburst: 0.75, reason: `Rule-based High: ${rules.map((r) => r[0].toLowerCase() + r.slice(1)).join('; ')}`, flood_note: null };
     return { city, state: 'Test State', lat, lon, risk_level: 'HIGH', risk: 'HIGH', severity: 'HIGH', rules_fired: rules,
         type: rules.includes(RAIN_HIGH) ? 'Flash Flood' : 'Rule-based HIGH', reason: pred.reason,
         temperature: 26.0, humidity: hum, rainfall: rain, wind_speed: wind, timestamp: '2026-10-01T13:50:00Z',

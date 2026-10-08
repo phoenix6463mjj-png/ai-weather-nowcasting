@@ -81,7 +81,7 @@ def generate_alerts(prediction: Dict[str, Any]) -> Dict[str, Any]:
                     if isinstance(v, (int, float))), default=0.0)
     if max_prob >= 0.7:
         severity, status, color = "HIGH", "WARNING", "#ff4444"
-        message = "High weather event risk detected."
+        message = "High weather event risk."
         icon = "warning"
     elif max_prob >= 0.4:
         severity, status, color = "MODERATE", "CAUTION", "#ffaa00"
