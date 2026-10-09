@@ -1938,6 +1938,22 @@ Approved exception to the 15 px type scale: overlays on the Dashboard map (only 
 - **Host:** `hosting/space` rebuilt (`team_app/backend/main.py`, `team_app/utils/v2_predictor.py`; `alert_system.py`
   is not shipped).
 
+### v1 INSAT downloader hardening (10 Oct 2026, nowcast_data only)
+
+- **Scope:** `nowcast_v1/download/fetch_insat_v1.py` and its tests. No serve/, team_app code, UI or models/v0
+  change (v0 hashes unchanged). INSAT is not a model input here; this only fetches the v1 training data.
+- **Missing vs failed:** only HTTP 404, or HTTP 200 without a filename, is "missing" (skipped on later runs;
+  `--retry-missing` re-checks them). Any other non-200 (e.g. the HTTP 502 Proxy Error of 28 Sep), a network
+  error, an interrupted stream or a size mismatch is retried 6 times with backoff 15/30/60/120/240 s; if all
+  fail the file is "failed" in `features/v1_insat/manifest.csv` and is retried on the next run.
+- **Logins** (rules copied from `scratch/mdapi_env/strict_session.py`): a failed login is never retried
+  (HTTP 400/401 stops at once); the token is refreshed proactively at 20 min; a failed refresh allows one
+  fresh login, at least 20 min after the previous one; at most 6 logins per run. Credentials and tokens
+  are never printed or logged (masked, expiry time only).
+- **Disk / speed:** free space before each file via `shutil.disk_usage` only; folder sizes only on the
+  25-file progress line; a WARNING line when the last-25-file rate is below 1 MB/s (no action taken).
+- **Tests:** `nowcast_v1/tests/test_fetch_insat_v1.py` (23, mocked HTTP, no network); nowcast_v1 total 28.
+
 ## 7. Troubleshooting
 
 | symptom | cause / fix |
