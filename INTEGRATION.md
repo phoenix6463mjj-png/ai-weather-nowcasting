@@ -1953,6 +1953,9 @@ Approved exception to the 15 px type scale: overlays on the Dashboard map (only 
 - **Disk / speed:** free space before each file via `shutil.disk_usage` only; folder sizes only on the
   25-file progress line; a WARNING line when the last-25-file rate is below 1 MB/s (no action taken).
 - **Tests:** `nowcast_v1/tests/test_fetch_insat_v1.py` (23, mocked HTTP, no network); nowcast_v1 total 28.
+- **Refresh rule (12 Oct 2026, nowcast_data 3e3265f):** MOSDAC access tokens last 5 min, so the old "within 5 min of
+  expiry" rule refreshed before every file; now a refresh only when < 90 s of the token's life remain (or, expiry
+  unknown, at 3 min old), about every 3.5 min. Login rules unchanged; nowcast_v1 tests 30.
 
 ## 7. Troubleshooting
 
