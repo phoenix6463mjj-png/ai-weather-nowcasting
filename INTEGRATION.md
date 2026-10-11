@@ -1957,6 +1957,22 @@ Approved exception to the 15 px type scale: overlays on the Dashboard map (only 
   expiry" rule refreshed before every file; now a refresh only when < 90 s of the token's life remain (or, expiry
   unknown, at 3 min old), about every 3.5 min. Login rules unchanged; nowcast_v1 tests 30.
 
+### v1 pre-registration + arm A baseline (12 Oct 2026, nowcast_data only)
+
+- **Scope:** `models/v1/PREREG.md` (own commit 22f3f6a, before any v1 training), `models/v1/lgbm_v1_base/`,
+  `models/v1/TEST_LOG.md` ("not yet run"), `nowcast_v1/{splits_v1,train_base,quick_check,score_val}.py` (56d234a).
+  No serve/, team_app code, UI or models/v0 change (v0 hashes unchanged). Nothing is served; v0 stays deployed.
+- **PREREG:** Jun–Sep rows; train 2018–2021 + early stopping on 2022; validation 2023–2024; 2025 test once.
+  Arms A (43 v0 features), B (+20 IR), R (frozen v0, flagged: 2023 was its validation), persistence, advection;
+  arm C pilot per D. "INSAT helps" only if mean CSI change B − A over 15 cells > 0 with a 90 % episode-bootstrap
+  interval excluding 0.
+- **Arm A:** the v0 trainer imported unchanged except its row selection; best iterations 613 / 255 / 177
+  (1 / 10 / 30 mm/hr), 85 / 54 / 45 s each; `rows.parquet` keeps the 4,798,932 rows used so arm B trains on
+  the same rows. Row-level check on Jun–Sep 2023–2024 (not the like-for-like score): A and v0 within 0.003
+  log-loss and 0.006 AUC in every cell.
+- **Scoring:** `python -m nowcast_v1.score_val --arms A R` (resumable per episode; ~9 h for 76 episodes).
+- **Tests:** nowcast_v1 35 (mocked/synthetic, no network).
+
 ## 7. Troubleshooting
 
 | symptom | cause / fix |
